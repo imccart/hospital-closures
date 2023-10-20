@@ -9,11 +9,11 @@
 # Preliminaries -----------------------------------------------------------
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here,
-               fedmatch, scales)
+               fedmatch, scales, tidycensus)
 
 # Read-in data ------------------------------------------------------------
-aha.combine <- read_csv('data/input/aha_data.csv')
-cah.supplement <- read_csv('data/input/cah_data.csv')
+aha.combine <- read_csv('data/input/aha_data')
+cah.supplement <- read_csv('data/input/cah_data')
 
 
 
@@ -115,7 +115,7 @@ cah.closed <- aha.final %>% mutate(all_cah=sum(critical_access)) %>%
 
 ## Count of CAH and Non-CAH over time
 fig.hosp.type <- aha.final %>% group_by(year, critical_access) %>%
-  summarize(hosp_count=n()) %>%
+  summarize(hosp_count=n())  %>%
   ggplot(aes(x=year, y=hosp_count, group=critical_access)) + 
   geom_line() + geom_point() + theme_bw() +
   geom_text(data = aha.final %>% filter(year==2016) %>% group_by(critical_access, year) %>% summarize(hosp_count=n()), 
@@ -123,8 +123,8 @@ fig.hosp.type <- aha.final %>% group_by(year, critical_access) %>%
                 x = year+1,
                 y = hosp_count-100)) +
   scale_y_continuous(labels = comma,
-                     breaks=seq(0, 5000, 250)) +
-  scale_x_continuous(breaks=seq(2007, 2019, 1)) +
+                     breaks=seq(0, 8000, 500)) +
+  scale_x_continuous(breaks=seq(1980, 2019, 1)) +
   theme(axis.text.x = element_text(angle = 45, hjust=1)) +
   guides(linetype="none") +
   labs(
@@ -176,7 +176,7 @@ fig.close <- all.change %>%
   ggplot(aes(x = year, y = value, color = type, linetype = change_type)) +
   geom_line() +
   ylim(0,0.05) + 
-  scale_x_continuous(breaks=seq(2007, 2019, 1)) +
+  scale_x_continuous(breaks=seq(1980, 2019, 1)) +
   labs(x = "Year", y = "Proportion", color = "Hospital Type", linetype = "Change Type") +
   theme_minimal() +
   scale_color_discrete(labels=c("CAH","Non-CAH")) + 
@@ -192,3 +192,62 @@ merge.close <- aha.final %>%
   group_by(year, change_type) %>%
   mutate(change_type_count=sum(hosp_count)) %>% ungroup() %>%
   write_csv('data/output/merge_close.csv')
+
+
+
+  ## identify each hospital's nearest neighbor and the distance to that neighbor using the haversine formula
+haversine <- function(coord1, coord2) {
+  R <- 6371.01  # Earth's radius in kilometers
+  
+  lat1 <- as.numeric(coord1[2]) * pi / 180
+  long1 <- as.numeric(coord1[1]) * pi / 180
+  lat2 <- as.numeric(coord2[2]) * pi / 180
+  long2 <- as.numeric(coord2[1]) * pi / 180
+  
+  dlat <- lat2 - lat1
+  dlong <- long2 - long1
+  
+  a <- sin(dlat/2)^2 + cos(lat1) * cos(lat2) * sin(dlong/2)^2
+  c <- 2 * atan2(sqrt(a), sqrt(1-a))
+  
+  d <- R * c
+  return(d)
+}
+
+## identify closest hospitals by distance
+# List of unique years from your data
+unique_years <- unique(aha.geo$year)
+
+# You'll need an API key from the US Census Bureau, which you can obtain for free and then set:
+census_api_key("YOUR_API_KEY")
+
+# Fetch the data for ZCTAs
+zcta_data <- get_acs(geography = "zcta", variables = "NAME")
+
+
+# An empty list to store results for each year
+list_results <- list()
+
+for (yr in unique_years) {
+  res <- aha.geo %>%
+    filter(year == 1995) %>% # Filter data for the current year
+    select(ID, LAT, LONG, year) %>%
+    full_join(aha.geo %>% select(ID2=ID, LAT2=LAT, LONG2=LONG, year), by = "year") %>%
+    filter(ID != ID2) %>%
+    mutate(dist = haversine(cbind(LONG2, LAT2), cbind(LONG, LAT))) %>%
+    filter(!is.na(dist)) %>%
+    group_by(ID, year) %>%
+    mutate(min_dist=min(dist, na.rm=TRUE)) %>%
+    filter(dist == min_dist) %>%
+    ungroup() %>%
+    select(ID, ID2, dist, year)
+  
+  # Add results for the current year to the list
+  list_results[[as.character(yr)]] <- res
+}
+
+# Combine results of all years into a single data frame
+final_result <- bind_rows(list_results)
+
+# Write the final result to CSV
+write_csv(final_result, 'data/output/aha_geo_neighbors.csv')
