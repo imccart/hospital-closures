@@ -9,7 +9,7 @@
 # Preliminaries -----------------------------------------------------------
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here,
-               fedmatch, scales, tidycensus)
+               fedmatch, scales, zipcodeR)
 
 # Read-in data ------------------------------------------------------------
 aha.combine <- read_csv('data/input/aha_data')
@@ -195,50 +195,28 @@ merge.close <- aha.final %>%
 
 
 
-  ## identify each hospital's nearest neighbor and the distance to that neighbor using the haversine formula
-haversine <- function(coord1, coord2) {
-  R <- 6371.01  # Earth's radius in kilometers
-  
-  lat1 <- as.numeric(coord1[2]) * pi / 180
-  long1 <- as.numeric(coord1[1]) * pi / 180
-  lat2 <- as.numeric(coord2[2]) * pi / 180
-  long2 <- as.numeric(coord2[1]) * pi / 180
-  
-  dlat <- lat2 - lat1
-  dlong <- long2 - long1
-  
-  a <- sin(dlat/2)^2 + cos(lat1) * cos(lat2) * sin(dlong/2)^2
-  c <- 2 * atan2(sqrt(a), sqrt(1-a))
-  
-  d <- R * c
-  return(d)
-}
+## identify each hospital's nearest neighbor and the distance to that neighbor using the haversine formula
+aha.geo <- aha.final %>%
+  mutate(zip=substr(MLOCZIP, 1, 5)) %>%
+  select(ID, LAT, LONG, year, zip) %>%
+  distinct(ID, LAT, LONG, year, zip) %>%
+  mutate_at(vars(LAT, LONG), as.numeric)
 
-## identify closest hospitals by distance
-# List of unique years from your data
-unique_years <- unique(aha.geo$year)
-
-# You'll need an API key from the US Census Bureau, which you can obtain for free and then set:
-census_api_key("YOUR_API_KEY")
-
-# Fetch the data for ZCTAs
-zcta_data <- get_acs(geography = "zcta", variables = "NAME")
-
-
-# An empty list to store results for each year
 list_results <- list()
-
 for (yr in unique_years) {
   res <- aha.geo %>%
     filter(year == 1995) %>% # Filter data for the current year
-    select(ID, LAT, LONG, year) %>%
-    full_join(aha.geo %>% select(ID2=ID, LAT2=LAT, LONG2=LONG, year), by = "year") %>%
+    full_join(aha.geo %>% select(ID2=ID, LAT2=LAT, LONG2=LONG, zip2=zip, year), by = "year") %>%
     filter(ID != ID2) %>%
-    mutate(dist = haversine(cbind(LONG2, LAT2), cbind(LONG, LAT))) %>%
+    mutate(dist = case_when(
+      is.na(LAT) | is.na(LONG) | is.na(LAT2) | is.na(LONG2) ~ zip_distance(~zip, ~zip2),
+      TRUE ~ haversine(cbind(LONG2, LAT2), cbind(LONG, LAT)))) %>%
     filter(!is.na(dist)) %>%
     group_by(ID, year) %>%
     mutate(min_dist=min(dist, na.rm=TRUE)) %>%
-    filter(dist == min_dist) %>%
+    filter(dist == min_dist) 
+    
+    %>%
     ungroup() %>%
     select(ID, ID2, dist, year)
   
