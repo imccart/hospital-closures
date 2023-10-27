@@ -2,8 +2,8 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   7/17/2023
-## Description:   Initial Summary Statistics
+## Date Edited:   10/26/2023
+## Description:   Build Analytic Data
 
 
 # Preliminaries -----------------------------------------------------------
@@ -14,6 +14,8 @@ pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, jani
 # Read-in data ------------------------------------------------------------
 aha.combine <- read_csv('data/input/aha_data')
 cah.supplement <- read_csv('data/input/cah_data')
+source('data-code/functions.R')
+source('data-code/api-keys.R')
 
 
 
@@ -98,92 +100,10 @@ aha.final <- aha.combine %>%
            TRUE ~ 'Other'
          )) %>%
   filter(COMMTY=="Y",
-         SERV==10)
-  
+         SERV==10) %>%
+    write_csv('data/output/aha_final.csv')         
 
-
-# Quick summary -----------------------------------------------------------
-
-## bed sizes of hospitals that closed
-bed.closed <- aha.final %>% filter(change_type=="Closure") %>% 
-  mutate(bed_bin=cut(BDTOT, breaks=c(0,5,10,15,20,25,30,40,50,75,100,150,200,250,300,400,500,999))) %>% 
-  count(bed_bin) %>% arrange(bed_bin)
-
-## CAH designation among hospitals that closed
-cah.closed <- aha.final %>% mutate(all_cah=sum(critical_access)) %>% 
-  group_by(change_type, critical_access) %>% summarize(n=n(), all_cah=first(all_cah), all_hosp=nrow(aha.combine))
-
-## Count of CAH and Non-CAH over time
-fig.hosp.type <- aha.final %>% group_by(year, critical_access) %>%
-  summarize(hosp_count=n())  %>%
-  ggplot(aes(x=year, y=hosp_count, group=critical_access)) + 
-  geom_line() + geom_point() + theme_bw() +
-  geom_text(data = aha.final %>% filter(year==2016) %>% group_by(critical_access, year) %>% summarize(hosp_count=n()), 
-            aes(label = c("Non-CAH", "CAH"),
-                x = year+1,
-                y = hosp_count-100)) +
-  scale_y_continuous(labels = comma,
-                     breaks=seq(0, 8000, 500)) +
-  scale_x_continuous(breaks=seq(1980, 2019, 1)) +
-  theme(axis.text.x = element_text(angle = 45, hjust=1)) +
-  guides(linetype="none") +
-  labs(
-    x="Year",
-    y="Count of Hospital Types",
-    caption="Limited to general, short-term, acute care community hospitals"
-  )
-
-## Share of CAH and Non-CAH closures over time
-cah.change <- aha.final %>%
-  filter(critical_access==1) %>%
-  group_by(year, change_type) %>%
-  summarize(cah_change=n()) %>%
-  group_by(year) %>%
-  mutate(all_cah=sum(cah_change),
-         prop_cah=cah_change/all_cah) %>%
-  select(year, prop_cah, change_type) %>%
-  ungroup()
-
-non.cah.change <- aha.final %>%
-  filter(critical_access==0) %>%
-  group_by(year, change_type) %>%
-  summarize(non_cah_change=n()) %>%
-  group_by(year) %>%
-  mutate(all_non_cah=sum(non_cah_change),
-         prop_non_cah=non_cah_change/all_non_cah) %>%
-  select(year, prop_non_cah, change_type) %>%
-  ungroup()
-
-all.change <- aha.final %>%
-  group_by(year, change_type) %>%
-  summarize(any_change=n()) %>%
-  group_by(year) %>%
-  mutate(all_hosp=sum(any_change),
-         prop_change=any_change/all_hosp) %>%
-  select(year, change_type, prop_change) %>%
-  ungroup()
-
-
-fig.close <- all.change %>%
-  left_join(non.cah.change,
-            by=c("year","change_type")) %>%
-  left_join(cah.change, 
-            by=c("year", "change_type")) %>%
-  filter(change_type %in% c("Closure", "Merger")) %>%
-  select(year, change_type, prop_non_cah, prop_cah) %>%
-  replace_na(list(prop_non_cah=0, prop_cah=0)) %>%
-  pivot_longer(cols = starts_with("prop"), names_to = "type", values_to = "value") %>%
-  ggplot(aes(x = year, y = value, color = type, linetype = change_type)) +
-  geom_line() +
-  ylim(0,0.05) + 
-  scale_x_continuous(breaks=seq(1980, 2019, 1)) +
-  labs(x = "Year", y = "Proportion", color = "Hospital Type", linetype = "Change Type") +
-  theme_minimal() +
-  scale_color_discrete(labels=c("CAH","Non-CAH")) + 
-  guides(color = guide_legend(order = 2), linetype = guide_legend(order = 1)) +
-  theme(axis.text.x = element_text(angle = 45, hjust=1),
-        legend.position=c(0.8,0.65))
-
+## hospital closures and mergers
 merge.close <- aha.final %>% 
   group_by(year, change_type, critical_access) %>%
   summarize(hosp_count=n()) %>% ungroup() %>%
@@ -194,7 +114,6 @@ merge.close <- aha.final %>%
   write_csv('data/output/merge_close.csv')
 
 
-
 ## identify each hospital's nearest neighbor and the distance to that neighbor using the haversine formula
 aha.geo <- aha.final %>%
   mutate(zip=substr(MLOCZIP, 1, 5)) %>%
@@ -202,30 +121,42 @@ aha.geo <- aha.final %>%
   distinct(ID, LAT, LONG, year, zip) %>%
   mutate_at(vars(LAT, LONG), as.numeric)
 
-list_results <- list()
+unique_years <- unique(aha.geo$year)
+final.neighbors <- tibble()
 for (yr in unique_years) {
-  res <- aha.geo %>%
-    filter(year == 1995) %>% # Filter data for the current year
+  aha.pairs <- aha.geo %>%
+    filter(year == yr) %>% # Filter data for the current year
     full_join(aha.geo %>% select(ID2=ID, LAT2=LAT, LONG2=LONG, zip2=zip, year), by = "year") %>%
-    filter(ID != ID2) %>%
-    mutate(dist = case_when(
-      is.na(LAT) | is.na(LONG) | is.na(LAT2) | is.na(LONG2) ~ zip_distance(~zip, ~zip2),
-      TRUE ~ haversine(cbind(LONG2, LAT2), cbind(LONG, LAT)))) %>%
-    filter(!is.na(dist)) %>%
+    filter(ID != ID2)
+
+  zip.pairs <- aha.pairs %>%
+    filter(!is.na(zip), !is.na(zip2)) %>%
+    distinct(zip, zip2)
+
+  zip.dist <- zip_distance(zip.pairs$zip, zip.pairs$zip2) %>%
+    rename(zip=zipcode_a, zip2=zipcode_b, dist_zip=distance) %>%
+    filter(!is.na(dist_zip))
+
+  aha.neighbors <- aha.pairs %>%
+    left_join(zip.dist, by = c("zip", "zip2")) %>%
+    mutate(dist_latlong=haversine(cbind(LONG2, LAT2), cbind(LONG, LAT)),
+              distance=case_when(
+                 !is.na(dist_latlong) ~ dist_latlong,
+                 TRUE ~ dist_zip
+              )) %>%
+    filter(!is.na(distance)) %>%
     group_by(ID, year) %>%
-    mutate(min_dist=min(dist, na.rm=TRUE)) %>%
-    filter(dist == min_dist) 
-    
-    %>%
+    mutate(min_dist=min(distance, na.rm=TRUE)) %>%
+    filter(distance == min_dist) %>%
     ungroup() %>%
-    select(ID, ID2, dist, year)
-  
+    select(ID, ID2, distance, year)
+
   # Add results for the current year to the list
-  list_results[[as.character(yr)]] <- res
+  final.neighbors <- bind_rows(final.neighbors, aha.neighbors)
 }
 
-# Combine results of all years into a single data frame
-final_result <- bind_rows(list_results)
+nearest.neighbor <- final.neighbors %>%
+    group_by(ID, year) %>%
+    summarize(min_dist=min(distance, na.rm=TRUE)) %>%
+    write_csv('data/output/aha_neighbors.csv')
 
-# Write the final result to CSV
-write_csv(final_result, 'data/output/aha_geo_neighbors.csv')
