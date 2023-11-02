@@ -1,36 +1,20 @@
-# Meta --------------------------------------------------------------------
-
-## Author:        Ian McCarthy
-## Date Created:  5/17/2023
-## Date Edited:   7/17/2023
-## Description:   Initial Summary Statistics
-
-
-# Preliminaries -----------------------------------------------------------
-if (!require("pacman")) install.packages("pacman")
-pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here,
-               fedmatch, scales, zipcodeR)
-
-# Read-in data ------------------------------------------------------------
-aha.final <- read_csv('data/output/aha_final.csv')
-
 # Quick summary -----------------------------------------------------------
 
 ## bed sizes of hospitals that closed
-bed.closed <- aha.final %>% filter(change_type=="Closure") %>% 
+bed.closed <- aha.data %>% filter(change_type=="Closure") %>% 
   mutate(bed_bin=cut(BDTOT, breaks=c(0,5,10,15,20,25,30,40,50,75,100,150,200,250,300,400,500,999))) %>% 
   count(bed_bin) %>% arrange(bed_bin)
 
 ## CAH designation among hospitals that closed
-cah.closed <- aha.final %>% mutate(all_cah=sum(critical_access)) %>% 
+cah.closed <- aha.data %>% mutate(all_cah=sum(critical_access)) %>% 
   group_by(change_type, critical_access) %>% summarize(n=n(), all_cah=first(all_cah), all_hosp=nrow(aha.combine))
 
 ## Count of CAH and Non-CAH over time
-fig.hosp.type <- aha.final %>% group_by(year, critical_access) %>%
+fig.hosp.type <- aha.data %>% group_by(year, critical_access) %>%
   summarize(hosp_count=n())  %>%
   ggplot(aes(x=year, y=hosp_count, group=critical_access)) + 
   geom_line() + geom_point() + theme_bw() +
-  geom_text(data = aha.final %>% filter(year==2016) %>% group_by(critical_access, year) %>% summarize(hosp_count=n()), 
+  geom_text(data = aha.data %>% filter(year==2016) %>% group_by(critical_access, year) %>% summarize(hosp_count=n()), 
             aes(label = c("Non-CAH", "CAH"),
                 x = year+1,
                 y = hosp_count-100)) +
@@ -46,7 +30,7 @@ fig.hosp.type <- aha.final %>% group_by(year, critical_access) %>%
   )
 
 ## Share of CAH and Non-CAH closures over time
-cah.change <- aha.final %>%
+cah.change <- aha.data %>%
   filter(critical_access==1) %>%
   group_by(year, change_type) %>%
   summarize(cah_change=n()) %>%
@@ -56,7 +40,7 @@ cah.change <- aha.final %>%
   select(year, prop_cah, change_type) %>%
   ungroup()
 
-non.cah.change <- aha.final %>%
+non.cah.change <- aha.data %>%
   filter(critical_access==0) %>%
   group_by(year, change_type) %>%
   summarize(non_cah_change=n()) %>%
@@ -66,7 +50,7 @@ non.cah.change <- aha.final %>%
   select(year, prop_non_cah, change_type) %>%
   ungroup()
 
-all.change <- aha.final %>%
+all.change <- aha.data %>%
   group_by(year, change_type) %>%
   summarize(any_change=n()) %>%
   group_by(year) %>%
