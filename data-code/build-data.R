@@ -2,7 +2,7 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   10/26/2023
+## Date Edited:   11/06/2023
 ## Description:   Build Analytic Data
 
 
@@ -70,8 +70,8 @@ fuzzy.match.highscore %>% distinct(name_2, eff_date) %>% nrow()
 
 fuzzy.match <- fuzzy.match.highscore %>%
   group_by(ID) %>%
-  mutate(max_score=max(multivar_score),
-         max_name_score=max(name_compare)) %>%
+  mutate(max_score=max(multivar_score, na.rm=TRUE),
+         max_name_score=max(name_compare, na.rm=TRUE)) %>%
   filter(max_score==multivar_score) %>%
   filter(max_name_score==name_compare) %>%
   ungroup()
@@ -82,18 +82,18 @@ fuzzy.match %>% distinct(name_2, eff_date) %>% nrow()
 # Final data --------------------------------------------------------------
 
 fuzzy.unique <- fuzzy.match %>% 
-  select(ID, eff_date, aha_name=name_1, name_compare) %>% 
+  select(ID, eff_date, name_compare) %>% 
   mutate(cah_sup=1) %>%
-  group_by(ID, aha_name) %>%
-  mutate(first_date=min(eff_date)) %>%
+  group_by(ID) %>%
+  mutate(first_date=min(eff_date, na.rm=TRUE)) %>%
   filter(n()==1)
 
 aha.final <- aha.combine %>% 
-  mutate(aha_name=str_to_lower(MNAME)) %>%
   left_join(fuzzy.unique,
-            by=c('ID', 'aha_name')) %>%
+            by='ID') %>%
   mutate(eff_year=year(first_date),
          critical_access = case_when(
+           is.na(critical_access) & cah_sup==1 & year>=eff_year ~ 1,
            critical_access==0 & cah_sup==1 & year>=eff_year ~ 1,
            critical_access==1 ~ 1,
            TRUE ~ 0),

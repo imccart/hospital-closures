@@ -9,7 +9,7 @@
 # Preliminaries -----------------------------------------------------------
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here,
-               fedmatch, scales, zipcodeR, MatchIt, Matching, cobalt)
+               fedmatch, scales, zipcodeR)
 
 # Read-in data ------------------------------------------------------------
 aha.data <- read_csv('data/output/aha_final.csv')
