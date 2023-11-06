@@ -52,19 +52,31 @@ fuzzy.merge <- merge_plus(
   )
 )
 
-fuzzy.match <- as_tibble(fuzzy.merge$matches) %>%
+fuzzy.match.full <- as_tibble(fuzzy.merge$matches) %>%
   select(ID, name_1, city_1, state_1, zip_1, name_2, city_2, state_2, zip_2, 
-         name_compare, city_compare, state_compare, zip_compare, multivar_score, eff_date) %>%
-  filter(!is.na(multivar_score)) %>%
-  filter(city_compare>0.9, zip_compare==1, name_compare>0.69) %>%
+         name_compare, city_compare, state_compare, zip_compare, multivar_score, eff_date) 
+
+fuzzy.match.full %>% distinct(name_2, eff_date) %>% nrow()
+
+fuzzy.match.score <- fuzzy.match.full %>%
+  filter(!is.na(multivar_score)) 
+
+fuzzy.match.score %>% distinct(name_2, eff_date) %>% nrow()
+
+fuzzy.match.highscore <- fuzzy.match.score %>%
+  filter(city_compare>0.9, zip_compare==1, name_compare>0.69) 
+
+fuzzy.match.highscore %>% distinct(name_2, eff_date) %>% nrow()
+
+fuzzy.match <- fuzzy.match.highscore %>%
   group_by(ID) %>%
   mutate(max_score=max(multivar_score),
          max_name_score=max(name_compare)) %>%
   filter(max_score==multivar_score) %>%
   filter(max_name_score==name_compare) %>%
   ungroup()
-  
 
+fuzzy.match %>% distinct(name_2, eff_date) %>% nrow()
 
 
 # Final data --------------------------------------------------------------
