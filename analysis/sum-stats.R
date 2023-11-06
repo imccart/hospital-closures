@@ -1,5 +1,8 @@
 # Quick summary -----------------------------------------------------------
 
+## count of critical access by year
+view(aha.data %>% group_by(year) %>% summarize(tot_cah=sum(critical_access)))
+
 ## bed sizes of hospitals that closed
 bed.closed <- aha.data %>% filter(change_type=="Closure") %>% 
   mutate(bed_bin=cut(BDTOT, breaks=c(0,5,10,15,20,25,30,40,50,75,100,150,200,250,300,400,500,999))) %>% 
