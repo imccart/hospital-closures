@@ -82,17 +82,16 @@ fuzzy.match %>% distinct(name_2, eff_date) %>% nrow()
 # Final data --------------------------------------------------------------
 
 fuzzy.unique <- fuzzy.match %>% 
-  select(ID, eff_date, name_compare) %>% 
-  mutate(cah_sup=1) %>%
   group_by(ID) %>%
-  mutate(first_date=min(eff_date, na.rm=TRUE)) %>%
-  filter(n()==1)
+  summarize(first_date=min(eff_date, na.rm=TRUE)) %>%
+  mutate(cah_sup=1) %>%
+  ungroup()
 
 aha.final <- aha.combine %>% 
   left_join(fuzzy.unique,
             by='ID') %>%
   mutate(eff_year=year(first_date),
-         critical_access = case_when(
+         cah = case_when(
            is.na(critical_access) & cah_sup==1 & year>=eff_year ~ 1,
            critical_access==0 & cah_sup==1 & year>=eff_year ~ 1,
            critical_access==1 ~ 1,
