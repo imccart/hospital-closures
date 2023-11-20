@@ -1,23 +1,26 @@
 # Quick summary -----------------------------------------------------------
 
 ## count of critical access by year
-view(aha.data %>% group_by(year) %>% summarize(tot_cah=sum(critical_access)))
+view(final.dat %>% group_by(year) %>% summarize(tot_cah=sum(cah)))
+
+## first critical access hospital year by state
+view(final.dat %>% filter(cah==1) %>% group_by(MSTATE) %>% summarize(first_cah=min(year)))
 
 ## bed sizes of hospitals that closed
-bed.closed <- aha.data %>% filter(change_type=="Closure") %>% 
+bed.closed <- final.dat %>% filter(change_type=="Closure") %>% 
   mutate(bed_bin=cut(BDTOT, breaks=c(0,5,10,15,20,25,30,40,50,75,100,150,200,250,300,400,500,999))) %>% 
   count(bed_bin) %>% arrange(bed_bin)
 
 ## CAH designation among hospitals that closed
-cah.closed <- aha.data %>% mutate(all_cah=sum(critical_access)) %>% 
+cah.closed <- final.dat %>% mutate(all_cah=sum(critical_access)) %>% 
   group_by(change_type, critical_access) %>% summarize(n=n(), all_cah=first(all_cah), all_hosp=nrow(aha.combine))
 
 ## Count of CAH and Non-CAH over time
-fig.hosp.type <- aha.data %>% group_by(year, critical_access) %>%
+fig.hosp.type <- final.dat %>% group_by(year, critical_access) %>%
   summarize(hosp_count=n())  %>%
   ggplot(aes(x=year, y=hosp_count, group=critical_access)) + 
   geom_line() + geom_point() + theme_bw() +
-  geom_text(data = aha.data %>% filter(year==2016) %>% group_by(critical_access, year) %>% summarize(hosp_count=n()), 
+  geom_text(data = final.dat %>% filter(year==2016) %>% group_by(critical_access, year) %>% summarize(hosp_count=n()), 
             aes(label = c("Non-CAH", "CAH"),
                 x = year+1,
                 y = hosp_count-100)) +
@@ -33,7 +36,7 @@ fig.hosp.type <- aha.data %>% group_by(year, critical_access) %>%
   )
 
 ## Share of CAH and Non-CAH closures over time
-cah.change <- aha.data %>%
+cah.change <- final.dat %>%
   filter(critical_access==1) %>%
   group_by(year, change_type) %>%
   summarize(cah_change=n()) %>%
@@ -43,7 +46,7 @@ cah.change <- aha.data %>%
   select(year, prop_cah, change_type) %>%
   ungroup()
 
-non.cah.change <- aha.data %>%
+non.cah.change <- final.dat %>%
   filter(critical_access==0) %>%
   group_by(year, change_type) %>%
   summarize(non_cah_change=n()) %>%
@@ -53,7 +56,7 @@ non.cah.change <- aha.data %>%
   select(year, prop_non_cah, change_type) %>%
   ungroup()
 
-all.change <- aha.data %>%
+all.change <- final.dat %>%
   group_by(year, change_type) %>%
   summarize(any_change=n()) %>%
   group_by(year) %>%
@@ -83,3 +86,26 @@ fig.close <- all.change %>%
   theme(axis.text.x = element_text(angle = 45, hjust=1),
         legend.position=c(0.8,0.65))
 
+
+
+## Treatment timing --------------------------------------------------------
+
+panel.view <- final.dat %>%
+  mutate(cah_treat=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0)) %>%
+  group_by(MSTATE, year) %>%
+  summarize(hospitals=n(), cah_treat=max(cah_treat), 
+    closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE))
+
+panel.cah <- panelview(1~cah_treat, data=panel.view %>% mutate(MSTATE=as.character(MSTATE)), 
+                      index=c("MSTATE","year"), legendOff=TRUE, 
+          theme.bw=TRUE, by.timing=TRUE, xlab="Year", ylab="State",
+          main="", color=c("white","gray"))
+ggsave("results/panelview-cah-treat.png", panel.cah)
+
+panel.closure <- panelview(closures ~ cah_treat,
+          data = panel.view, index = c("MSTATE","year"), type = "outcome",
+          main = "", by.cohort = TRUE, outcome.type="discrete",
+          legend.labs = c("Control States","Treated States (before CAH)",
+                          "Treated States (after CAH)"),
+          theme.bw=TRUE)
+ggsave("results/panelview-cah-closure.png", panel.closure)   

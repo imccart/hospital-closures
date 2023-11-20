@@ -1,3 +1,6 @@
+.lintr
+.vscode/*
 data/*
 background/*
+results/*
 api-keys.R
