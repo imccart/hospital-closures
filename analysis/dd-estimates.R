@@ -5,9 +5,15 @@ est.dat <- final.dat %>%
     event_time=case_when(
       ever_cah==1 ~ year - first_year_obs,
       ever_cah==0 ~ -1),
-    sunab_cohort=ifelse(first_year_obs==0,-1,first_year_obs),
     aha_id=as.numeric(ID),
-    treat_state=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0))
+    treat_state=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0),
+    compare_hosp=case_when(
+      year<1999 & BDTOT<12 & min_dist<30 ~ 1,
+      year>=1999 & BDTOT<25 & min_dist<30 ~ 1,
+      TRUE ~ 0))
+
+
+## Inverse probability weighting ---------------------------------------------
 
 ## create propensity weights
 logit.dat <- final.dat %>%
@@ -47,14 +53,15 @@ iplot(mod.twfe1,
 
 mod.twfe2 <- feols(closed~i(event_time, ever_cah, ref=-1) | ID + year,
                   cluster=~ID,
-                  data=est.dat %>% filter(BDTOT<30, min_dist>30))
+                  data=est.dat %>% filter(compare_hosp==1))
 iplot(mod.twfe2, 
       xlab = 'Time to treatment',
       main = 'Event study')
 
 
-## sun and abraham approach
-mod.sa1 <- feols(closed ~  sunab(sunab_cohort, event_time)
+## Sun and Abraham -----------------------------------------------------------
+
+mod.sa1 <- feols(closed ~  sunab(first_year_obs, year)
               | year + ID,
               weights=est.dat$ipw,
               cluster="ID", 
@@ -64,7 +71,7 @@ iplot(mod.sa1,
       main = 'Event study')
 
 
-mod.sa2 <- feols(closed ~  sunab(sunab_cohort, event_time)
+mod.sa2 <- feols(closed ~  sunab(first_year_obs, year)
               | year + ID,
               cluster="ID", 
               data=est.dat %>% filter(BDTOT<25, min_dist>30))
@@ -72,6 +79,10 @@ iplot(mod.sa2,
       xlab = 'Time to treatment',
       main = 'Event study')
 summary(mod.sa2, agg="ATT")
+iplot(mod.sa2, 
+      xlab = 'Time to treatment',
+      main = 'Event study')
+
 
 
 iplot(list(mod.sa1, mod.sa2, mod.sa3), ref.line=-1, xlab="Time", main="",
@@ -82,7 +93,9 @@ dev.copy(png,"results/f5-sa-ch.png")
 dev.off()
 
 
-## callaway and sant'anna approach
+## Callaway and Sant'Anna ----------------------------------------------------
+
+
 state.dat1 <- est.dat %>%
   group_by(MSTATE, year) %>%
   summarize(hospitals=n(), cah_treat=min(first_year_obs), 

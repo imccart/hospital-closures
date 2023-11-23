@@ -2,14 +2,14 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   7/17/2023
+## Date Edited:   11/20/2023
 ## Description:   Run Analysis Files
 
 
 # Preliminaries -----------------------------------------------------------
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here,
-               fedmatch, scales, zipcodeR, did, fixest)
+               fedmatch, scales, zipcodeR, did, fixest, panelView, dotwhisker, did2s)
 
 # Read-in data ------------------------------------------------------------
 aha.data <- read_csv('data/output/aha_final.csv')
@@ -33,9 +33,9 @@ final.dat <- data.merge %>%
                 is.na(change_type) ~ 0)) %>%
     group_by(ID) %>% mutate(ever_cah=max(cah, na.rm=TRUE)) %>% ungroup() %>%
     group_by(MSTATE) %>% mutate(first_year_obs=min(eff_year, na.rm=TRUE),
-                                first_year_law=min(cah_year_law)) %>% ungroup() %>%
+                                first_year_law=min(cah_year_law, na.rm=TRUE)) %>% ungroup() %>%
     mutate(first_year_obs=ifelse(is.infinite(first_year_obs), 0, first_year_obs),
-           first_year_law=ifelse(is.na(first_year_law),0,first_year_law))
+           first_year_law=ifelse(is.infinite(first_year_law),0,first_year_law))
 
 
 # Source analysis code files -----------------------------------------------

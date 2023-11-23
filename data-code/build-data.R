@@ -130,11 +130,15 @@ aha.geo <- aha.final %>%
   mutate(zip=substr(MLOCZIP, 1, 5)) %>%
   select(ID, LAT, LONG, year, zip) %>%
   distinct(ID, LAT, LONG, year, zip) %>%
-  mutate_at(vars(LAT, LONG), as.numeric)
+  mutate_at(vars(LAT, LONG), as.numeric) %>%
+  mutate(LAT=ifelse(LAT==0, NA, LAT),
+         LONG=ifelse(LONG==0, NA, LONG))
+
 
 unique_years <- unique(aha.geo$year)
 final.neighbors <- tibble()
 for (yr in unique_years) {
+
   aha.pairs <- aha.geo %>%
     filter(year == yr) %>% # Filter data for the current year
     full_join(aha.geo %>% select(ID2=ID, LAT2=LAT, LONG2=LONG, zip2=zip, year), by = "year") %>%
@@ -148,26 +152,42 @@ for (yr in unique_years) {
     rename(zip=zipcode_a, zip2=zipcode_b, dist_zip=distance) %>%
     filter(!is.na(dist_zip))
 
-  aha.neighbors <- aha.pairs %>%
+  aha.zipdist <- aha.pairs %>%
     left_join(zip.dist, by = c("zip", "zip2")) %>%
-    mutate(dist_latlong=haversine(cbind(LONG2, LAT2), cbind(LONG, LAT)),
-              distance=case_when(
-                 !is.na(dist_latlong) ~ dist_latlong,
-                 TRUE ~ dist_zip
-              )) %>%
-    filter(!is.na(distance)) %>%
+    select(ID, ID2, dist_zip, year) %>%
+    filter(!is.na(dist_zip)) %>%
     group_by(ID, year) %>%
-    mutate(min_dist=min(distance, na.rm=TRUE)) %>%
-    filter(distance == min_dist) %>%
-    ungroup() %>%
-    select(ID, ID2, distance, year)
+    summarize(min_dist_zip=min(dist_zip, na.rm=TRUE))
 
+  aha.latlongdist <- aha.pairs %>%
+    filter(!is.na(LAT), !is.na(LAT2)) %>%
+    rowwise() %>%
+    mutate(dist_latlong=haversine(c(LONG2, LAT2), c(LONG, LAT))) %>% ungroup() %>%
+    group_by(ID, year) %>%
+    summarize(min_dist_latlong=min(dist_latlong, na.rm=TRUE))
+
+  aha.neighbors <- aha.geo %>% filter(year==yr) %>%
+    left_join(aha.zipdist, by=c("ID", "year")) %>%
+    left_join(aha.latlongdist, by=c("ID", "year")) %>%
+    select(ID, min_dist_zip, min_dist_latlong, year) %>%
+    mutate(distance=
+      case_when(
+        !is.na(min_dist_latlong) & !is.na(min_dist_zip) ~ pmin(min_dist_latlong, min_dist_zip),
+        !is.na(min_dist_latlong) & is.na(min_dist_zip) ~ min_dist_latlong,
+        is.na(min_dist_latlong) & !is.na(min_dist_zip) ~ min_dist_zip,
+        TRUE ~ NA_real_))
+  
   # Add results for the current year to the list
   final.neighbors <- bind_rows(final.neighbors, aha.neighbors)
 }
 
 nearest.neighbor <- final.neighbors %>%
-    group_by(ID, year) %>%
-    summarize(min_dist=min(distance, na.rm=TRUE)) %>%
     write_csv('data/output/aha_neighbors.csv')
+
+## check means and count of hospitals with distances by year
+check <- nearest.neighbor %>%
+  group_by(year) %>%
+  summarize(mean_dist=mean(distance, na.rm=TRUE),
+            count_dist=sum(!is.na(distance)),
+            count_all=n())
 
