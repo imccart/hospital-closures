@@ -3,14 +3,30 @@
 est.dat <- final.dat %>%
   mutate(
     event_time=case_when(
-      ever_cah==1 ~ year - first_year_obs,
-      ever_cah==0 ~ -1),
+      first_year_obs>0 ~ year - first_year_obs,
+      first_year_obs==0 ~ -1),
     aha_id=as.numeric(ID),
-    treat_state=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0),
+    treat_state=ifelse(first_year_obs>0, 1, 0),
+    treat_time=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0),
     compare_hosp=case_when(
-      year<1999 & BDTOT<12 & min_dist<30 ~ 1,
-      year>=1999 & BDTOT<25 & min_dist<30 ~ 1,
+      year<1999 & BDTOT<12 & distance>30 ~ 1,
+      year>=1999 & BDTOT<25 & distance>30 ~ 1,
       TRUE ~ 0))
+
+## plot closures over time by treat_state
+est.dat %>%
+  group_by(year, treat_state) %>%
+  summarize(closures=sum(closed)) %>%
+  ggplot(aes(x=year, y=closures, color=as.factor(treat_state))) +
+  geom_line() +
+  geom_vline(xintercept=1999, linetype="dashed") +
+  scale_color_manual(values=c("black", "red")) +
+  theme_bw() +
+  labs(x="Year", y="Number of closures", color="Treatment group") +
+  theme(legend.position="bottom")
+
+
+
 
 
 ## Inverse probability weighting ---------------------------------------------
@@ -20,7 +36,7 @@ logit.dat <- final.dat %>%
   group_by(ID) %>% 
   summarize(ever_cah=max(ever_cah),
             mean_bed=mean(BDTOT, na.rm=TRUE),
-            mean_dist=mean(min_dist, na.rm=TRUE)) %>%
+            mean_dist=mean(distance, na.rm=TRUE)) %>%
   filter(!is.na(mean_bed), !is.na(mean_dist))
 
 
@@ -42,7 +58,7 @@ est.dat <- est.dat %>%
 ## Initial TWFE ---------------------------------------------------------------
 
 ## feols using ipw as weights
-mod.twfe1 <- feols(closed~i(event_time, ever_cah, ref=-1) | year + ID,
+mod.twfe1 <- feols(closed~i(event_time, treat_state, ref=-1) | year + ID,
                    cluster="ID",
                    weights=est.dat$ipw,
                  data=est.dat)
@@ -51,9 +67,9 @@ iplot(mod.twfe1,
       main = 'Event study')
 
 
-mod.twfe2 <- feols(closed~i(event_time, ever_cah, ref=-1) | ID + year,
+mod.twfe2 <- feols(closed~i(event_time, treat_state, ref=-1) | ID + year,
                   cluster=~ID,
-                  data=est.dat %>% filter(compare_hosp==1))
+                  data=est.dat)
 iplot(mod.twfe2, 
       xlab = 'Time to treatment',
       main = 'Event study')
@@ -74,7 +90,7 @@ iplot(mod.sa1,
 mod.sa2 <- feols(closed ~  sunab(first_year_obs, year)
               | year + ID,
               cluster="ID", 
-              data=est.dat %>% filter(BDTOT<25, min_dist>30))
+              data=est.dat %>% filter(BDTOT<25, distance>30))
 iplot(mod.sa2, 
       xlab = 'Time to treatment',
       main = 'Event study')
@@ -95,7 +111,6 @@ dev.off()
 
 ## Callaway and Sant'Anna ----------------------------------------------------
 
-
 state.dat1 <- est.dat %>%
   group_by(MSTATE, year) %>%
   summarize(hospitals=n(), cah_treat=min(first_year_obs), 
@@ -103,7 +118,7 @@ state.dat1 <- est.dat %>%
   ungroup() %>%
   mutate(state=as.numeric(factor(MSTATE)))
 
-state.dat2 <- est.dat %>% filter(BDTOT<50, min_dist>30) %>%
+state.dat2 <- est.dat %>% filter(BDTOT<75, distance>20) %>%
   group_by(MSTATE, year) %>%
   summarize(hospitals=n(), cah_treat=min(first_year_obs), 
     closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE)) %>%
@@ -145,11 +160,10 @@ csa.mod1 <- att_gt(yname="closed",
                    gname="first_year_obs",
                    idname="aha_id",
                    tname="year",
-                   panel=TRUE,
-                   xformla= ~ BDTOT + min_dist,
+                   panel=FALSE,
                    control_group="notyettreated",
-                   data = est.dat %>% filter(BDTOT<25, min_dist>30),
-                   est_method="dr")
+                   data = est.dat,
+                   est_method="reg")
 csa.att <- aggte(csa.mod1, type="simple", na.rm=TRUE)
 summary(csa.att)
 
@@ -158,12 +172,47 @@ summary(csa.es)
 ggdid(csa.es)
 
 
-## did2s approach
+## Two-Stage Difference-in-Differences ----------------------------------------
+
 mod.did2s <- did2s(est.dat,
   yname = "closed",
-  first_stage = ~ 0 | ID + year,
-  second_stage = ~ i(event_time, ref=-1), treatment="treat_state",
+  first_stage = ~ 0 | year,
+  second_stage = ~ i(event_time, ref=-1), 
+  treatment="treat_time",
+  weights="ipw",
   cluster="ID")
 iplot(mod.did2s, 
       xlab = 'Time to treatment',
       main = 'Event study')
+
+## Stacked DID ----------------------------------------------------------------
+
+## loop over all possible values of first_year_obs
+
+#####
+## need to set event time window, measure outcomes over some time period, and drop observations outside of that window or
+## those treated after the group in question but during the outcome time period
+#####
+
+stack.dat <- tibble()
+for (i in unique(est.dat$first_year_obs)) {
+
+  ## filter est.dat by hospitals with specific values of first_year_obs
+  treat.dat <- est.dat %>%
+    filter(first_year_obs==i) %>%
+    select(ID, year)
+  
+  control.dat <- est.dat %>%
+    filter(first_year_obs==0 | first_year_obs>i) %>%
+    filter(first_year_obs>year) %>%
+    select(ID, year)
+  
+  stack.dat.group <- est.dat %>%
+    inner_join(bind_rows(treat.dat, control.dat), by=c("ID","year")) %>%
+    mutate(stack_group=i)
+
+  stack.dat <- bind_rows(stack.dat, stack.dat.group)
+ 
+}
+
+stack.dat <- stack.dat %>% filter(stack_group>0)

@@ -23,7 +23,12 @@ cah.dates <- read_csv('data/input/cah-states.csv')
 data.merge <- aha.data %>% 
     left_join(aha.neighbors, by=c("ID", "year")) %>%
     left_join(cah.dates %>% select(cah_date_law=cah_date, cah_year_law=cah_year, MSTATE="abb"), by="MSTATE") %>%
-    filter(! MSTATE %in% c("AK","HI","PR","VI","GU","MP","AS", "N"), !is.na(MSTATE))
+    filter(! MSTATE %in% c("AK","HI","PR","VI","GU","MP","AS", "N"), !is.na(MSTATE)) %>%
+    group_by(ID, year) %>%
+    mutate(hosp_count=n()) %>%
+    filter(hosp_count==1) %>% ungroup () %>%
+    select(-hosp_count)
+
 
 # construct new variables
 final.dat <- data.merge %>%
@@ -41,4 +46,4 @@ final.dat <- data.merge %>%
 # Source analysis code files -----------------------------------------------
 
 source('analysis/sum-stats.R')
-source('analysis/matching.R')
+source('analysis/dd-estimates.R')
