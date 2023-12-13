@@ -262,8 +262,11 @@ stack.mod1 <- feols(closures ~ post_treat | year^stack_group + state^stack_group
 stack.mod2 <- feols(closures ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
                    data=stack.dat,
                    cluster="state")
+stack.mod3 <- feols(closures ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
+                   data=stack.dat %>% filter(group_type!="never"),
+                   cluster="state")                   
 iplot(stack.mod2, i.select=2, 
       xlab = 'Time to treatment',
-      main = 'Event study')     
+      main = 'Event study')
 
 ## re-run with some restrictions on hospital size and distance when aggregating to state level              
