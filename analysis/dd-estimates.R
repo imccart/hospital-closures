@@ -189,30 +189,69 @@ iplot(mod.did2s,
 
 ## loop over all possible values of first_year_obs
 
-#####
-## need to set event time window, measure outcomes over some time period, and drop observations outside of that window or
-## those treated after the group in question but during the outcome time period
-#####
-
+time.window <- 3
+outcome.window <- 1
 stack.dat <- tibble()
 for (i in unique(est.dat$first_year_obs)) {
 
-  ## filter est.dat by hospitals with specific values of first_year_obs
+  ## define treated group relative to first_year_obs i within event window
   treat.dat <- est.dat %>%
-    filter(first_year_obs==i) %>%
+    filter(first_year_obs==i, 
+           year>=(i-time.window), year<=(i+time.window)) %>%
+    select(ID, year)
+
+  ## define control group relative to first_year_obs i within event window  
+  ## never treated
+  control.dat.never <- est.dat %>%
+    filter(first_year_obs==0,
+           year>=(i-time.window), year<=(i+time.window)) %>%
+    select(ID, year)
+
+  ## not yet treated
+  control.dat.notyet <- est.dat %>%
+    filter( first_year_obs>(i+time.window+outcome.window), 
+            year>=(i-time.window), year<=(i+time.window)) %>%
     select(ID, year)
   
-  control.dat <- est.dat %>%
-    filter(first_year_obs==0 | first_year_obs>i) %>%
-    filter(first_year_obs>year) %>%
-    select(ID, year)
-  
+  ## inner join back to est.dat
   stack.dat.group <- est.dat %>%
-    inner_join(bind_rows(treat.dat, control.dat), by=c("ID","year")) %>%
-    mutate(stack_group=i)
+    inner_join(bind_rows(treat.dat, control.dat.never, control.dat.notyet), by=c("ID","year")) %>%
+    mutate(treat_type=case_when(
+      first_year_obs==i ~ "treated",
+      first_year_obs==0 ~ "never",
+      first_year_obs>(i+time.window+outcome.window) ~ "notyet"))
+
+
+  ## year of closure among hospitals that closed during event window
+  year.closed <- stack.dat.group %>%
+    filter(closed==1) %>%
+    group_by(ID) %>%
+    summarize(year_closed=min(year))
+
+  ## expland closure definition to any closure within time window and collapse to state level
+  stack.dat.group <- stack.dat.group %>%
+    left_join(year.closed, by="ID") %>%
+    mutate(closed_window=
+            case_when(
+              year_closed>=year & year_closed<=(year+outcome.window) ~ 1,
+              TRUE ~ 0)) %>%
+    group_by(MSTATE, year) %>%
+    summarize(hospitals=n(), closures=sum(closed_window), sum_cah=sum(cah, na.rm=TRUE),
+              group_type=first(treat_type)) %>%
+    ungroup() %>%
+    mutate(state=as.numeric(factor(MSTATE)),
+          stacked_event_time=year-i,
+          stack_group=i)
 
   stack.dat <- bind_rows(stack.dat, stack.dat.group)
  
 }
 
+## drop the first_year_obs==0 phantom treatment group
 stack.dat <- stack.dat %>% filter(stack_group>0)
+
+## run stacked DD
+stack.mod <- feols(closures ~ i(stacked_event_time, ref=-1) | year + state^stack_group,
+                   data=stack.dat %>% filter(group_type!="never"),
+                   cluster="state")
+view(stack.dat %>% group_by(stacked_event_time, group_type) %>% summarize(closures=mean(closures)))
