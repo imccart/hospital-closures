@@ -248,10 +248,22 @@ for (i in unique(est.dat$first_year_obs)) {
 }
 
 ## drop the first_year_obs==0 phantom treatment group
-stack.dat <- stack.dat %>% filter(stack_group>0)
+stack.dat <- stack.dat %>% filter(stack_group>0) %>%
+  mutate(treated=ifelse(group_type=="treated",1,0),
+         post=ifelse(stacked_event_time>=0,1,0),
+         post_treat=post*treated,
+         stacked_event_time_treat=stacked_event_time*treated)
+stack.dat %>% group_by(stacked_event_time, group_type) %>% summarize(closures=mean(closures))
 
 ## run stacked DD
-stack.mod <- feols(closures ~ i(stacked_event_time, ref=-1) | year + state^stack_group,
-                   data=stack.dat %>% filter(group_type!="never"),
+stack.mod1 <- feols(closures ~ post_treat | year^stack_group + state^stack_group,
+                   data=stack.dat,
                    cluster="state")
-view(stack.dat %>% group_by(stacked_event_time, group_type) %>% summarize(closures=mean(closures)))
+stack.mod2 <- feols(closures ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
+                   data=stack.dat,
+                   cluster="state")
+iplot(stack.mod2, i.select=2, 
+      xlab = 'Time to treatment',
+      main = 'Event study')     
+
+## re-run with some restrictions on hospital size and distance when aggregating to state level              
