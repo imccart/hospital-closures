@@ -9,7 +9,8 @@
 # Preliminaries -----------------------------------------------------------
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here,
-               fedmatch, scales, zipcodeR, did, fixest, panelView, dotwhisker, did2s)
+               fedmatch, scales, zipcodeR, did, fixest, panelView, dotwhisker, did2s,
+               haven, sf, igraph, plotly)
 
 # Read-in data ------------------------------------------------------------
 aha.data <- read_csv('data/output/aha_final.csv')
@@ -35,7 +36,13 @@ final.dat <- data.merge %>%
   mutate(closed=case_when(
                 !is.na(change_type) & change_type=="Closure" ~ 1,
                 !is.na(change_type) & change_type!="Closure" ~ 0,
-                is.na(change_type) ~ 0)) %>%
+                is.na(change_type) ~ 0),
+         merged=case_when(
+                !is.na(change_type) & change_type=="Merger" ~ 1,
+                !is.na(change_type) & change_type!="Merger" ~ 0,
+                is.na(change_type) ~ 0),
+         closed_merged=ifelse(closed==1 | merged==1, 1, 0),
+         ) %>%
     group_by(ID) %>% mutate(ever_cah=max(cah, na.rm=TRUE)) %>% ungroup() %>%
     group_by(MSTATE) %>% mutate(first_year_obs=min(eff_year, na.rm=TRUE),
                                 first_year_law=min(cah_year_law, na.rm=TRUE)) %>% ungroup() %>%

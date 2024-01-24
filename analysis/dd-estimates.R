@@ -13,10 +13,14 @@ est.dat <- final.dat %>%
       year>=1999 & BDTOT<25 & distance>30 ~ 1,
       TRUE ~ 0))
 
-## plot closures over time by treat_state
-est.dat %>%
+## plot closures, mergers, and both over time by treat_state
+changes.plot <- est.dat %>%
   group_by(year, treat_state) %>%
-  summarize(closures=sum(closed)) %>%
+  summarize(closures=sum(closed),
+            mergers=sum(merged),
+            all_changes=sum(closed_merged)) 
+
+closure.plot  <- changes.plot %>%
   ggplot(aes(x=year, y=closures, color=as.factor(treat_state))) +
   geom_line() +
   geom_vline(xintercept=1999, linetype="dashed") +
@@ -24,9 +28,29 @@ est.dat %>%
   theme_bw() +
   labs(x="Year", y="Number of closures", color="Treatment group") +
   theme(legend.position="bottom")
+ggsave("results/closures.png", closure.plot, width = 6, height = 10, dpi = 300)
 
 
+merger.plot  <- changes.plot %>%
+  ggplot(aes(x=year, y=mergers, color=as.factor(treat_state))) +
+  geom_line() +
+  geom_vline(xintercept=1999, linetype="dashed") +
+  scale_color_manual(values=c("black", "red")) +
+  theme_bw() +
+  labs(x="Year", y="Number of mergers", color="Treatment group") +
+  theme(legend.position="bottom")
+ggsave("results/merger.png", merger.plot, width = 6, height = 10, dpi = 300)
 
+
+anychange.plot  <- changes.plot %>%
+  ggplot(aes(x=year, y=all_changes, color=as.factor(treat_state))) +
+  geom_line() +
+  geom_vline(xintercept=1999, linetype="dashed") +
+  scale_color_manual(values=c("black", "red")) +
+  theme_bw() +
+  labs(x="Year", y="Number of closures or mergers", color="Treatment group") +
+  theme(legend.position="bottom")
+ggsave("results/all-changes.png", anychange.plot, width = 6, height = 10, dpi = 300)
 
 
 ## Inverse probability weighting ---------------------------------------------
@@ -56,6 +80,8 @@ est.dat <- est.dat %>%
 
 
 ## Initial TWFE ---------------------------------------------------------------
+
+
 
 ## feols using ipw as weights
 mod.twfe1 <- feols(closed~i(event_time, treat_state, ref=-1) | year + ID,
@@ -190,8 +216,8 @@ iplot(mod.did2s,
 ## loop over all possible values of first_year_obs
 
 time.window <- 3
-outcome.window <- 1
-stack.dat <- tibble()
+stack.dat1 <- tibble()
+stack.dat2 <- tibble()
 for (i in unique(est.dat$first_year_obs)) {
 
   ## define treated group relative to first_year_obs i within event window
@@ -209,7 +235,7 @@ for (i in unique(est.dat$first_year_obs)) {
 
   ## not yet treated
   control.dat.notyet <- est.dat %>%
-    filter( first_year_obs>(i+time.window+outcome.window), 
+    filter( first_year_obs>(i+time.window), 
             year>=(i-time.window), year<=(i+time.window)) %>%
     select(ID, year)
   
@@ -219,7 +245,7 @@ for (i in unique(est.dat$first_year_obs)) {
     mutate(treat_type=case_when(
       first_year_obs==i ~ "treated",
       first_year_obs==0 ~ "never",
-      first_year_obs>(i+time.window+outcome.window) ~ "notyet"))
+      first_year_obs>(i+time.window) ~ "notyet"))
 
 
   ## year of closure among hospitals that closed during event window
@@ -228,12 +254,12 @@ for (i in unique(est.dat$first_year_obs)) {
     group_by(ID) %>%
     summarize(year_closed=min(year))
 
-  ## expland closure definition to any closure within time window and collapse to state level
-  stack.dat.group <- stack.dat.group %>%
+  ## collapse to state level
+  stack.dat.group1 <- stack.dat.group %>%
     left_join(year.closed, by="ID") %>%
     mutate(closed_window=
             case_when(
-              year_closed>=year & year_closed<=(year+outcome.window) ~ 1,
+              year_closed>=i ~ 1,
               TRUE ~ 0)) %>%
     group_by(MSTATE, year) %>%
     summarize(hospitals=n(), closures=sum(closed_window), sum_cah=sum(cah, na.rm=TRUE),
@@ -243,30 +269,67 @@ for (i in unique(est.dat$first_year_obs)) {
           stacked_event_time=year-i,
           stack_group=i)
 
-  stack.dat <- bind_rows(stack.dat, stack.dat.group)
+  ## limit to similar hospital types and collapse to state level
+  stack.dat.group2 <- stack.dat.group %>%
+    left_join(year.closed, by="ID") %>%
+    mutate(closed_window=
+            case_when(
+              year_closed>=i ~ 1,
+              TRUE ~ 0)) %>%
+    group_by(MSTATE, year) %>%
+    summarize(hospitals=sum(ipw), closures=sum(closed_window*ipw), sum_cah=sum(cah*ipw, na.rm=TRUE),
+              group_type=first(treat_type)) %>%
+    ungroup() %>%
+    mutate(state=as.numeric(factor(MSTATE)),
+          stacked_event_time=year-i,
+          stack_group=i)          
+
+  stack.dat1 <- bind_rows(stack.dat1, stack.dat.group1)
+  stack.dat2 <- bind_rows(stack.dat2, stack.dat.group2)
  
 }
 
 ## drop the first_year_obs==0 phantom treatment group
-stack.dat <- stack.dat %>% filter(stack_group>0) %>%
+stack.dat1 <- stack.dat1 %>% filter(stack_group>0) %>%
   mutate(treated=ifelse(group_type=="treated",1,0),
          post=ifelse(stacked_event_time>=0,1,0),
          post_treat=post*treated,
          stacked_event_time_treat=stacked_event_time*treated)
-stack.dat %>% group_by(stacked_event_time, group_type) %>% summarize(closures=mean(closures))
+stack.dat2 <- stack.dat2 %>% filter(stack_group>0) %>%
+  mutate(treated=ifelse(group_type=="treated",1,0),
+         post=ifelse(stacked_event_time>=0,1,0),
+         post_treat=post*treated,
+         stacked_event_time_treat=stacked_event_time*treated)
+
 
 ## run stacked DD
 stack.mod1 <- feols(closures ~ post_treat | year^stack_group + state^stack_group,
-                   data=stack.dat,
+                   data=stack.dat1,
                    cluster="state")
 stack.mod2 <- feols(closures ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
-                   data=stack.dat,
+                   data=stack.dat1,
                    cluster="state")
 stack.mod3 <- feols(closures ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
-                   data=stack.dat %>% filter(group_type!="never"),
-                   cluster="state")                   
+                   data=stack.dat1 %>% filter(group_type!="never"),
+                   cluster="state")
+png("results/stacked-dd-all.png")                 
 iplot(stack.mod2, i.select=2, 
       xlab = 'Time to treatment',
       main = 'Event study')
+dev.off()
 
 ## re-run with some restrictions on hospital size and distance when aggregating to state level              
+stack.mod1 <- feols(closures ~ post_treat | year^stack_group + state^stack_group,
+                   data=stack.dat2,
+                   cluster="state")
+stack.mod2 <- feols(closures ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
+                   data=stack.dat2,
+                   cluster="state")
+stack.mod3 <- feols(closures ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
+                   data=stack.dat2 %>% filter(group_type!="never"),
+                   cluster="state")                   
+png("results/stacked-dd-weighted.png")                 
+iplot(stack.mod3, i.select=2, 
+      xlab = 'Time to treatment',
+      main = 'Event study')
+dev.off()
