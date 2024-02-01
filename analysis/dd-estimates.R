@@ -78,79 +78,131 @@ id.weights <- logit.dat %>%
 est.dat <- est.dat %>%
   left_join(id.weights %>% select(ID, ipw), by="ID")
 
+## Aggregate to state level --------------------------------------------------
+
+state.dat1 <- est.dat %>%
+  group_by(MSTATE, year) %>%
+  summarize(hospitals=n(), cah_treat=min(first_year_obs), 
+    closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE),
+    mergers=sum(merged), any_changes=sum(closed_merged),
+    first_year_obs=first(first_year_obs)) %>%
+  mutate(
+    event_time=case_when(
+      first_year_obs>0 ~ year - first_year_obs,
+      first_year_obs==0 ~ -1),
+    treat_state=ifelse(first_year_obs>0, 1, 0),
+    treat_time=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0)) %>%
+  ungroup() %>%
+  mutate(state=as.numeric(factor(MSTATE)))
+
+state.dat2 <- est.dat %>%
+  group_by(MSTATE, year) %>%
+  summarize(hospitals=sum(ipw), cah_treat=min(first_year_obs), 
+    closures=sum(closed*ipw), sum_cah=sum(cah*ipw, na.rm=TRUE),
+    mergers=sum(merged*ipw), any_changes=sum(closed_merged*ipw),
+    first_year_obs=first(first_year_obs)) %>%
+  mutate(
+    event_time=case_when(
+      first_year_obs>0 ~ year - first_year_obs,
+      first_year_obs==0 ~ -1),
+    treat_state=ifelse(first_year_obs>0, 1, 0),
+    treat_time=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0)) %>%
+  ungroup() %>%
+  mutate(state=as.numeric(factor(MSTATE)))
+
+state.dat3 <- est.dat %>% filter(BDTOT<75, distance>20) %>%
+  group_by(MSTATE, year) %>%
+  summarize(hospitals=n(), cah_treat=min(first_year_obs), 
+    closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE),
+    mergers=sum(merged), any_changes=sum(closed_merged),
+    first_year_obs=first(first_year_obs)) %>%
+  mutate(
+    event_time=case_when(
+      first_year_obs>0 ~ year - first_year_obs,
+      first_year_obs==0 ~ -1),
+    treat_state=ifelse(first_year_obs>0, 1, 0),
+    treat_time=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0)) %>%
+  ungroup() %>%
+  mutate(state=as.numeric(factor(MSTATE)))
+
 
 ## Initial TWFE ---------------------------------------------------------------
 
 
-
-## feols using ipw as weights
-mod.twfe1 <- feols(closed~i(event_time, treat_state, ref=-1) | year + ID,
-                   cluster="ID",
-                   weights=est.dat$ipw,
-                 data=est.dat)
+## feols without weights, hospital level
+mod.twfe1 <- feols(closed~i(event_time, treat_state, ref=-1) | ID + year,
+                  cluster="ID",
+                  data=est.dat)
 iplot(mod.twfe1, 
       xlab = 'Time to treatment',
       main = 'Event study')
 
-
-mod.twfe2 <- feols(closed~i(event_time, treat_state, ref=-1) | ID + year,
-                  cluster=~ID,
-                  data=est.dat)
+# feols without weights, state level
+mod.twfe2 <- feols(closures~i(event_time, treat_state, ref=-1) | state + year,
+                  cluster="state",
+                  data=state.dat1)
 iplot(mod.twfe2, 
       xlab = 'Time to treatment',
       main = 'Event study')
 
 
+## feols using ipw as weights, state level
+mod.twfe3 <- feols(closures~i(event_time, treat_state, ref=-1) | year + state,
+                   cluster="state",
+                 data=state.dat2)
+iplot(mod.twfe3, 
+      xlab = 'Time to treatment',
+      main = 'Event study')
+
+
+## feols with distance and bed size restrictions, state level
+mod.twfe4 <- feols(closures~i(event_time, treat_state, ref=-1) | year + state,
+                   cluster="state",
+                 data=state.dat3)
+iplot(mod.twfe4, 
+      xlab = 'Time to treatment',
+      main = 'Event study')
+
+
+
+
 ## Sun and Abraham -----------------------------------------------------------
 
+## hospital level, no weights
 mod.sa1 <- feols(closed ~  sunab(first_year_obs, year)
               | year + ID,
-              weights=est.dat$ipw,
               cluster="ID", 
               data=est.dat)
 iplot(mod.sa1, 
       xlab = 'Time to treatment',
       main = 'Event study')
 
-
-mod.sa2 <- feols(closed ~  sunab(first_year_obs, year)
-              | year + ID,
-              cluster="ID", 
-              data=est.dat %>% filter(BDTOT<25, distance>30))
+## state level, no weights
+mod.sa2 <- feols(closures ~  sunab(first_year_obs, year)
+              | year + state,
+              cluster="state", 
+              data=state.dat1)
 iplot(mod.sa2, 
       xlab = 'Time to treatment',
       main = 'Event study')
 summary(mod.sa2, agg="ATT")
-iplot(mod.sa2, 
-      xlab = 'Time to treatment',
-      main = 'Event study')
 
 
-
-iplot(list(mod.sa1, mod.sa2, mod.sa3), ref.line=-1, xlab="Time", main="",
-      ylab = "Estimate and 95% CI", pt.pch=c(20,17,15), pt.col="black", ci.col="black")
-legend("bottomleft", pch=c(20,17,15), bty="n",
-       legend=c("All Hospitals","CH Only","NCH Only"))
-dev.copy(png,"results/f5-sa-ch.png")
-dev.off()
+## combine plots (outdated code for now)
+# iplot(list(mod.sa1, mod.sa2, mod.sa3), ref.line=-1, xlab="Time", main="",
+#     ylab = "Estimate and 95% CI", pt.pch=c(20,17,15), pt.col="black", ci.col="black")
+#legend("bottomleft", pch=c(20,17,15), bty="n",
+#       legend=c("All Hospitals","CH Only","NCH Only"))
+#dev.copy(png,"results/f5-sa-ch.png")
+#dev.off()
 
 
 ## Callaway and Sant'Anna ----------------------------------------------------
 
-state.dat1 <- est.dat %>%
-  group_by(MSTATE, year) %>%
-  summarize(hospitals=n(), cah_treat=min(first_year_obs), 
-    closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE)) %>%
-  ungroup() %>%
-  mutate(state=as.numeric(factor(MSTATE)))
+## hospital level
+## won't run -- too many all-zero cells
 
-state.dat2 <- est.dat %>% filter(BDTOT<75, distance>20) %>%
-  group_by(MSTATE, year) %>%
-  summarize(hospitals=n(), cah_treat=min(first_year_obs), 
-    closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE)) %>%
-  ungroup() %>%
-  mutate(state=as.numeric(factor(MSTATE)))
-
+## state level, no weights
 csa.state1 <- att_gt(yname="closures",
                    gname="cah_treat",
                    idname="state",
@@ -166,6 +218,7 @@ csa.es1 <- aggte(csa.state1, type="dynamic")
 summary(csa.es1)
 ggdid(csa.es1)
 
+## state level, with weights
 csa.state2 <- att_gt(yname="closures",
                    gname="cah_treat",
                    idname="state",
@@ -182,31 +235,14 @@ summary(csa.es2)
 ggdid(csa.es2)
 
 
-csa.mod1 <- att_gt(yname="closed",
-                   gname="first_year_obs",
-                   idname="aha_id",
-                   tname="year",
-                   panel=FALSE,
-                   control_group="notyettreated",
-                   data = est.dat,
-                   est_method="reg")
-csa.att <- aggte(csa.mod1, type="simple", na.rm=TRUE)
-summary(csa.att)
-
-csa.es <- aggte(csa.mod1, type="dynamic", na.rm=TRUE)
-summary(csa.es)
-ggdid(csa.es)
-
-
 ## Two-Stage Difference-in-Differences ----------------------------------------
 
-mod.did2s <- did2s(est.dat,
-  yname = "closed",
+mod.did2s <- did2s(state.dat1,
+  yname = "closures",
   first_stage = ~ 0 | year,
   second_stage = ~ i(event_time, ref=-1), 
   treatment="treat_time",
-  weights="ipw",
-  cluster="ID")
+  cluster="state")
 iplot(mod.did2s, 
       xlab = 'Time to treatment',
       main = 'Event study')
@@ -259,7 +295,7 @@ for (i in unique(est.dat$first_year_obs)) {
     left_join(year.closed, by="ID") %>%
     mutate(closed_window=
             case_when(
-              year_closed>=i ~ 1,
+              year_closed>= i ~ 1,
               TRUE ~ 0)) %>%
     group_by(MSTATE, year) %>%
     summarize(hospitals=n(), closures=sum(closed_window), sum_cah=sum(cah, na.rm=TRUE),
@@ -274,7 +310,7 @@ for (i in unique(est.dat$first_year_obs)) {
     left_join(year.closed, by="ID") %>%
     mutate(closed_window=
             case_when(
-              year_closed>=i ~ 1,
+              year_closed>= i ~ 1,
               TRUE ~ 0)) %>%
     group_by(MSTATE, year) %>%
     summarize(hospitals=sum(ipw), closures=sum(closed_window*ipw), sum_cah=sum(cah*ipw, na.rm=TRUE),
@@ -329,7 +365,7 @@ stack.mod3 <- feols(closures ~ i(stacked_event_time, ref=-1) + i(stacked_event_t
                    data=stack.dat2 %>% filter(group_type!="never"),
                    cluster="state")                   
 png("results/stacked-dd-weighted.png")                 
-iplot(stack.mod3, i.select=2, 
+iplot(stack.mod2, i.select=2, 
       xlab = 'Time to treatment',
       main = 'Event study')
 dev.off()
