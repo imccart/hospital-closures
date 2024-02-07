@@ -19,7 +19,7 @@ cah.dates <- read_csv('data/input/cah-states.csv')
 
 
 
-# Merge and finalize data -------------------------------------------------
+# Merge and finalize hospital-level data -----------------------------------
 
 data.merge <- aha.data %>% 
     left_join(aha.neighbors, by=c("ID", "year")) %>%
@@ -29,7 +29,6 @@ data.merge <- aha.data %>%
     mutate(hosp_count=n()) %>%
     filter(hosp_count==1) %>% ungroup () %>%
     select(-hosp_count)
-
 
 # construct new variables
 final.dat <- data.merge %>%
@@ -50,7 +49,74 @@ final.dat <- data.merge %>%
            first_year_law=ifelse(is.infinite(first_year_law),0,first_year_law))
 
 
+est.dat <- final.dat %>%
+  mutate(
+    event_time=case_when(
+      first_year_obs>0 ~ year - first_year_obs,
+      first_year_obs==0 ~ -1),
+    aha_id=as.numeric(ID),
+    treat_state=ifelse(first_year_obs>0, 1, 0),
+    treat_time=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0),
+    compare_hosp=case_when(
+      year<1999 & BDTOT<12 & distance>30 ~ 1,
+      year>=1999 & BDTOT<25 & distance>30 ~ 1,
+      TRUE ~ 0))
+
+## add ipw weights to estimation data
+source('analysis/ipw-weights.R')
+est.dat <- est.dat %>%
+  left_join(id.weights %>% select(ID, ipw), by="ID")
+
+
+## Aggregate to state level --------------------------------------------------
+
+state.dat1 <- est.dat %>%
+  group_by(MSTATE, year) %>%
+  summarize(hospitals=n(), cah_treat=min(first_year_obs), 
+    closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE),
+    mergers=sum(merged), any_changes=sum(closed_merged),
+    first_year_obs=first(first_year_obs)) %>%
+  mutate(
+    event_time=case_when(
+      first_year_obs>0 ~ year - first_year_obs,
+      first_year_obs==0 ~ -1),
+    treat_state=ifelse(first_year_obs>0, 1, 0),
+    treat_time=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0)) %>%
+  ungroup() %>%
+  mutate(state=as.numeric(factor(MSTATE)))
+
+state.dat2 <- est.dat %>%
+  group_by(MSTATE, year) %>%
+  summarize(hospitals=sum(ipw), cah_treat=min(first_year_obs), 
+    closures=sum(closed*ipw), sum_cah=sum(cah*ipw, na.rm=TRUE),
+    mergers=sum(merged*ipw), any_changes=sum(closed_merged*ipw),
+    first_year_obs=first(first_year_obs)) %>%
+  mutate(
+    event_time=case_when(
+      first_year_obs>0 ~ year - first_year_obs,
+      first_year_obs==0 ~ -1),
+    treat_state=ifelse(first_year_obs>0, 1, 0),
+    treat_time=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0)) %>%
+  ungroup() %>%
+  mutate(state=as.numeric(factor(MSTATE)))
+
+state.dat3 <- est.dat %>% filter(BDTOT<75, distance>20) %>%
+  group_by(MSTATE, year) %>%
+  summarize(hospitals=n(), cah_treat=min(first_year_obs), 
+    closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE),
+    mergers=sum(merged), any_changes=sum(closed_merged),
+    first_year_obs=first(first_year_obs)) %>%
+  mutate(
+    event_time=case_when(
+      first_year_obs>0 ~ year - first_year_obs,
+      first_year_obs==0 ~ -1),
+    treat_state=ifelse(first_year_obs>0, 1, 0),
+    treat_time=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0)) %>%
+  ungroup() %>%
+  mutate(state=as.numeric(factor(MSTATE)))
+
+
 # Source analysis code files -----------------------------------------------
 
 source('analysis/sum-stats.R')
-source('analysis/dd-estimates.R')
+source('analysis/dd-stacked.R')

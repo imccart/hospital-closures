@@ -1,5 +1,45 @@
 # Quick summary -----------------------------------------------------------
 
+## plot closures, mergers, and both over time by treat_state
+changes.plot <- est.dat %>%
+  group_by(year, treat_state) %>%
+  summarize(closures=sum(closed),
+            mergers=sum(merged),
+            all_changes=sum(closed_merged)) 
+
+closure.plot  <- changes.plot %>%
+  ggplot(aes(x=year, y=closures, color=as.factor(treat_state))) +
+  geom_line() +
+  geom_vline(xintercept=1999, linetype="dashed") +
+  scale_color_manual(values=c("black", "red")) +
+  theme_bw() +
+  labs(x="Year", y="Number of closures", color="Treatment group") +
+  theme(legend.position="bottom")
+ggsave("results/closures.png", closure.plot, width = 6, height = 10, dpi = 300)
+
+
+merger.plot  <- changes.plot %>%
+  ggplot(aes(x=year, y=mergers, color=as.factor(treat_state))) +
+  geom_line() +
+  geom_vline(xintercept=1999, linetype="dashed") +
+  scale_color_manual(values=c("black", "red")) +
+  theme_bw() +
+  labs(x="Year", y="Number of mergers", color="Treatment group") +
+  theme(legend.position="bottom")
+ggsave("results/merger.png", merger.plot, width = 6, height = 10, dpi = 300)
+
+
+anychange.plot  <- changes.plot %>%
+  ggplot(aes(x=year, y=all_changes, color=as.factor(treat_state))) +
+  geom_line() +
+  geom_vline(xintercept=1999, linetype="dashed") +
+  scale_color_manual(values=c("black", "red")) +
+  theme_bw() +
+  labs(x="Year", y="Number of closures or mergers", color="Treatment group") +
+  theme(legend.position="bottom")
+ggsave("results/all-changes.png", anychange.plot, width = 6, height = 10, dpi = 300)
+
+
 ## count of critical access by year
 view(final.dat %>% group_by(year) %>% summarize(tot_cah=sum(cah)))
 
