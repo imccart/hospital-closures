@@ -1,56 +1,47 @@
 ## Stacked DID ----------------------------------------------------------------
 
-## loop over all possible values of first_year_obs
+## loop over all possible values of first_year_treat
 
-time.window <- 3
+post.period <- 4
+pre.period <- 3
 stack.dat1 <- tibble()
 stack.dat2 <- tibble()
-for (i in unique(est.dat$first_year_obs)) {
+for (i in unique(est.dat$first_year_treat)) {
 
-  ## define treated group relative to first_year_obs i within event window
+  ## define treated group relative to first_year_treat i within event window
   treat.dat <- est.dat %>%
-    filter(first_year_obs==i, 
-           year>=(i-time.window), year<=(i+time.window)) %>%
+    filter(first_year_treat==i,
+           year>=(i-pre.period), year<=(i+post.period)) %>%
     select(ID, year)
 
-  ## define control group relative to first_year_obs i within event window  
+  ## define control group relative to first_year_treat i within event window  
   ## never treated
-  control.dat.never <- est.dat %>%
-    filter(first_year_obs==0,
-           year>=(i-time.window), year<=(i+time.window)) %>%
+  control.dat.never <- est.dat %>% 
+    filter(first_year_treat==0,
+           year>=(i-pre.period), year<=(i+post.period)) %>%
     select(ID, year)
 
   ## not yet treated
-  control.dat.notyet <- est.dat %>%
-    filter( first_year_obs>(i+time.window), 
-            year>=(i-time.window), year<=(i+time.window)) %>%
+  control.dat.notyet <- est.dat %>% 
+    filter( first_year_treat>(i+post.period), 
+            year>=(i-pre.period), year<=(i+post.period)) %>%
     select(ID, year)
   
   ## inner join back to est.dat
-  stack.dat.group <- est.dat %>%
+  stack.dat.group <- est.dat %>% 
     inner_join(bind_rows(treat.dat, control.dat.never, control.dat.notyet), by=c("ID","year")) %>%
     mutate(treat_type=case_when(
-      first_year_obs==i ~ "treated",
-      first_year_obs==0 ~ "never",
-      first_year_obs>(i+time.window) ~ "notyet"))
+      first_year_treat==i ~ "treated",
+      first_year_treat==0 ~ "never",
+      first_year_treat>(i+post.period) ~ "notyet"))
 
-
-  ## year of closure among hospitals that closed during event window
-  year.closed <- stack.dat.group %>%
-    filter(closed==1) %>%
-    group_by(ID) %>%
-    summarize(year_closed=min(year))
-
-  ## collapse to state level
+  ## collapse to state-year level
   stack.dat.group1 <- stack.dat.group %>%
-    left_join(year.closed, by="ID") %>%
-    mutate(closed_window=
-            case_when(
-              year_closed>= i ~ 1,
-              TRUE ~ 0)) %>%
     group_by(MSTATE, year) %>%
-    summarize(hospitals=n(), closures=sum(closed_window), sum_cah=sum(cah, na.rm=TRUE),
+    summarize(hospitals=n(), changes=sum(closed_merged), sum_cah=sum(cah, na.rm=TRUE),
               group_type=first(treat_type)) %>%
+    arrange(MSTATE, year) %>%
+    mutate(cumul_changes=cumsum(changes)) %>%
     ungroup() %>%
     mutate(state=as.numeric(factor(MSTATE)),
           stacked_event_time=year-i,
@@ -58,14 +49,11 @@ for (i in unique(est.dat$first_year_obs)) {
 
   ## limit to similar hospital types and collapse to state level
   stack.dat.group2 <- stack.dat.group %>%
-    left_join(year.closed, by="ID") %>%
-    mutate(closed_window=
-            case_when(
-              year_closed>= i ~ 1,
-              TRUE ~ 0)) %>%
     group_by(MSTATE, year) %>%
-    summarize(hospitals=sum(ipw), closures=sum(closed_window*ipw), sum_cah=sum(cah*ipw, na.rm=TRUE),
+    summarize(hospitals=sum(ipw), changes=sum(closed_merged*ipw), sum_cah=sum(cah*ipw, na.rm=TRUE),
               group_type=first(treat_type)) %>%
+    arrange(MSTATE, year) %>%
+    mutate(cumul_changes=cumsum(changes)) %>%
     ungroup() %>%
     mutate(state=as.numeric(factor(MSTATE)),
           stacked_event_time=year-i,
@@ -76,28 +64,74 @@ for (i in unique(est.dat$first_year_obs)) {
  
 }
 
-## drop the first_year_obs==0 phantom treatment group
-stack.dat1 <- stack.dat1 %>% filter(stack_group>0) %>%
+## drop the first_year_treat==0 phantom treatment group
+stack.dat1 <- stack.dat1 %>% ungroup() %>%
+  filter(stack_group>0) %>%
   mutate(treated=ifelse(group_type=="treated",1,0),
+         control_any=ifelse(group_type!="treated",1,0),
+         control_notyet=ifelse(group_type=="notyet",1,0),
+         control_never=ifelse(group_type=="never",1,0),
          post=ifelse(stacked_event_time>=0,1,0),
          post_treat=post*treated,
-         stacked_event_time_treat=stacked_event_time*treated)
+         stacked_event_time_treat=stacked_event_time*treated,
+         all_treated=sum(treated),
+         all_control=sum(control_any),
+         all_control_notyet=sum(control_notyet)) %>%
+  group_by(stack_group) %>%
+  mutate(group_treated=sum(treated),
+         group_control_any=sum(control_any),
+         group_control_notyet=sum(control_notyet)) %>%
+  ungroup() %>%
+  mutate(weight_any=case_when(
+           group_type=="treated" ~ 1,
+           group_type!="treated" ~ (group_treated/all_treated)/(group_control_any/all_control)),
+         weight_notyet=case_when(
+           group_type=="treated" ~ 1,
+           group_type=="notyet" ~ (group_treated/all_treated)/(group_control_notyet/all_control_notyet)),
+         share_changes=changes/hospitals
+  )
+
 stack.dat2 <- stack.dat2 %>% filter(stack_group>0) %>%
   mutate(treated=ifelse(group_type=="treated",1,0),
+         control_any=ifelse(group_type!="treated",1,0),
+         control_notyet=ifelse(group_type=="notyet",1,0),
+         control_never=ifelse(group_type=="never",1,0),
          post=ifelse(stacked_event_time>=0,1,0),
          post_treat=post*treated,
-         stacked_event_time_treat=stacked_event_time*treated)
+         stacked_event_time_treat=stacked_event_time*treated,
+         all_treated=sum(treated),
+         all_control=sum(control_any),
+         all_control_notyet=sum(control_notyet)) %>%
+  group_by(stack_group) %>%
+  mutate(group_treated=sum(treated),
+         group_control_any=sum(control_any),
+         group_control_notyet=sum(control_notyet)) %>%
+  ungroup() %>%
+  mutate(weight_any=case_when(
+           group_type=="treated" ~ 1,
+           group_type!="treated" ~ (group_treated/all_treated)/(group_control_any/all_control)),
+         weight_notyet=case_when(
+           group_type=="treated" ~ 1,
+           group_type=="notyet" ~ (group_treated/all_treated)/(group_control_notyet/all_control_notyet))
+  )
 
 
 ## run stacked DD
-stack.mod1 <- feols(closures ~ post_treat | year^stack_group + state^stack_group,
+stack.mod1 <- feols(cumul_changes ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) + treated,
                    data=stack.dat1,
+                   weights=stack.dat1$weight_any,
                    cluster="state")
-stack.mod2 <- feols(closures ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
-                   data=stack.dat1,
-                   cluster="state")
-stack.mod3 <- feols(closures ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
+stack.mod2 <- feols(cumul_changes ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) + treated,
                    data=stack.dat1 %>% filter(group_type!="never"),
+                   weights=(stack.dat1 %>% filter(group_type!="never"))$weight_notyet,
+                   cluster="state")
+stack.mod3 <- feols(cumul_changes ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
+                   data=stack.dat1,
+                   weights=stack.dat1$weight_any,
+                   cluster="state")
+stack.mod4 <- feols(cumul_changes ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
+                   data=stack.dat1 %>% filter(group_type!="never"),
+                   weights=(stack.dat1 %>% filter(group_type!="never"))$weight_notyet,
                    cluster="state")
 png("results/stacked-dd-all.png")                 
 iplot(stack.mod2, i.select=2, 
@@ -106,17 +140,48 @@ iplot(stack.mod2, i.select=2,
 dev.off()
 
 ## re-run with some restrictions on hospital size and distance when aggregating to state level              
-stack.mod1 <- feols(closures ~ post_treat | year^stack_group + state^stack_group,
+stack.mod1 <- feols(cumul_changes ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | treated,
                    data=stack.dat2,
+                   weights=stack.dat2$weight_any,
                    cluster="state")
-stack.mod2 <- feols(closures ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
-                   data=stack.dat2,
-                   cluster="state")
-stack.mod3 <- feols(closures ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
+stack.mod2 <- feols(cumul_changes ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | treated,
                    data=stack.dat2 %>% filter(group_type!="never"),
-                   cluster="state")                   
+                   weights=(stack.dat2 %>% filter(group_type!="never"))$weight_notyet,
+                   cluster="state")
+stack.mod3 <- feols(cumul_changes ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
+                   data=stack.dat2,
+                   cluster="state")
+stack.mod4 <- feols(cumul_changes ~ i(stacked_event_time, ref=-1) + i(stacked_event_time_treat, ref=-1) | state^stack_group,
+                   data=stack.dat2 %>% filter(group_type!="never"),
+                   cluster="state")               
 png("results/stacked-dd-weighted.png")                 
 iplot(stack.mod2, i.select=2, 
       xlab = 'Time to treatment',
       main = 'Event study')
 dev.off()
+
+## Synthetic DD ---------------------------------------------------------------
+
+synth.1994 <- as.data.frame(stack.dat1 %>% 
+                            filter(stack_group==1995) %>%
+  select(MSTATE, year, cumul_changes, post_treat))
+
+setup <- panel.matrices(synth.1994)
+synth.est <- synthdid_estimate(setup$Y, setup$N0, setup$T0)
+se  <- sqrt(vcov(synth.est, method='placebo'))
+sprintf('point estimate: %1.2f', synth.est)
+sprintf('95%% CI (%1.2f, %1.2f)', synth.est - 1.96 * se, synth.est + 1.96 * se)
+plot(synth.est, se.method='placebo')
+synthdid_units_plot(synth.est, se.method='placebo')
+
+plot(synth.est, overlay=1, se.method='placebo')
+
+synthdid_plot(synth.est, facet.vertical=FALSE,
+              control.name='control', treated.name='treated',
+              lambda.comparable=TRUE, se.method = 'none',
+              trajectory.linetype = 1, line.width=.75, effect.curvature=-.4,
+              trajectory.alpha=.7, effect.alpha=.7,
+              diagram.alpha=1, onset.alpha=.7) +
+    theme(legend.position=c(.26,.07), legend.direction='horizontal',
+          legend.key=element_blank(), legend.background=element_blank(),
+          strip.background=element_blank(), strip.text.x = element_blank())

@@ -10,21 +10,26 @@
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here,
                fedmatch, scales, zipcodeR, did, fixest, panelView, dotwhisker, did2s,
-               haven, sf, igraph, plotly)
+               haven, sf, igraph, plotly, synthdid)
 
 # Read-in data ------------------------------------------------------------
 aha.data <- read_csv('data/output/aha_final.csv')
 aha.neighbors <- read_csv('data/output/aha_neighbors.csv')
 cah.dates <- read_csv('data/input/cah-states.csv')
 
+non.missing.counts <- aha.data %>%
+  group_by(year) %>%
+  summarise(across(everything(), ~ sum(!is.na(.) & !(. %in% "")))) %>%
+  pivot_longer(cols = -year, names_to = "Variable", values_to = "Count") %>%
+  pivot_wider(names_from = year, values_from = Count)
 
-
+    
 # Merge and finalize hospital-level data -----------------------------------
 
 data.merge <- aha.data %>% 
     left_join(aha.neighbors, by=c("ID", "year")) %>%
     left_join(cah.dates %>% select(cah_date_law=cah_date, cah_year_law=cah_year, MSTATE="abb"), by="MSTATE") %>%
-    filter(! MSTATE %in% c("AK","HI","PR","VI","GU","MP","AS", "N"), !is.na(MSTATE)) %>%
+    filter(! MSTATE %in% c("AK","HI","PR","VI","GU","MP","AS", "N","0", "AS", "DC", "DE", "MH", "ML"), !is.na(MSTATE)) %>%
     group_by(ID, year) %>%
     mutate(hosp_count=n()) %>%
     filter(hosp_count==1) %>% ungroup () %>%
@@ -46,17 +51,18 @@ final.dat <- data.merge %>%
     group_by(MSTATE) %>% mutate(first_year_obs=min(eff_year, na.rm=TRUE),
                                 first_year_law=min(cah_year_law, na.rm=TRUE)) %>% ungroup() %>%
     mutate(first_year_obs=ifelse(is.infinite(first_year_obs), 0, first_year_obs),
-           first_year_law=ifelse(is.infinite(first_year_law),0,first_year_law))
+           first_year_law=ifelse(is.infinite(first_year_law),0,first_year_law),
+           first_year_treat=first_year_obs)
 
 
 est.dat <- final.dat %>%
   mutate(
     event_time=case_when(
-      first_year_obs>0 ~ year - first_year_obs,
-      first_year_obs==0 ~ -1),
+      first_year_treat>0 ~ year - first_year_treat,
+      first_year_treat==0 ~ -1),
     aha_id=as.numeric(ID),
-    treat_state=ifelse(first_year_obs>0, 1, 0),
-    treat_time=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0),
+    treat_state=ifelse(first_year_treat>0, 1, 0),
+    treat_time=ifelse(year>=first_year_treat & first_year_treat>0, 1, 0),
     compare_hosp=case_when(
       year<1999 & BDTOT<12 & distance>30 ~ 1,
       year>=1999 & BDTOT<25 & distance>30 ~ 1,
@@ -70,48 +76,48 @@ est.dat <- est.dat %>%
 
 ## Aggregate to state level --------------------------------------------------
 
-state.dat1 <- est.dat %>%
+state.dat1 <- est.dat %>% 
   group_by(MSTATE, year) %>%
-  summarize(hospitals=n(), cah_treat=min(first_year_obs), 
+  summarize(hospitals=n(), cah_treat=min(first_year_treat), 
     closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE),
     mergers=sum(merged), any_changes=sum(closed_merged),
-    first_year_obs=first(first_year_obs)) %>%
+    first_year_treat=first(first_year_treat)) %>%
   mutate(
     event_time=case_when(
-      first_year_obs>0 ~ year - first_year_obs,
-      first_year_obs==0 ~ -1),
-    treat_state=ifelse(first_year_obs>0, 1, 0),
-    treat_time=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0)) %>%
+      first_year_treat>0 ~ year - first_year_treat,
+      first_year_treat==0 ~ -1),
+    treat_state=ifelse(first_year_treat>0, 1, 0),
+    treat_time=ifelse(year>=first_year_treat & first_year_treat>0, 1, 0)) %>%
   ungroup() %>%
   mutate(state=as.numeric(factor(MSTATE)))
 
 state.dat2 <- est.dat %>%
   group_by(MSTATE, year) %>%
-  summarize(hospitals=sum(ipw), cah_treat=min(first_year_obs), 
+  summarize(hospitals=sum(ipw), cah_treat=min(first_year_treat), 
     closures=sum(closed*ipw), sum_cah=sum(cah*ipw, na.rm=TRUE),
     mergers=sum(merged*ipw), any_changes=sum(closed_merged*ipw),
-    first_year_obs=first(first_year_obs)) %>%
+    first_year_treat=first(first_year_treat)) %>%
   mutate(
     event_time=case_when(
-      first_year_obs>0 ~ year - first_year_obs,
-      first_year_obs==0 ~ -1),
-    treat_state=ifelse(first_year_obs>0, 1, 0),
-    treat_time=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0)) %>%
+      first_year_treat>0 ~ year - first_year_treat,
+      first_year_treat==0 ~ -1),
+    treat_state=ifelse(first_year_treat>0, 1, 0),
+    treat_time=ifelse(year>=first_year_treat & first_year_treat>0, 1, 0)) %>%
   ungroup() %>%
   mutate(state=as.numeric(factor(MSTATE)))
 
 state.dat3 <- est.dat %>% filter(BDTOT<75, distance>20) %>%
   group_by(MSTATE, year) %>%
-  summarize(hospitals=n(), cah_treat=min(first_year_obs), 
+  summarize(hospitals=n(), cah_treat=min(first_year_treat), 
     closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE),
     mergers=sum(merged), any_changes=sum(closed_merged),
-    first_year_obs=first(first_year_obs)) %>%
+    first_year_treat=first(first_year_treat)) %>%
   mutate(
     event_time=case_when(
-      first_year_obs>0 ~ year - first_year_obs,
-      first_year_obs==0 ~ -1),
-    treat_state=ifelse(first_year_obs>0, 1, 0),
-    treat_time=ifelse(year>=first_year_obs & first_year_obs>0, 1, 0)) %>%
+      first_year_treat>0 ~ year - first_year_treat,
+      first_year_treat==0 ~ -1),
+    treat_state=ifelse(first_year_treat>0, 1, 0),
+    treat_time=ifelse(year>=first_year_treat & first_year_treat>0, 1, 0)) %>%
   ungroup() %>%
   mutate(state=as.numeric(factor(MSTATE)))
 

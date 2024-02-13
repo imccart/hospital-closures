@@ -2,7 +2,7 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   11/06/2023
+## Date Edited:   2/08/2024
 ## Description:   Build Analytic Data
 
 
@@ -14,6 +14,12 @@ pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, jani
 # Read-in data ------------------------------------------------------------
 aha.combine <- read_csv('data/input/aha_data')
 cah.supplement <- read_csv('data/input/cah_data')
+state.zip.xwalk <- read_csv('data/input/zcta-to-county.csv')
+col_names <- names(state.zip.xwalk)
+state.zip.xwalk <- read_csv('data/input/zcta-to-county.csv', col_names=col_names, skip=2) %>%
+  group_by(zcta5, stab) %>% mutate(state_zip=row_number()) %>% filter(state_zip==1) %>% ungroup() %>%
+  group_by(zcta5) %>% mutate(zip_count=n()) %>% filter(zip_count==1) %>% ungroup() %>%
+  select(zcta5, state_xwalk=stab)
 source('data-code/functions.R')
 source('data-code/api-keys.R')
 
@@ -23,8 +29,13 @@ source('data-code/api-keys.R')
 
 aha.small <- aha.combine %>%
   select(ID, SYSID, critical_access, name=MNAME, state=MSTATE, city=MLOCCITY, MLOCZIP, year) %>%
+  left_join(state.zip.xwalk, by=c("MLOCZIP"="zcta5")) %>%
   mutate(zip=substr(MLOCZIP, 1, 5)) %>% 
   select(-MLOCZIP) %>%
+  mutate(state=case_when(
+      !is.na(state) ~ state,
+      is.na(state) & !is.na(state_xwalk) ~ state_xwalk
+    )) %>%
   distinct(ID, name, state, city, zip) %>%
   group_by(ID, name, state, city, zip) %>%
   mutate(aha_id=cur_group_id()) %>%
@@ -90,6 +101,11 @@ fuzzy.unique <- fuzzy.match %>%
 aha.final <- aha.combine %>% 
   left_join(fuzzy.unique,
             by='ID') %>%
+  left_join(state.zip.xwalk, by=c("MLOCZIP"="zcta5")) %>%
+  mutate(MSTATE=case_when(
+      !is.na(MSTATE) ~ MSTATE,
+      is.na(MSTATE) & !is.na(state_xwalk) ~ state_xwalk
+    )) %>%
   mutate(eff_year=year(first_date),
          cah = case_when(
            is.na(critical_access) & cah_sup==1 & year>=eff_year ~ 1,
@@ -110,9 +126,11 @@ aha.final <- aha.combine %>%
            SERV==80 ~ 'Long-term Care',
            TRUE ~ 'Other'
          )) %>%
-  filter(COMMTY=="Y",
-         SERV==10) %>%
     write_csv('data/output/aha_final.csv')         
+
+#  filter(COMMTY=="Y",
+#         SERV==10) %>%
+
 
 ## hospital closures and mergers
 merge.close <- aha.final %>% 

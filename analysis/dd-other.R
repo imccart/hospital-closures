@@ -38,7 +38,7 @@ iplot(mod.twfe4,
 ## Sun and Abraham -----------------------------------------------------------
 
 ## hospital level, no weights
-mod.sa1 <- feols(closed ~  sunab(first_year_obs, year)
+mod.sa1 <- feols(closed ~  sunab(first_year_treat, year)
               | year + ID,
               cluster="ID", 
               data=est.dat)
@@ -47,7 +47,7 @@ iplot(mod.sa1,
       main = 'Event study')
 
 ## state level, no weights
-mod.sa2 <- feols(closures ~  sunab(first_year_obs, year)
+mod.sa2 <- feols(closures ~  sunab(first_year_treat, year)
               | year + state,
               cluster="state", 
               data=state.dat1)
