@@ -2,8 +2,8 @@
 
 ## loop over all possible values of first_year_treat
 
-post.period <- 4
-pre.period <- 3
+post.period <- 5
+pre.period <- 5
 stack.dat1 <- tibble()
 stack.dat2 <- tibble()
 for (i in unique(est.dat$first_year_treat)) {
@@ -133,7 +133,7 @@ stack.mod4 <- feols(cumul_changes ~ i(stacked_event_time, ref=-1) + i(stacked_ev
                    data=stack.dat1 %>% filter(group_type!="never"),
                    weights=(stack.dat1 %>% filter(group_type!="never"))$weight_notyet,
                    cluster="state")
-png("results/stacked-dd-all.png")                 
+png("results/stacked-dd-all.png")             
 iplot(stack.mod2, i.select=2, 
       xlab = 'Time to treatment',
       main = 'Event study')
