@@ -2,7 +2,7 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   2/08/2024
+## Date Edited:   4/30/2024
 ## Description:   Build Analytic Data
 
 
@@ -10,6 +10,7 @@
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here,
                fedmatch, scales, zipcodeR)
+
 
 # Read-in data ------------------------------------------------------------
 aha.combine <- read_csv('data/input/aha_data')
@@ -20,8 +21,29 @@ state.zip.xwalk <- read_csv('data/input/zcta-to-county.csv', col_names=col_names
   group_by(zcta5, stab) %>% mutate(state_zip=row_number()) %>% filter(state_zip==1) %>% ungroup() %>%
   group_by(zcta5) %>% mutate(zip_count=n()) %>% filter(zip_count==1) %>% ungroup() %>%
   select(zcta5, state_xwalk=stab)
+
+hcris.data <- read_tsv('data/input/hcris_data.txt') %>%
+  rename(MCRNUM=provider_number)
+
+form990.data <- read_tsv('data/input/form990_ahaid.txt') %>%
+  mutate(margin=(total_revenue-total_expenses)/total_revenue,
+         current_ratio=total_assets/total_liabilities)
+
 source('data-code/functions.R')
 source('data-code/api-keys.R')
+
+# AHA ID to MCRNUM Crosswalk ----------------------------------------------
+
+## Create crosswalk from AHA ID and MCRNUM
+aha.crosswalk <- aha.combine %>%
+  select(ID, MCRNUM, year) %>%
+  filter(!is.na(MCRNUM)) %>%
+  group_by(ID, MCRNUM) %>%
+  summarize(count_pair_year=n(), min_year=min(year), max_year=max(year)) %>%
+  mutate(count_pair=n()) %>%
+  filter(count_pair==1) %>%
+  select(ID, MCRNUM_xw=MCRNUM) %>%
+  ungroup()
 
 
 
@@ -90,6 +112,56 @@ fuzzy.match <- fuzzy.match.highscore %>%
 fuzzy.match %>% distinct(name_2, eff_date) %>% nrow()
 
 
+# Fuzzy match of EINs from Form 990 ---------------------------------------
+
+form990.small <- form990.data %>%
+  select(ein, name, state, zip, year) %>%
+  distinct(ein, name, state, zip) %>%
+  group_by(ein, name, state, zip) %>%
+  mutate(irs_id=cur_group_id()) %>%
+  ungroup() %>%
+  mutate_at(vars(name, state), str_to_lower)
+
+fuzzy.merge.990 <- merge_plus(
+  data1=aha.small,
+  data2=form990.small,
+  by=c("name", "state", "zip"),
+  unique_key_1="aha_id",
+  unique_key_2="irs_id",
+  match_type="multivar",
+  multivar_settings = build_multivar_settings(
+    compare_type=c("stringdist","indicator","indicator"),
+    wgts=c(0.2, 0.4, 0.4)
+  )
+)
+
+fuzzy.match.990 <- as_tibble(fuzzy.merge.990$matches) %>%
+  select(aha_id, ID, ein, irs_id, name_1, state_1, zip_1, name_2, state_2, zip_2, 
+         name_compare, state_compare, zip_compare, multivar_score) 
+
+fuzzy.match.990 %>% distinct(name_2) %>% nrow()
+
+fuzzy.match.990.score <- fuzzy.match.990 %>%
+  filter(!is.na(multivar_score)) 
+
+fuzzy.match.990.score %>% distinct(name_2) %>% nrow()
+
+fuzzy.match.990.highscore <- fuzzy.match.990.score %>%
+  filter(zip_compare>0.9, name_compare>0.7) 
+
+fuzzy.match.990.highscore %>% distinct(name_2) %>% nrow()
+
+fuzzy.match.990 <- fuzzy.match.990.highscore %>%
+  group_by(ID) %>%
+  mutate(max_score=max(multivar_score, na.rm=TRUE),
+         max_name_score=max(name_compare, na.rm=TRUE)) %>%
+  filter(max_score==multivar_score) %>%
+  filter(max_name_score==name_compare) %>%
+  ungroup()
+
+fuzzy.match.990 %>% distinct(name_2) %>% nrow()
+
+
 # Final data --------------------------------------------------------------
 
 fuzzy.unique <- fuzzy.match %>% 
@@ -98,14 +170,29 @@ fuzzy.unique <- fuzzy.match %>%
   mutate(cah_sup=1) %>%
   ungroup()
 
+fuzzy.unique.990 <- fuzzy.match.990 %>% 
+  distinct(ID, ein, multivar_score, name_compare, aha_name=name_1, ein_name=name_2) %>%
+  group_by(ID) %>% mutate(rcount=row_number()) %>%
+  pivot_wider(values_from=c("ein","multivar_score","name_compare","aha_name","ein_name"), names_from="rcount") %>%
+  ungroup()
+
 aha.final <- aha.combine %>% 
-  left_join(fuzzy.unique,
-            by='ID') %>%
+  left_join(fuzzy.unique, by='ID') %>%
+  left_join(fuzzy.unique.990, by='ID') %>%
+  left_join(form990.data %>% select(ein_1=ein, year, margin_1=margin, current_ratio_1=current_ratio), by=c('ein_1','year')) %>%
+  left_join(form990.data %>% select(ein_2=ein, year, margin_2=margin, current_ratio_2=current_ratio), by=c('ein_2','year')) %>%
+  left_join(form990.data %>% select(ein_3=ein, year, margin_3=margin, current_ratio_3=current_ratio), by=c('ein_3','year')) %>%
   left_join(state.zip.xwalk, by=c("MLOCZIP"="zcta5")) %>%
   mutate(MSTATE=case_when(
       !is.na(MSTATE) ~ MSTATE,
       is.na(MSTATE) & !is.na(state_xwalk) ~ state_xwalk
     )) %>%
+  left_join(aha.crosswalk, by="ID") %>%
+  mutate(MCRNUM=case_when(
+      !is.na(MCRNUM) ~ MCRNUM,
+      is.na(MCRNUM) & !is.na(MCRNUM_xw) ~ MCRNUM_xw
+    )) %>%
+  left_join(hcris.data, by=c('MCRNUM','year')) %>%
   mutate(eff_year=year(first_date),
          cah = case_when(
            is.na(critical_access) & cah_sup==1 & year>=eff_year ~ 1,

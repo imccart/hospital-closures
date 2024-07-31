@@ -1,7 +1,6 @@
-## Stacked DID ----------------------------------------------------------------
+## Stacked DD by State Treatment ----------------------------------------------
 
 ## loop over all possible values of first_year_treat
-
 post.period <- 5
 pre.period <- 5
 stack.dat1 <- tibble()
@@ -160,28 +159,73 @@ iplot(stack.mod2, i.select=2,
       main = 'Event study')
 dev.off()
 
-## Synthetic DD ---------------------------------------------------------------
 
-synth.1994 <- as.data.frame(stack.dat1 %>% 
-                            filter(stack_group==1995) %>%
-  select(MSTATE, year, cumul_changes, post_treat))
 
-setup <- panel.matrices(synth.1994)
-synth.est <- synthdid_estimate(setup$Y, setup$N0, setup$T0)
-se  <- sqrt(vcov(synth.est, method='placebo'))
-sprintf('point estimate: %1.2f', synth.est)
-sprintf('95%% CI (%1.2f, %1.2f)', synth.est - 1.96 * se, synth.est + 1.96 * se)
-plot(synth.est, se.method='placebo')
-synthdid_units_plot(synth.est, se.method='placebo')
 
-plot(synth.est, overlay=1, se.method='placebo')
+## Stacked DD by Hospital Treatment ----------------------------------------------
 
-synthdid_plot(synth.est, facet.vertical=FALSE,
-              control.name='control', treated.name='treated',
-              lambda.comparable=TRUE, se.method = 'none',
-              trajectory.linetype = 1, line.width=.75, effect.curvature=-.4,
-              trajectory.alpha=.7, effect.alpha=.7,
-              diagram.alpha=1, onset.alpha=.7) +
-    theme(legend.position=c(.26,.07), legend.direction='horizontal',
-          legend.key=element_blank(), legend.background=element_blank(),
-          strip.background=element_blank(), strip.text.x = element_blank())
+## loop over all possible values of eff_year (year of CAH designation)
+post.period <- 5
+pre.period <- 5
+stack.hosp1 <- tibble()
+for (i in unique(est.dat$eff_year)) {
+
+  ## define treated group relative to eff_year i within event window
+  treat.dat <- est.dat %>%
+    filter(eff_year==i,
+           year>=(i-pre.period), year<=(i+post.period)) %>%
+    select(ID, year) %>%
+    mutate(treat_type="treated")
+
+  ## define control group relative to eff_year i within event window
+  ## never treated (+ never a CAH designation in the state)
+  control.dat.never <- est.dat %>% 
+    filter(is.na(eff_year), first_year_treat==0, BDTOT<75,
+           year>=(i-pre.period), year<=(i+post.period)) %>%
+    select(ID, year) %>%
+    mutate(treat_type="never")
+
+  ## not yet treated (+ no CAH designation *yet* in the state)
+  control.dat.notyet <- est.dat %>% 
+    filter( (eff_year>(i+post.period) | is.na(eff_year)), first_year_treat>(i+post.period),
+            BDTOT<75,
+            year>=(i-pre.period), year<=(i+post.period)) %>%
+    select(ID, year) %>%
+    mutate(treat_type="notyet")
+  
+  ## inner join back to est.dat
+  stack.dat.group <- est.dat %>% 
+    inner_join(bind_rows(treat.dat, control.dat.never, control.dat.notyet), by=c("ID","year")) %>%
+    mutate(state=as.numeric(factor(MSTATE)),
+      stacked_event_time=year-i,
+      stack_group=i)
+
+  stack.hosp1 <- bind_rows(stack.hosp1, stack.dat.group)
+ 
+}
+
+## drop the first_year_treat==0 phantom treatment group
+stack.hosp1 <- stack.hosp1 %>% ungroup() %>%
+  filter(stack_group>0) %>%
+  mutate(treated=ifelse(treat_type=="treated",1,0),
+         control_any=ifelse(treat_type!="treated",1,0),
+         control_notyet=ifelse(treat_type=="notyet",1,0),
+         control_never=ifelse(treat_type=="never",1,0),
+         post=ifelse(stacked_event_time>=0,1,0),
+         post_treat=post*treated,
+         stacked_event_time_treat=stacked_event_time*treated,
+         all_treated=sum(treated),
+         all_control=sum(control_any),
+         all_control_notyet=sum(control_notyet)) %>%
+  group_by(stack_group) %>%
+  mutate(group_treated=sum(treated),
+         group_control_any=sum(control_any),
+         group_control_notyet=sum(control_notyet)) %>%
+  ungroup() %>%
+  mutate(weight_any=case_when(
+           treat_type=="treated" ~ 1,
+           treat_type!="treated" ~ (group_treated/all_treated)/(group_control_any/all_control)),
+         weight_notyet=case_when(
+           treat_type=="treated" ~ 1,
+           treat_type=="notyet" ~ (group_treated/all_treated)/(group_control_notyet/all_control_notyet))
+  )
