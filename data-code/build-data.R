@@ -13,8 +13,8 @@ pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, jani
 
 
 # Read-in data ------------------------------------------------------------
-aha.combine <- read_csv('data/input/aha_data')
-cah.supplement <- read_csv('data/input/cah_data')
+aha.combine <- read_csv('data/input/aha_data.csv')
+cah.supplement <- read_csv('data/input/cah_data.csv')
 state.zip.xwalk <- read_csv('data/input/zcta-to-county.csv')
 col_names <- names(state.zip.xwalk)
 state.zip.xwalk <- read_csv('data/input/zcta-to-county.csv', col_names=col_names, skip=2) %>%
