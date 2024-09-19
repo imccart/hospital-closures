@@ -2,7 +2,7 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   4/30/2024
+## Date Edited:   9/19/2024
 ## Description:   Build Analytic Data
 
 
@@ -26,8 +26,18 @@ hcris.data <- read_tsv('data/input/hcris_data.txt') %>%
   rename(MCRNUM=provider_number)
 
 form990.data <- read_tsv('data/input/form990_ahaid.txt') %>%
-  mutate(margin=(total_revenue-total_expenses)/total_revenue,
-         current_ratio=total_assets/total_liabilities)
+  mutate(total_revenue=abs(total_revenue),
+         total_expenses=abs(total_expenses),
+         total_assets=abs(total_assets),
+         total_liabilities=abs(total_liabilities),
+         margin=if_else(
+              !is.na(total_revenue) & total_revenue>0 & !is.na(total_expenses) & total_expenses>0,
+              (total_revenue-total_expenses)/total_revenue,
+              NA),
+         current_ratio=if_else(
+              !is.na(total_assets) & total_assets>0 & !is.na(total_liabilities) & total_liabilities>0,
+              total_assets/total_liabilities,
+              NA))
 
 source('data-code/functions.R')
 source('data-code/api-keys.R')

@@ -9,8 +9,8 @@
 # Preliminaries -----------------------------------------------------------
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here,
-               fedmatch, scales, zipcodeR, did, fixest, panelView, dotwhisker, did2s,
-               haven, sf, igraph, plotly, synthdid)
+               fedmatch, scales, zipcodeR, did, fixest, panelView, did2s,
+               haven, sf, igraph, plotly, synthdid, BMisc)
 
 # Read-in data ------------------------------------------------------------
 aha.data <- read_csv('data/output/aha_final.csv')
@@ -52,12 +52,7 @@ final.dat <- data.merge %>%
                                 first_year_law=min(cah_year_law, na.rm=TRUE)) %>% ungroup() %>%
     mutate(first_year_obs=ifelse(is.infinite(first_year_obs), 0, first_year_obs),
            first_year_law=ifelse(is.infinite(first_year_law),0,first_year_law),
-           first_year_treat=first_year_obs,
-           op_margin=(net_pat_rev - tot_operating_exp)/net_pat_rev,
-           op_margin_cut=case_when(
-              op_margin>quantile(op_margin, .99, na.rm=TRUE) ~ quantile(op_margin, .99, na.rm=TRUE),
-              op_margin<quantile(op_margin, .01, na.rm=TRUE) ~ quantile(op_margin, .01, na.rm=TRUE),
-           TRUE ~ op_margin))
+           first_year_treat=first_year_obs)
 
 
 est.dat <- final.dat %>%

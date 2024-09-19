@@ -180,7 +180,7 @@ for (i in unique(est.dat$eff_year)) {
   ## define control group relative to eff_year i within event window
   ## never treated (+ never a CAH designation in the state)
   control.dat.never <- est.dat %>% 
-    filter(is.na(eff_year), first_year_treat==0, BDTOT<75,
+    filter(BDTOT<75, is.na(eff_year), first_year_treat==0,
            year>=(i-pre.period), year<=(i+post.period)) %>%
     select(ID, year) %>%
     mutate(treat_type="never")
@@ -204,7 +204,7 @@ for (i in unique(est.dat$eff_year)) {
  
 }
 
-## drop the first_year_treat==0 phantom treatment group
+## drop the eff_year==0 phantom treatment group
 stack.hosp1 <- stack.hosp1 %>% ungroup() %>%
   filter(stack_group>0) %>%
   mutate(treated=ifelse(treat_type=="treated",1,0),

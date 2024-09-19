@@ -56,7 +56,7 @@ cah.closed <- final.dat %>% mutate(all_cah=sum(critical_access)) %>%
   group_by(change_type, critical_access) %>% summarize(n=n(), all_cah=first(all_cah), all_hosp=nrow(aha.combine))
 
 ## Count of CAH and Non-CAH over time
-fig.hosp.type <- final.dat %>% group_by(year, critical_access) %>%
+fig.hosp.type <- final.dat %>% group_by(year, critical_access) %>% mutate(critical_access=if_else(is.na(critical_access),0,critical_access)) %>%
   summarize(hosp_count=n())  %>%
   ggplot(aes(x=year, y=hosp_count, group=critical_access)) + 
   geom_line() + geom_point() + theme_bw() +
@@ -66,7 +66,7 @@ fig.hosp.type <- final.dat %>% group_by(year, critical_access) %>%
                 y = hosp_count-100)) +
   scale_y_continuous(labels = comma,
                      breaks=seq(0, 8000, 500)) +
-  scale_x_continuous(breaks=seq(1980, 2019, 1)) +
+  scale_x_continuous(breaks=seq(1980, 2019, 5)) +
   theme(axis.text.x = element_text(angle = 45, hjust=1)) +
   guides(linetype="none") +
   labs(
@@ -74,6 +74,7 @@ fig.hosp.type <- final.dat %>% group_by(year, critical_access) %>%
     y="Count of Hospital Types",
     caption="Limited to general, short-term, acute care community hospitals"
   )
+ggsave("results/hosp-types.png", fig.hosp.type, width = 6, height = 10, dpi = 300)
 
 ## Share of CAH and Non-CAH closures over time
 cah.change <- final.dat %>%
@@ -148,4 +149,4 @@ panel.closure <- panelview(closures ~ cah_treat,
           legend.labs = c("Control States","Treated States (before CAH)",
                           "Treated States (after CAH)"),
           theme.bw=TRUE)
-ggsave("results/panelview-cah-closure.png", panel.closure)   
+ggsave("results/panelview-cah-closure.png", panel.closure)
