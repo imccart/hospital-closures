@@ -2,7 +2,7 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   12/11/2023
+## Date Edited:   9/19/2024
 ## Description:   Run Analysis Files
 
 
@@ -52,7 +52,9 @@ final.dat <- data.merge %>%
                                 first_year_law=min(cah_year_law, na.rm=TRUE)) %>% ungroup() %>%
     mutate(first_year_obs=ifelse(is.infinite(first_year_obs), 0, first_year_obs),
            first_year_law=ifelse(is.infinite(first_year_law),0,first_year_law),
-           first_year_treat=first_year_obs)
+           first_year_treat=first_year_obs) %>%
+    group_by(ID) %>% mutate(max_treat=max(first_year_treat), min_treat=min(first_year_treat)) %>%
+    filter(max_treat==min_treat) %>% ungroup()
 
 
 est.dat <- final.dat %>%
@@ -69,7 +71,7 @@ est.dat <- final.dat %>%
       TRUE ~ 0))
 
 ## add ipw weights to estimation data
-source('analysis/ipw-weights.R')
+source('analysis/0-ipw-weights.R')
 est.dat <- est.dat %>%
   left_join(id.weights %>% select(ID, ipw), by="ID")
 
@@ -124,5 +126,6 @@ state.dat3 <- est.dat %>% filter(BDTOT<75, distance>20) %>%
 
 # Source analysis code files -----------------------------------------------
 
-source('analysis/sum-stats.R')
-source('analysis/dd-stacked.R')
+source('analysis/1-sum-stats.R')
+source('analysis/2-margins.R')
+source('analysis/3-closures-mergers.R')

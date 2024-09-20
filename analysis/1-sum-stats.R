@@ -140,7 +140,7 @@ panel.view <- final.dat %>%
 panel.cah <- panelview(1~cah_treat, data=panel.view %>% mutate(MSTATE=as.character(MSTATE)), 
                       index=c("MSTATE","year"), legendOff=TRUE, 
           theme.bw=TRUE, by.timing=TRUE, xlab="Year", ylab="State",
-          main="", color=c("white","gray"))
+          main="", color=c("white","gray"), axis.lab.angle=45)
 ggsave("results/panelview-cah-treat.png", panel.cah)
 
 panel.closure <- panelview(closures ~ cah_treat,

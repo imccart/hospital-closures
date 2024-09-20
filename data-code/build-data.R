@@ -37,7 +37,8 @@ form990.data <- read_tsv('data/input/form990_ahaid.txt') %>%
          current_ratio=if_else(
               !is.na(total_assets) & total_assets>0 & !is.na(total_liabilities) & total_liabilities>0,
               total_assets/total_liabilities,
-              NA))
+              NA)) %>%
+  filter(margin>-1, margin<1)
 
 source('data-code/functions.R')
 source('data-code/api-keys.R')
