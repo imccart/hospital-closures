@@ -53,8 +53,8 @@ final.dat <- data.merge %>%
     mutate(first_year_obs=ifelse(is.infinite(first_year_obs), 0, first_year_obs),
            first_year_law=ifelse(is.infinite(first_year_law),0,first_year_law),
            first_year_treat=first_year_obs) %>%
-    group_by(ID) %>% mutate(max_treat=max(first_year_treat), min_treat=min(first_year_treat)) %>%
-    filter(max_treat==min_treat) %>% ungroup()
+    group_by(ID) %>% mutate(max_treat=max(first_year_treat, na.rm=TRUE), min_treat=min(first_year_treat, na.rm=TRUE)) %>%
+    filter(max_treat==min_treat) %>% ungroup() %>% select(-c(max_treat, min_treat))
 
 
 est.dat <- final.dat %>%

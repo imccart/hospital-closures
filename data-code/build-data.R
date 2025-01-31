@@ -2,7 +2,7 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   9/19/2024
+## Date Edited:   1/29/2025
 ## Description:   Build Analytic Data
 
 
@@ -56,6 +56,45 @@ aha.crosswalk <- aha.combine %>%
   select(ID, MCRNUM_xw=MCRNUM) %>%
   ungroup()
 
+## Fuzzy match of names in AHA and HCRIS
+aha.small <- aha.combine %>%
+  select(ID, SYSID, critical_access, name=MNAME, state=MSTATE, city=MLOCCITY, MLOCZIP, year) %>%
+  left_join(state.zip.xwalk, by=c("MLOCZIP"="zcta5")) %>%
+  mutate(zip=substr(MLOCZIP, 1, 5)) %>% 
+  select(-MLOCZIP) %>%
+  mutate(state=case_when(
+      !is.na(state) ~ state,
+      is.na(state) & !is.na(state_xwalk) ~ state_xwalk
+    )) %>%
+  distinct(ID, name, state, city, zip) %>%
+  group_by(ID, name, state, city, zip) %>%
+  mutate(aha_id=cur_group_id()) %>%
+  ungroup() %>%
+  mutate_at(vars(name, state, city), str_to_lower)
+  
+
+hcris.small <- hcris.data %>%
+  mutate(zip=substr(zip, 1, 5)) %>%   
+  select(name, city, state, zip, MCRNUM) %>%
+  distinct() %>%
+  group_by(name, city, state, zip, MCRNUM) %>%
+  mutate(hcris_id=cur_group_id()) %>%
+  ungroup() %>%
+  mutate_at(vars(name, state, city), str_to_lower)
+
+
+fuzzy.merge.hcris <- merge_plus(
+  data1=aha.small,
+  data2=hcris.small,
+  by=c("name","city", "state", "zip"),
+  unique_key_1="aha_id",
+  unique_key_2="hcris_id",
+  match_type="multivar",
+  multivar_settings = build_multivar_settings(
+    compare_type=c("stringdist","stringdist","indicator","indicator"),
+    wgts=c(0.2, 0.2, 0.3, 0.3)
+  )
+)
 
 
 # Fuzzy match of CAH supplement -------------------------------------------

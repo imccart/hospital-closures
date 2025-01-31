@@ -180,9 +180,8 @@ synthdid_plot(synth.est, facet.vertical=FALSE,
 # treatment at hospital-level
 cs.dat1 <- est.dat %>%
       mutate(ID=as.numeric(factor(ID)), treat_group=if_else(!is.na(eff_year),eff_year,0)) %>%
-      filter(!is.na(margin_1), !is.na(year), !is.na(BDTOT)) %>%
-      filter(eff_year!=1997) %>%
-      select(ID, treat_group, year, margin_1, BDTOT)
+      filter(!is.na(margin_1), !is.na(year), BDTOT<75, margin_1>-1) %>%
+      select(ID, treat_group, year, margin_1, BDTOT, distance)
 
 csa.margin1 <- att_gt(yname="margin_1",
                    gname="treat_group",
@@ -192,12 +191,12 @@ csa.margin1 <- att_gt(yname="margin_1",
                    panel=TRUE,
                    allow_unbalanced_panel=TRUE,
                    data = cs.dat1,
-                   xformla = ~1,
+                   xformla = ~BDTOT+distance,
                    base_period="universal",
-                   est_method="reg")
+                   est_method="ipw")
 csa.att1 <- aggte(csa.margin1, type="simple", na.rm=TRUE)
 summary(csa.att1)
-csa.es1 <- aggte(csa.margin1, type="dynamic", na.rm=TRUE, min_e=-5, max_e=5)
+csa.es1 <- aggte(csa.margin1, type="dynamic", na.rm=TRUE, min_e=-10, max_e=10)
 summary(csa.es1)
 ggdid(csa.es1)
 
@@ -205,8 +204,8 @@ ggdid(csa.es1)
 # treatment at state-level
 cs.dat2 <- est.dat %>%
       mutate(ID=as.numeric(factor(ID)), treat_group=if_else(!is.na(first_year_treat),first_year_treat,0)) %>%
-      filter(!is.na(margin_1), !is.na(year), !is.na(BDTOT)) %>%
-      select(ID, treat_group, year, margin_1, BDTOT)
+      filter(!is.na(margin_1), !is.na(year), BDTOT<75, margin_1>-1) %>%
+      select(ID, treat_group, year, margin_1, BDTOT, distance)
 
 csa.margin2 <- att_gt(yname="margin_1",
                    gname="treat_group",
@@ -216,11 +215,11 @@ csa.margin2 <- att_gt(yname="margin_1",
                    panel=TRUE,
                    allow_unbalanced_panel=TRUE,
                    data = cs.dat2,
-                   xformla = ~1,
+                   xformla = ~BDTOT+distance,
                    base_period="universal",
                    est_method="reg")
 csa.att2 <- aggte(csa.margin2, type="simple", na.rm=TRUE)
 summary(csa.att2)
-csa.es2 <- aggte(csa.margin2, type="dynamic", na.rm=TRUE, min_e=-5, max_e=5)
+csa.es2 <- aggte(csa.margin2, type="dynamic", na.rm=TRUE, min_e=-10, max_e=10)
 summary(csa.es2)
 ggdid(csa.es2)
