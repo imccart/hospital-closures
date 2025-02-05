@@ -45,17 +45,6 @@ source('data-code/api-keys.R')
 
 # AHA ID to MCRNUM Crosswalk ----------------------------------------------
 
-## Create crosswalk from AHA ID and MCRNUM
-aha.crosswalk <- aha.combine %>%
-  select(ID, MCRNUM, year) %>%
-  filter(!is.na(MCRNUM)) %>%
-  group_by(ID, MCRNUM) %>%
-  summarize(count_pair_year=n(), min_year=min(year), max_year=max(year)) %>%
-  mutate(count_pair=n()) %>%
-  filter(count_pair==1) %>%
-  select(ID, MCRNUM_xw=MCRNUM) %>%
-  ungroup()
-
 ## Fuzzy match of names in AHA and HCRIS
 aha.small <- aha.combine %>%
   select(ID, SYSID, critical_access, name=MNAME, state=MSTATE, city=MLOCCITY, MLOCZIP, year) %>%
@@ -96,6 +85,43 @@ fuzzy.merge.hcris <- merge_plus(
   )
 )
 
+
+fuzzy.match.hcris <- as_tibble(fuzzy.merge.hcris$matches) %>%
+  select(ID, name_1, city_1, state_1, zip_1, name_2, city_2, state_2, zip_2, MCRNUM,
+         name_compare, city_compare, state_compare, zip_compare, multivar_score) %>%
+  filter(!is.na(multivar_score)) %>%
+  filter(city_compare>0.9, zip_compare==1, name_compare>0.69)  %>%
+  group_by(ID) %>%
+  mutate(max_score=max(multivar_score, na.rm=TRUE),
+         max_name_score=max(name_compare, na.rm=TRUE)) %>%
+  filter(max_score==multivar_score) %>%
+  filter(max_name_score==name_compare) %>%
+  ungroup() %>%
+  distinct(ID, MCRNUM)
+
+## Create crosswalk from AHA ID and MCRNUM
+aha.crosswalk1 <- aha.combine %>%
+  select(ID, MCRNUM, year) %>%
+  filter(!is.na(MCRNUM)) %>%
+  group_by(ID, MCRNUM) %>%
+  summarize(count_pair_year=n(), min_year=min(year), max_year=max(year)) %>%
+  mutate(count_pair=n()) %>%
+  filter(count_pair==1) %>%
+  select(ID, MCRNUM_xw1=MCRNUM) %>%
+  ungroup()
+
+aha.crosswalk2 <- aha.combine %>%
+  distinct(ID) %>%
+  left_join(fuzzy.match.hcris %>% select(ID, MCRNUM), by="ID") %>%
+  select(ID, MCRNUM_xw2=MCRNUM)
+
+aha.crosswalk <- aha.combine %>%
+  distinct(ID) %>%
+  left_join(aha.crosswalk1, by="ID") %>%
+  left_join(aha.crosswalk2, by="ID") %>%
+  mutate(MCRNUM_xw=if_else(!is.na(MCRNUM_xw1),MCRNUM_xw1, MCRNUM_xw2)) %>%
+  filter(!is.na(MCRNUM_xw)) %>%
+  select(ID, MCRNUM_xw)
 
 # Fuzzy match of CAH supplement -------------------------------------------
 
