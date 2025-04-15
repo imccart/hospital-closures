@@ -55,8 +55,8 @@ aha.small <- aha.combine %>%
       !is.na(state) ~ state,
       is.na(state) & !is.na(state_xwalk) ~ state_xwalk
     )) %>%
-  distinct(ID, name, state, city, zip) %>%
-  group_by(ID, name, state, city, zip) %>%
+  distinct(ID, name, state, city, zip, year) %>%
+  group_by(ID, name, state, city, zip, year) %>%
   mutate(aha_id=cur_group_id()) %>%
   ungroup() %>%
   mutate_at(vars(name, state, city), str_to_lower)
@@ -64,9 +64,9 @@ aha.small <- aha.combine %>%
 
 hcris.small <- hcris.data %>%
   mutate(zip=substr(zip, 1, 5)) %>%   
-  select(name, city, state, zip, MCRNUM) %>%
+  select(name, city, state, zip, MCRNUM, year) %>%
   distinct() %>%
-  group_by(name, city, state, zip, MCRNUM) %>%
+  group_by(name, city, state, zip, MCRNUM, year) %>%
   mutate(hcris_id=cur_group_id()) %>%
   ungroup() %>%
   mutate_at(vars(name, state, city), str_to_lower)
@@ -75,53 +75,76 @@ hcris.small <- hcris.data %>%
 fuzzy.merge.hcris <- merge_plus(
   data1=aha.small,
   data2=hcris.small,
-  by=c("name","city", "state", "zip"),
+  by=c("name","city", "state", "zip", "year"),
   unique_key_1="aha_id",
   unique_key_2="hcris_id",
   match_type="multivar",
   multivar_settings = build_multivar_settings(
-    compare_type=c("stringdist","stringdist","indicator","indicator"),
-    wgts=c(0.2, 0.2, 0.3, 0.3)
+    compare_type=c("stringdist","stringdist","indicator","indicator","indicator"),
+    wgts=c(0.2, 0.2, 0.2, 0.2, 0.2)
   )
 )
 
 
 fuzzy.match.hcris <- as_tibble(fuzzy.merge.hcris$matches) %>%
-  select(ID, name_1, city_1, state_1, zip_1, name_2, city_2, state_2, zip_2, MCRNUM,
-         name_compare, city_compare, state_compare, zip_compare, multivar_score) %>%
+  select(ID, name_1, city_1, state_1, zip_1, name_2, city_2, state_2, zip_2, MCRNUM, year_1,
+         name_compare, city_compare, state_compare, zip_compare, year_compare, multivar_score) %>%
   filter(!is.na(multivar_score)) %>%
-  filter(city_compare>0.9, zip_compare==1, name_compare>0.69)  %>%
-  group_by(ID) %>%
+  filter(state_compare==1, year_compare==1) %>%
+  group_by(MCRNUM, year_1) %>%
   mutate(max_score=max(multivar_score, na.rm=TRUE),
          max_name_score=max(name_compare, na.rm=TRUE)) %>%
   filter(max_score==multivar_score) %>%
   filter(max_name_score==name_compare) %>%
   ungroup() %>%
-  distinct(ID, MCRNUM)
+  group_by(ID, MCRNUM, year_1) %>%
+  slice(1) %>%
+  ungroup() %>%
+  distinct(ID, MCRNUM, year=year_1) %>%
+  arrange(MCRNUM, year, ID)
 
 ## Create crosswalk from AHA ID and MCRNUM
 aha.crosswalk1 <- aha.combine %>%
   select(ID, MCRNUM, year) %>%
   filter(!is.na(MCRNUM)) %>%
-  group_by(ID, MCRNUM) %>%
-  summarize(count_pair_year=n(), min_year=min(year), max_year=max(year)) %>%
+  group_by(ID, MCRNUM, year) %>%
   mutate(count_pair=n()) %>%
   filter(count_pair==1) %>%
-  select(ID, MCRNUM_xw1=MCRNUM) %>%
+  select(ID, year, MCRNUM_xw1=MCRNUM) %>%
   ungroup()
 
 aha.crosswalk2 <- aha.combine %>%
-  distinct(ID) %>%
-  left_join(fuzzy.match.hcris %>% select(ID, MCRNUM), by="ID") %>%
-  select(ID, MCRNUM_xw2=MCRNUM)
+  distinct(ID, year) %>%
+  left_join(fuzzy.match.hcris %>% select(ID, MCRNUM, year), by=c("ID","year")) %>%
+  select(ID, year, MCRNUM_xw2=MCRNUM) %>%
+  ungroup()
+
+aha.crosswalk3 <- aha.combine %>%
+  distinct(ID, year) %>%
+  left_join(aha.crosswalk1, by=c("ID", "year")) %>%
+  left_join(aha.crosswalk2, by=c("ID", "year")) %>%
+  mutate(MCRNUM_xw3=if_else(!is.na(MCRNUM_xw1),MCRNUM_xw1, MCRNUM_xw2)) %>%
+  filter(!is.na(MCRNUM_xw3)) %>%
+  group_by(ID) %>%
+  arrange(year) %>%
+  slice(1) %>%
+  ungroup() %>%
+  select(ID, MCRNUM_xw3)
+
 
 aha.crosswalk <- aha.combine %>%
-  distinct(ID) %>%
-  left_join(aha.crosswalk1, by="ID") %>%
-  left_join(aha.crosswalk2, by="ID") %>%
-  mutate(MCRNUM_xw=if_else(!is.na(MCRNUM_xw1),MCRNUM_xw1, MCRNUM_xw2)) %>%
+  distinct(ID, year) %>%
+  left_join(aha.crosswalk1, by=c("ID", "year")) %>%
+  left_join(aha.crosswalk2, by=c("ID", "year")) %>%
+  left_join(aha.crosswalk3, by="ID") %>%
+  mutate(MCRNUM_xw=case_when(
+    !is.na(MCRNUM_xw1) ~ MCRNUM_xw1,
+    is.na(MCRNUM_xw1) & !is.na(MCRNUM_xw2) ~ MCRNUM_xw2,
+    TRUE ~ MCRNUM_xw3
+  )) %>%
   filter(!is.na(MCRNUM_xw)) %>%
-  select(ID, MCRNUM_xw)
+  select(ID, MCRNUM_xw, year) %>%
+  arrange(ID, MCRNUM_xw, year)
 
 # Fuzzy match of CAH supplement -------------------------------------------
 
@@ -140,7 +163,6 @@ aha.small <- aha.combine %>%
   ungroup() %>%
   mutate_at(vars(name, state, city), str_to_lower)
   
-
 cah.small <- cah.supplement %>%
   select(name, city, state, zip, eff_date) %>%
   group_by(name, city, state, zip) %>%
@@ -148,7 +170,7 @@ cah.small <- cah.supplement %>%
   ungroup() %>%
   mutate_at(vars(name, state, city), str_to_lower)
 
-fuzzy.merge <- merge_plus(
+fuzzy.merge.cah <- merge_plus(
   data1=aha.small,
   data2=cah.small,
   by=c("name","city", "state", "zip"),
@@ -161,32 +183,16 @@ fuzzy.merge <- merge_plus(
   )
 )
 
-fuzzy.match.full <- as_tibble(fuzzy.merge$matches) %>%
+fuzzy.match.cah <- as_tibble(fuzzy.merge.cah$matches) %>%
   select(ID, name_1, city_1, state_1, zip_1, name_2, city_2, state_2, zip_2, 
-         name_compare, city_compare, state_compare, zip_compare, multivar_score, eff_date) 
-
-fuzzy.match.full %>% distinct(name_2, eff_date) %>% nrow()
-
-fuzzy.match.score <- fuzzy.match.full %>%
-  filter(!is.na(multivar_score)) 
-
-fuzzy.match.score %>% distinct(name_2, eff_date) %>% nrow()
-
-fuzzy.match.highscore <- fuzzy.match.score %>%
-  filter(city_compare>0.9, zip_compare==1, name_compare>0.69) 
-
-fuzzy.match.highscore %>% distinct(name_2, eff_date) %>% nrow()
-
-fuzzy.match <- fuzzy.match.highscore %>%
+         name_compare, city_compare, state_compare, zip_compare, multivar_score, eff_date) %>%
+  filter(!is.na(multivar_score), state_compare==1) %>%
   group_by(ID) %>%
   mutate(max_score=max(multivar_score, na.rm=TRUE),
          max_name_score=max(name_compare, na.rm=TRUE)) %>%
   filter(max_score==multivar_score) %>%
   filter(max_name_score==name_compare) %>%
   ungroup()
-
-fuzzy.match %>% distinct(name_2, eff_date) %>% nrow()
-
 
 # Fuzzy match of EINs from Form 990 ---------------------------------------
 
@@ -213,21 +219,8 @@ fuzzy.merge.990 <- merge_plus(
 
 fuzzy.match.990 <- as_tibble(fuzzy.merge.990$matches) %>%
   select(aha_id, ID, ein, irs_id, name_1, state_1, zip_1, name_2, state_2, zip_2, 
-         name_compare, state_compare, zip_compare, multivar_score) 
-
-fuzzy.match.990 %>% distinct(name_2) %>% nrow()
-
-fuzzy.match.990.score <- fuzzy.match.990 %>%
-  filter(!is.na(multivar_score)) 
-
-fuzzy.match.990.score %>% distinct(name_2) %>% nrow()
-
-fuzzy.match.990.highscore <- fuzzy.match.990.score %>%
-  filter(zip_compare>0.9, name_compare>0.7) 
-
-fuzzy.match.990.highscore %>% distinct(name_2) %>% nrow()
-
-fuzzy.match.990 <- fuzzy.match.990.highscore %>%
+         name_compare, state_compare, zip_compare, multivar_score) %>%
+  filter(!is.na(multivar_score), state_compare==1) %>%
   group_by(ID) %>%
   mutate(max_score=max(multivar_score, na.rm=TRUE),
          max_name_score=max(name_compare, na.rm=TRUE)) %>%
@@ -235,12 +228,11 @@ fuzzy.match.990 <- fuzzy.match.990.highscore %>%
   filter(max_name_score==name_compare) %>%
   ungroup()
 
-fuzzy.match.990 %>% distinct(name_2) %>% nrow()
 
 
 # Final data --------------------------------------------------------------
 
-fuzzy.unique <- fuzzy.match %>% 
+fuzzy.unique.cah <- fuzzy.match.cah %>% 
   group_by(ID) %>%
   summarize(first_date=min(eff_date, na.rm=TRUE)) %>%
   mutate(cah_sup=1) %>%
@@ -253,7 +245,7 @@ fuzzy.unique.990 <- fuzzy.match.990 %>%
   ungroup()
 
 aha.final <- aha.combine %>% 
-  left_join(fuzzy.unique, by='ID') %>%
+  left_join(fuzzy.unique.cah, by='ID') %>%
   left_join(fuzzy.unique.990, by='ID') %>%
   left_join(form990.data %>% select(ein_1=ein, year, margin_1=margin, current_ratio_1=current_ratio), by=c('ein_1','year')) %>%
   left_join(form990.data %>% select(ein_2=ein, year, margin_2=margin, current_ratio_2=current_ratio), by=c('ein_2','year')) %>%
