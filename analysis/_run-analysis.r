@@ -2,7 +2,7 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   2/5/2025
+## Date Edited:   7/7/2025
 ## Description:   Run Analysis Files
 
 
@@ -10,7 +10,7 @@
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here,
                fedmatch, scales, zipcodeR, did, fixest, panelView, did2s,
-               haven, sf, igraph, plotly, synthdid, BMisc)
+               haven, sf, igraph, plotly, synthdid, BMisc, nnet, glmnet)
 
 # Read-in data ------------------------------------------------------------
 aha.data <- read_csv('data/output/aha_final.csv')
