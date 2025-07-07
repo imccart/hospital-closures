@@ -255,7 +255,7 @@ aha.final <- aha.combine %>%
       !is.na(MSTATE) ~ MSTATE,
       is.na(MSTATE) & !is.na(state_xwalk) ~ state_xwalk
     )) %>%
-  left_join(aha.crosswalk, by="ID") %>%
+  left_join(aha.crosswalk, by=c("ID","year")) %>%
   mutate(MCRNUM=case_when(
       !is.na(MCRNUM) ~ MCRNUM,
       is.na(MCRNUM) & !is.na(MCRNUM_xw) ~ MCRNUM_xw
