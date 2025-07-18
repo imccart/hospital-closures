@@ -28,6 +28,7 @@ We take as inputs the data from three seperate repos listed below.
 
 - [Form 990 data](https://github.com/imccart/form-990s), which houses the code to manage the Form 990 data. This repo creates the **form990_ahaid** data referenced in the **build-data.R** code file. The Form 990 data are used to collect information on hospital financial outcomes, such as total revenue, total expenses, and net income, particularly for earier years when HCRIS data are not available.
 
+- [COPA](https://sourceonhealthcare.org/updated-states-with-certificate-of-public-advantage-copa-laws/). Link to data on current COPA status as of 2025. Information is maintained by the UC College of Law, San Francisco.
 
 ## Code
 The [data-code](/data-code/) folder contains the code used to clean and merge the data used in the analysis. It also calls a **functions.R** script that contains functions used in the data cleaning and merging process (namely the haversine distance calculation), and an **api-keys.R** script that contains the API keys used to access some geographic crosswalk data. The API key is not under version control but can be easily requested from the Census Bureau [here](https://api.census.gov/data/key_signup.html).

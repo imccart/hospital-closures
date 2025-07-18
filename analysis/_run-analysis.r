@@ -23,7 +23,32 @@ non.missing.counts <- aha.data %>%
   pivot_longer(cols = -year, names_to = "Variable", values_to = "Count") %>%
   pivot_wider(names_from = year, values_from = Count)
 
-    
+state.xwalk <- tibble(
+  state = state.name,
+  MSTATE = state.abb
+)
+
+copa.dat <- read_csv('data/input/copa-states.csv', col_names=c("state", "empty", "copa_status", "lat_lon", "details")) %>%
+  separate(details, sep=",", into=c("state2","statute","status","other")) %>%
+  mutate(
+    copa_start = str_extract(status, "(?<=Enacted )\\d{4}") %>% as.integer(),
+    copa_end = str_extract(status, "(?<=Repealed )\\d{4}"),
+    copa_end = replace_na(copa_end, "2025") %>% as.integer()
+  ) %>%
+  mutate(
+    copa_start = case_when(
+      state == "Maine" ~ 2005,
+      state == "New York" ~ 2014,
+      TRUE ~ copa_start
+    )
+  ) %>%
+  select(state, copa_status, copa_start, copa_end) %>% 
+  filter(!is.na(state)) %>%
+  left_join(state.xwalk, by="state")
+
+write_csv(copa.dat,'data/output/copa_data.csv')
+
+
 # Merge and finalize hospital-level data -----------------------------------
 
 data.merge <- aha.data %>% 
@@ -122,6 +147,8 @@ state.dat3 <- est.dat %>% filter(BDTOT<75, distance>20) %>%
     treat_time=ifelse(year>=first_year_treat & first_year_treat>0, 1, 0)) %>%
   ungroup() %>%
   mutate(state=as.numeric(factor(MSTATE)))
+
+
 
 
 # Source analysis code files -----------------------------------------------

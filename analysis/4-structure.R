@@ -4,6 +4,8 @@
 # We assume est.dat includes all state variables s_it and discrete choices
 # d_it ∈ {0, 1, 2} for {continue, close, merge}
 
+vars_used <- c("d_it", "cah", "distance", "margin_1", "beds", "year")
+
 struct_data <- est.dat %>%
   mutate(
     d_it = case_when(
@@ -11,7 +13,8 @@ struct_data <- est.dat %>%
       merged == 1 ~ 2,
       TRUE ~ 0
     )
-  ) 
+  ) %>%
+  filter(complete.cases(across(all_of(vars_used))))
   
   %>%
   left_join(copa, by = c("MSTATE", "year"))  # placeholder merge
@@ -38,12 +41,12 @@ struct_data <- struct_data %>%
 trans_data <- struct_data %>%
   group_by(ID) %>%
   arrange(year) %>%
-  mutate(lead_cah = lead(cah), lead_profit = lead(profit_margin)) %>%
+  mutate(lead_cah = lead(cah), lead_profit = lead(margin_1)) %>%
   filter(d_it == 0 & !is.na(lead_profit)) %>%
   ungroup()
 
 # Use random forest or logistic/glmnet if high-dimensional
-trans_model <- lm(lead_profit ~ cah + BDTOT + distance + beds + region + year, data = trans_data)
+trans_model <- lm(lead_profit ~ cah + distance + beds + year, data = trans_data)
 
 # Predict expected future values
 trans_data <- trans_data %>%
@@ -56,16 +59,17 @@ trans_data <- trans_data %>%
 # Flow payoff from continuation
 trans_data <- trans_data %>%
   mutate(
-    pi = profit_margin,  # or a linear index: pi = X * beta1
+    pi = margin_1,  # or a linear index: pi = X * beta1
     V_continue = pi + 0.95 * E_profit_next  # β = 0.95
   )
 
 # Terminal values (closure and merger), function of observed covariates
 trans_data <- trans_data %>%
   mutate(
-    V_close = alpha0 + alpha1 * rural + alpha2 * year,   # placeholder
-    V_merge = rho0 + rho1 * copa + rho2 * urban          # placeholder
+    V_close = alpha0 + alpha1 * distance + alpha2 * beds + alpha3 * year,
+    V_merge = rho0   + rho1   * distance + rho2 * beds + rho3 * year + rho4 * copa
   )
+
 
 # Step 5: Estimate Structural Parameters by Inversion ------------------------------
 
