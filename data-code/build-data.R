@@ -186,7 +186,7 @@ fuzzy.merge.cah <- merge_plus(
 fuzzy.match.cah <- as_tibble(fuzzy.merge.cah$matches) %>%
   select(ID, name_1, city_1, state_1, zip_1, name_2, city_2, state_2, zip_2, 
          name_compare, city_compare, state_compare, zip_compare, multivar_score, eff_date) %>%
-  filter(!is.na(multivar_score), state_compare==1) %>%
+  filter(!is.na(multivar_score), state_compare==1, zip_compare==1, name_compare>0.8) %>%
   group_by(ID) %>%
   mutate(max_score=max(multivar_score, na.rm=TRUE),
          max_name_score=max(name_compare, na.rm=TRUE)) %>%
@@ -197,6 +197,8 @@ fuzzy.match.cah <- as_tibble(fuzzy.merge.cah$matches) %>%
 # Fuzzy match of EINs from Form 990 ---------------------------------------
 
 form990.small <- form990.data %>%
+  filter(is.na(ID_hospital_1)) %>%
+  filter(str_detect(str_to_lower(name), "hospital|medical|health"))
   select(ein, name, state, zip, year) %>%
   distinct(ein, name, state, zip) %>%
   group_by(ein, name, state, zip) %>%
@@ -220,15 +222,13 @@ fuzzy.merge.990 <- merge_plus(
 fuzzy.match.990 <- as_tibble(fuzzy.merge.990$matches) %>%
   select(aha_id, ID, ein, irs_id, name_1, state_1, zip_1, name_2, state_2, zip_2, 
          name_compare, state_compare, zip_compare, multivar_score) %>%
-  filter(!is.na(multivar_score), state_compare==1) %>%
+  filter(!is.na(multivar_score), state_compare==1, zip_compare==1, name_compare>0.9) %>%
   group_by(ID) %>%
   mutate(max_score=max(multivar_score, na.rm=TRUE),
          max_name_score=max(name_compare, na.rm=TRUE)) %>%
   filter(max_score==multivar_score) %>%
   filter(max_name_score==name_compare) %>%
   ungroup()
-
-
 
 # Final data --------------------------------------------------------------
 
@@ -238,15 +238,26 @@ fuzzy.unique.cah <- fuzzy.match.cah %>%
   mutate(cah_sup=1) %>%
   ungroup()
 
+form990.id <- form990.data %>%
+  filter(!is.na(ID_hospital_1)) %>%
+  select(ID_hospital_1, ID_hospital_2, ID_hospital_3, ein, year) %>%
+  pivot_longer(cols=c(ID_hospital_1, ID_hospital_2, ID_hospital_3), 
+               names_to="rcount", values_to="ID") %>%
+  filter(!is.na(ID), !is.na(ein)) %>%
+  mutate(ID=as.character(ID)) %>%
+  distinct(ID, ein)  # no duplicates within year
+
 fuzzy.unique.990 <- fuzzy.match.990 %>% 
   distinct(ID, ein, multivar_score, name_compare, aha_name=name_1, ein_name=name_2) %>%
   group_by(ID) %>% mutate(rcount=row_number()) %>%
   pivot_wider(values_from=c("ein","multivar_score","name_compare","aha_name","ein_name"), names_from="rcount") %>%
   ungroup()
 
+unique.990 <- bind_rows(fuzzy.unique.990, form990.id %>% select(ein_1=ein, ID))
+
 aha.final <- aha.combine %>% 
   left_join(fuzzy.unique.cah, by='ID') %>%
-  left_join(fuzzy.unique.990, by='ID') %>%
+  left_join(unique.990, by='ID') %>%
   left_join(form990.data %>% select(ein_1=ein, year, margin_1=margin, current_ratio_1=current_ratio), by=c('ein_1','year')) %>%
   left_join(form990.data %>% select(ein_2=ein, year, margin_2=margin, current_ratio_2=current_ratio), by=c('ein_2','year')) %>%
   left_join(form990.data %>% select(ein_3=ein, year, margin_3=margin, current_ratio_3=current_ratio), by=c('ein_3','year')) %>%

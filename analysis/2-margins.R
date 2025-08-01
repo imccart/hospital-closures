@@ -17,15 +17,15 @@ for (i in unique(est.dat$eff_year)) {
   ## define control group relative to eff_year i within event window
   ## never treated (+ never a CAH designation in the state)
   control.dat.never <- est.dat %>% 
-    filter(BDTOT<75, is.na(eff_year), first_year_treat==0,
+    filter(is.na(eff_year), first_year_treat==0,
            year>=(i-pre.period), year<=(i+post.period)) %>%
     select(ID, year) %>%
     mutate(treat_type="never")
 
   ## not yet treated (+ no CAH designation *yet* in the state)
   control.dat.notyet <- est.dat %>% 
-    filter( (eff_year>(i+post.period) | is.na(eff_year)), first_year_treat>(i+post.period),
-            BDTOT<75,
+    filter( (eff_year>(i+post.period) | is.na(eff_year)),
+            first_year_treat>(i+post.period),
             year>=(i-pre.period), year<=(i+post.period)) %>%
     select(ID, year) %>%
     mutate(treat_type="notyet")
@@ -78,7 +78,7 @@ for (i in unique(est.dat$first_year_treat)) {
 
   ## define treated group relative to first_year_treat i within event window
   treat.dat <- est.dat %>%
-    filter(first_year_treat==i, BDTOT<75,
+    filter(first_year_treat==i,
            year>=(i-pre.period), year<=(i+post.period)) %>%
     select(ID, year) %>%
     mutate(treat_type="treated")
@@ -144,25 +144,21 @@ stack.hosp2 <- stack.hosp2 %>% ungroup() %>%
 ##   - Must be data frame (tibble forces errors) and must have more than 1 pre-treatment period
 
 # use stacked DD data at hospital level
-synth.2000 <- stack.hosp1 %>%
-            mutate(margin=case_when(
-                  !is.na(margin_1) ~ margin_1,
-                  is.na(margin_1) & !is.na(margin_2) ~ margin_2,
-                  is.na(margin_1) & is.na(margin_2) & !is.na(margin_3) ~ margin_3)) %>%
-            filter(stack_group==2000, year>=1998, year<=2004, !is.na(margin)) %>%
+synth.1998 <- stack.hosp1 %>%
+            filter(stack_group==1998, !is.na(margin)) %>%
             select(ID, year, margin, post_treat)
 
-balance.2000  <- as_tibble(makeBalancedPanel(synth.2000, idname="ID", tname="year"))
+balance.1998  <- as_tibble(makeBalancedPanel(synth.1998, idname="ID", tname="year"))
 
-setup <- panel.matrices(as.data.frame(balance.2000))
+setup <- panel.matrices(as.data.frame(balance.1998))
 synth.est <- synthdid_estimate(setup$Y, setup$N0, setup$T0)
-se  <- sqrt(vcov(synth.est, method='placebo'))
+se  <- synthdid_se(synth.est, method="bootstrap")
 sprintf('point estimate: %1.2f', synth.est)
 sprintf('95%% CI (%1.2f, %1.2f)', synth.est - 1.96 * se, synth.est + 1.96 * se)
 plot(synth.est, se.method='placebo')
-synthdid_units_plot(synth.est, se.method='placebo')
+synthdid_units_plot(synth.est, se.method='bootstrap')
 
-plot(synth.est, overlay=1, se.method='placebo')
+plot(synth.est, overlay=1, se.method='bootstrap')
 
 synthdid_plot(synth.est, facet.vertical=FALSE,
               control.name='control', treated.name='treated',
@@ -180,10 +176,12 @@ synthdid_plot(synth.est, facet.vertical=FALSE,
 # treatment at hospital-level
 cs.dat1 <- est.dat %>%
       mutate(ID=as.numeric(factor(ID)), treat_group=if_else(!is.na(eff_year),eff_year,0)) %>%
-      filter(!is.na(margin_1), !is.na(year), BDTOT<75, margin_1>-1) %>%
-      select(ID, treat_group, year, margin_1, BDTOT, distance)
+      filter(!is.na(margin), !is.na(year), !is.na(BDTOT), !is.na(distance), 
+          BDTOT<30, distance>10) %>%
+      select(ID, treat_group, year, margin, BDTOT, distance, own_type, teach_major) %>%
+      mutate(own_type=as.factor(own_type))
 
-csa.margin1 <- att_gt(yname="margin_1",
+csa.margin1 <- att_gt(yname="margin",
                    gname="treat_group",
                    idname="ID",
                    tname="year",
@@ -200,26 +198,35 @@ csa.es1 <- aggte(csa.margin1, type="dynamic", na.rm=TRUE, min_e=-10, max_e=10)
 summary(csa.es1)
 ggdid(csa.es1)
 
+raw.att <- tibble(
+    group = csa.margin1$group,
+    time = csa.margin1$t,
+    att = csa.margin1$att,
+    se = csa.margin1$se
+  ) %>%
+  mutate(event_time = time - group)
 
-# treatment at state-level
-cs.dat2 <- est.dat %>%
-      mutate(ID=as.numeric(factor(ID)), treat_group=if_else(!is.na(first_year_treat),first_year_treat,0)) %>%
-      filter(!is.na(margin_1), !is.na(year), BDTOT<75, margin_1>-1) %>%
-      select(ID, treat_group, year, margin_1, BDTOT, distance)
+## Standard TWFE -----------------------------------------------------
 
-csa.margin2 <- att_gt(yname="margin_1",
-                   gname="treat_group",
-                   idname="ID",
-                   tname="year",
-                   control_group="notyettreated",
-                   panel=TRUE,
-                   allow_unbalanced_panel=TRUE,
-                   data = cs.dat2,
-                   xformla = ~BDTOT+distance,
-                   base_period="universal",
-                   est_method="reg")
-csa.att2 <- aggte(csa.margin2, type="simple", na.rm=TRUE)
-summary(csa.att2)
-csa.es2 <- aggte(csa.margin2, type="dynamic", na.rm=TRUE, min_e=-10, max_e=10)
-summary(csa.es2)
-ggdid(csa.es2)
+twfe.dat <- est.dat %>%
+      mutate(ID=as.numeric(factor(ID)),treat_group=if_else(!is.na(eff_year),eff_year,-1)) %>%
+      filter(!is.na(margin), !is.na(year), BDTOT<30, distance>10) %>%
+      mutate(own_type=as.factor(own_type),
+             hosp_event_time=case_when(
+                hosp_event_time> 10 ~ 10,
+                hosp_event_time< -10 ~ -10,
+                TRUE ~ hosp_event_time),
+             ) %>%
+      select(ID, year, margin, BDTOT, distance, eff_year,
+            own_type, teach_major, hosp_event_time, treat_group) 
+
+feols(margin~i(hosp_event_time, ref=-1) + BDTOT + distance | ID + year, 
+      data=twfe.dat, cluster="ID") 
+      
+feols(margin~sunab(treat_group, hosp_event_time) + BDTOT + distance | ID + year, 
+      data=twfe.dat, cluster="ID") %>%
+  iplot(
+    main     = "fixest::sunab",
+    xlab     = "Time to treatment",
+    ref.line = 0
+    )
