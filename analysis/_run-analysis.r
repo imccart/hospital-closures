@@ -2,7 +2,7 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   7/7/2025
+## Date Edited:   8/12/2025
 ## Description:   Run Analysis Files
 
 
@@ -61,7 +61,7 @@ data.merge <- aha.data %>%
     select(-hosp_count)
 
 # construct new variables
-final.dat <- data.merge %>%
+final.dat2 <- data.merge %>%
   mutate(closed=case_when(
                 !is.na(change_type) & change_type=="Closure" ~ 1,
                 !is.na(change_type) & change_type!="Closure" ~ 0,
@@ -73,14 +73,15 @@ final.dat <- data.merge %>%
          closed_merged=ifelse(closed==1 | merged==1, 1, 0),
          ) %>%
     group_by(ID) %>% mutate(ever_cah=max(cah, na.rm=TRUE)) %>% ungroup() %>%
-    group_by(MSTATE) %>% mutate(first_year_obs=min(eff_year, na.rm=TRUE),
-                                first_year_law=min(cah_year_law, na.rm=TRUE)) %>% ungroup() %>%
-    mutate(first_year_obs=ifelse(is.infinite(first_year_obs), 0, first_year_obs),
-           first_year_law=ifelse(is.infinite(first_year_law),0,first_year_law),
-           first_year_treat=first_year_obs) %>%
-    group_by(ID) %>% mutate(max_treat=max(first_year_treat, na.rm=TRUE), min_treat=min(first_year_treat, na.rm=TRUE)) %>%
+    group_by(MSTATE) %>% mutate(state_first_obs=min(eff_year, na.rm=TRUE),
+                                state_first_law=min(cah_year_law, na.rm=TRUE)) %>% ungroup() %>%
+    mutate(state_first_obs=ifelse(is.infinite(state_first_obs), 0, state_first_obs),
+           state_first_law=ifelse(is.infinite(state_first_law), 0, state_first_law),
+           state_treat=state_first_obs) %>%
+    group_by(ID) %>% mutate(max_treat=max(state_treat, na.rm=TRUE), min_treat=min(state_treat, na.rm=TRUE))  %>%
     filter(max_treat==min_treat) %>% ungroup() %>% select(-c(max_treat, min_treat))
 
+lost.merge <- final.dat1 %>% select(ID, year, MSTATE) %>% anti_join(final.dat2 %>% select(ID, year), by=c("ID", "year"))
 
 est.dat <- final.dat %>%
   mutate(margin_990=case_when(

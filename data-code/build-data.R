@@ -43,6 +43,11 @@ form990.data <- read_tsv('data/input/form990_ahaid.txt') %>%
 source('data-code/functions.R')
 source('data-code/api-keys.R')
 
+
+# AHA data cleaning (manual) -----------------------------------------------
+aha.combine <- aha.combine %>% 
+  mutate(MSTATE=if_else(ID=="6540810", "MS", MSTATE))
+
 # AHA ID to MCRNUM Crosswalk ----------------------------------------------
 
 ## Fuzzy match of names in AHA and HCRIS

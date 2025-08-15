@@ -175,15 +175,15 @@ synthdid_plot(synth.est, facet.vertical=FALSE,
 
 # treatment at hospital-level
 cs.dat1 <- est.dat %>%
-      mutate(ID=as.numeric(factor(ID)), treat_group=if_else(!is.na(eff_year),eff_year,0)) %>%
+      mutate(ID2=as.numeric(factor(ID)), treat_group=if_else(!is.na(eff_year),eff_year,0)) %>%
       filter(!is.na(margin), !is.na(year), !is.na(BDTOT), !is.na(distance), 
-          BDTOT<30, distance>10) %>%
-      select(ID, treat_group, year, margin, BDTOT, distance, own_type, teach_major) %>%
+          BDTOT<30, distance>10, ID!=6740050) %>%
+      select(ID, ID2, treat_group, year, margin, BDTOT, distance, own_type, teach_major) %>%
       mutate(own_type=as.factor(own_type))
 
 csa.margin1 <- att_gt(yname="margin",
                    gname="treat_group",
-                   idname="ID",
+                   idname="ID2",
                    tname="year",
                    control_group="notyettreated",
                    panel=TRUE,
@@ -196,7 +196,9 @@ csa.att1 <- aggte(csa.margin1, type="simple", na.rm=TRUE)
 summary(csa.att1)
 csa.es1 <- aggte(csa.margin1, type="dynamic", na.rm=TRUE, min_e=-10, max_e=10)
 summary(csa.es1)
+png("results/cs-margin.png")
 ggdid(csa.es1)
+dev.off()            
 
 raw.att <- tibble(
     group = csa.margin1$group,
@@ -205,6 +207,14 @@ raw.att <- tibble(
     se = csa.margin1$se
   ) %>%
   mutate(event_time = time - group)
+
+raw.att %>% filter(event_time %in% c(-10,-9, -8, -5,-2,-3)) %>% 
+  group_by(event_time) %>% 
+  summarize(matt=mean(att, na.rm=TRUE), maxatt=max(att, na.rm=TRUE), mina= min(att, na.rm=TRUE), n=n(),
+            se=mean(se, na.rm=TRUE))
+
+# Problematic IDs
+6740050
 
 ## Standard TWFE -----------------------------------------------------
 

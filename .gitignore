@@ -1,4 +1,5 @@
 data/*
 background/*
+supplemental/*
 results/*
 data-code/api-keys.R
