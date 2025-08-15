@@ -2,7 +2,7 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   1/29/2025
+## Date Edited:   8/15/2025
 ## Description:   Build Analytic Data
 
 
@@ -45,8 +45,13 @@ source('data-code/api-keys.R')
 
 
 # AHA data cleaning (manual) -----------------------------------------------
+
+## IDs with incorrect state codes in one year
 aha.combine <- aha.combine %>% 
-  mutate(MSTATE=if_else(ID=="6540810", "MS", MSTATE))
+  mutate(MSTATE=if_else(ID=="6540810", "MS", MSTATE),
+         MSTATE=if_else(ID=="6710190", "AR", MSTATE),
+         MSTATE=if_else(ID=="6931186", "CA", MSTATE))
+
 
 # AHA ID to MCRNUM Crosswalk ----------------------------------------------
 
@@ -299,9 +304,6 @@ aha.final <- aha.combine %>%
          )) %>%
     write_csv('data/output/aha_final.csv')         
 
-#  filter(COMMTY=="Y",
-#         SERV==10) %>%
-
 
 ## hospital closures and mergers
 merge.close <- aha.final %>% 
@@ -322,7 +324,6 @@ aha.geo <- aha.final %>%
   mutate_at(vars(LAT, LONG), as.numeric) %>%
   mutate(LAT=ifelse(LAT==0, NA, LAT),
          LONG=ifelse(LONG==0, NA, LONG))
-
 
 unique_years <- unique(aha.geo$year)
 final.neighbors <- tibble()

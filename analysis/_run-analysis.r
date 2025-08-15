@@ -23,6 +23,12 @@ non.missing.counts <- aha.data %>%
   pivot_longer(cols = -year, names_to = "Variable", values_to = "Count") %>%
   pivot_wider(names_from = year, values_from = Count)
 
+check.distance <- aha.neighbors %>%
+  group_by(year) %>%
+  summarize(mean_dist=mean(distance, na.rm=TRUE),
+            count_dist=sum(!is.na(distance)),
+            count_all=n())
+
 state.xwalk <- tibble(
   state = state.name,
   MSTATE = state.abb
@@ -54,14 +60,16 @@ write_csv(copa.dat,'data/output/copa_data.csv')
 data.merge <- aha.data %>% 
     left_join(aha.neighbors, by=c("ID", "year")) %>%
     left_join(cah.dates %>% select(cah_date_law=cah_date, cah_year_law=cah_year, MSTATE="abb"), by="MSTATE") %>%
-    filter(! MSTATE %in% c("AK","HI","PR","VI","GU","MP","AS", "N","0", "AS", "DC", "DE", "MH", "ML"), !is.na(MSTATE)) %>%
+    filter(! MSTATE %in% c("AK","HI","PR","VI","GU","MP","AS", "N","0", "AS", "DC", "DE", "MH", "ML"), 
+           !is.na(MSTATE), MSTATE!="NA") %>%
+    filter(COMMTY=="Y", hosp_type=="General") %>%
     group_by(ID, year) %>%
     mutate(hosp_count=n()) %>%
     filter(hosp_count==1) %>% ungroup () %>%
     select(-hosp_count)
 
 # construct new variables
-final.dat2 <- data.merge %>%
+final.dat <- data.merge %>%
   mutate(closed=case_when(
                 !is.na(change_type) & change_type=="Closure" ~ 1,
                 !is.na(change_type) & change_type!="Closure" ~ 0,
@@ -77,11 +85,7 @@ final.dat2 <- data.merge %>%
                                 state_first_law=min(cah_year_law, na.rm=TRUE)) %>% ungroup() %>%
     mutate(state_first_obs=ifelse(is.infinite(state_first_obs), 0, state_first_obs),
            state_first_law=ifelse(is.infinite(state_first_law), 0, state_first_law),
-           state_treat=state_first_obs) %>%
-    group_by(ID) %>% mutate(max_treat=max(state_treat, na.rm=TRUE), min_treat=min(state_treat, na.rm=TRUE))  %>%
-    filter(max_treat==min_treat) %>% ungroup() %>% select(-c(max_treat, min_treat))
-
-lost.merge <- final.dat1 %>% select(ID, year, MSTATE) %>% anti_join(final.dat2 %>% select(ID, year), by=c("ID", "year"))
+           state_treat_year=state_first_obs) 
 
 est.dat <- final.dat %>%
   mutate(margin_990=case_when(
@@ -92,20 +96,19 @@ est.dat <- final.dat %>%
   mutate(
     margin_hcris=(net_pat_rev - tot_operating_exp)/net_pat_rev,
     margin=ifelse(!is.na(margin_990), margin_990, margin_hcris),
-    event_time=case_when(
-      first_year_treat>0 ~ year - first_year_treat,
-      first_year_treat==0 ~ -1),
+    state_event_time=case_when(
+      state_treat_year>0 ~ year - state_treat_year,
+      state_treat_year==0 ~ -1),
     hosp_event_time=case_when(
       !is.na(eff_year) ~ year - eff_year,
       TRUE ~ -1),
     aha_id=as.numeric(ID),
-    treat_state=ifelse(first_year_treat>0, 1, 0),
-    treat_time=ifelse(year>=first_year_treat & first_year_treat>0, 1, 0),
+    treat_state=ifelse(state_treat_year>0, 1, 0),
+    treat_state_post=ifelse(year>=state_treat_year & state_treat_year>0, 1, 0),
     compare_hosp=case_when(
       year<1999 & BDTOT<12 & distance>30 ~ 1,
       year>=1999 & BDTOT<25 & distance>30 ~ 1,
       TRUE ~ 0)) %>%
-    filter(hosp_type=="General") %>%
     group_by(year) %>% 
     mutate(m_top=quantile(margin, probs=0.95, na.rm=TRUE),
            m_bottom=quantile(margin, probs=0.05, na.rm=TRUE)) %>%
@@ -117,7 +120,6 @@ est.dat <- final.dat %>%
     mutate(margin=na.approx(margin, x=year, na.rm=FALSE)) %>%
     ungroup()
 
-
 ## add ipw weights to estimation data
 source('analysis/0-ipw-weights.R')
 est.dat <- est.dat %>%
@@ -126,52 +128,53 @@ est.dat <- est.dat %>%
 
 ## Aggregate to state level --------------------------------------------------
 
+## state.dat1 is the raw count of hospitals, closures, and mergers
 state.dat1 <- est.dat %>% 
   group_by(MSTATE, year) %>%
-  summarize(hospitals=n(), cah_treat=min(first_year_treat), 
+  summarize(hospitals=n(), cah_treat=min(state_treat_year), 
     closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE),
     mergers=sum(merged), any_changes=sum(closed_merged),
-    first_year_treat=first(first_year_treat)) %>%
+    state_treat_year=first(state_treat_year)) %>%
   mutate(
     event_time=case_when(
-      first_year_treat>0 ~ year - first_year_treat,
-      first_year_treat==0 ~ -1),
-    treat_state=ifelse(first_year_treat>0, 1, 0),
-    treat_time=ifelse(year>=first_year_treat & first_year_treat>0, 1, 0)) %>%
+      state_treat_year>0 ~ year - state_treat_year,
+      state_treat_year==0 ~ -1),
+    treat=ifelse(state_treat_year>0, 1, 0),
+    treat_post=ifelse(year>=state_treat_year & state_treat_year>0, 1, 0)) %>%
   ungroup() %>%
   mutate(state=as.numeric(factor(MSTATE)))
 
+## state.dat2 is the same, but with ipw weights applied
 state.dat2 <- est.dat %>%
   group_by(MSTATE, year) %>%
-  summarize(hospitals=sum(ipw), cah_treat=min(first_year_treat), 
+  summarize(hospitals=sum(ipw), cah_treat=min(state_treat_year), 
     closures=sum(closed*ipw), sum_cah=sum(cah*ipw, na.rm=TRUE),
     mergers=sum(merged*ipw), any_changes=sum(closed_merged*ipw),
-    first_year_treat=first(first_year_treat)) %>%
+    state_treat_year=first(state_treat_year)) %>%
   mutate(
     event_time=case_when(
-      first_year_treat>0 ~ year - first_year_treat,
-      first_year_treat==0 ~ -1),
-    treat_state=ifelse(first_year_treat>0, 1, 0),
-    treat_time=ifelse(year>=first_year_treat & first_year_treat>0, 1, 0)) %>%
+      state_treat_year>0 ~ year - state_treat_year,
+      state_treat_year==0 ~ -1),
+    treat=ifelse(state_treat_year>0, 1, 0),
+    treat_post=ifelse(year>=state_treat_year & state_treat_year>0, 1, 0)) %>%
   ungroup() %>%
   mutate(state=as.numeric(factor(MSTATE)))
 
-state.dat3 <- est.dat %>% filter(BDTOT<75, distance>20) %>%
+## state.dat3 is raw counts but with distance and size restrictions
+state.dat3 <- est.dat %>% filter(BDTOT<30, distance>10) %>%
   group_by(MSTATE, year) %>%
-  summarize(hospitals=n(), cah_treat=min(first_year_treat), 
+  summarize(hospitals=n(), cah_treat=min(state_treat_year), 
     closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE),
     mergers=sum(merged), any_changes=sum(closed_merged),
-    first_year_treat=first(first_year_treat)) %>%
+    state_year_treat=first(state_treat_year)) %>%
   mutate(
     event_time=case_when(
-      first_year_treat>0 ~ year - first_year_treat,
-      first_year_treat==0 ~ -1),
-    treat_state=ifelse(first_year_treat>0, 1, 0),
-    treat_time=ifelse(year>=first_year_treat & first_year_treat>0, 1, 0)) %>%
+      state_treat_year>0 ~ year - state_treat_year,
+      state_treat_year==0 ~ -1),
+    treat=ifelse(state_treat_year>0, 1, 0),
+    treat_post=ifelse(year>=state_treat_year & state_treat_year>0, 1, 0)) %>%
   ungroup() %>%
   mutate(state=as.numeric(factor(MSTATE)))
-
-
 
 
 # Source analysis code files -----------------------------------------------
