@@ -17,18 +17,6 @@ aha.data <- read_csv('data/output/aha_final.csv')
 aha.neighbors <- read_csv('data/output/aha_neighbors.csv')
 cah.dates <- read_csv('data/input/cah-states.csv')
 
-non.missing.counts <- aha.data %>%
-  group_by(year) %>%
-  summarise(across(everything(), ~ sum(!is.na(.) & !(. %in% "")))) %>%
-  pivot_longer(cols = -year, names_to = "Variable", values_to = "Count") %>%
-  pivot_wider(names_from = year, values_from = Count)
-
-check.distance <- aha.neighbors %>%
-  group_by(year) %>%
-  summarize(mean_dist=mean(distance, na.rm=TRUE),
-            count_dist=sum(!is.na(distance)),
-            count_all=n())
-
 state.xwalk <- tibble(
   state = state.name,
   MSTATE = state.abb
@@ -126,7 +114,7 @@ est.dat <- est.dat %>%
   left_join(id.weights %>% select(ID, ipw), by="ID")
 
 
-## Aggregate to state level --------------------------------------------------
+# Aggregate to state level --------------------------------------------------
 
 ## state.dat1 is the raw count of hospitals, closures, and mergers
 state.dat1 <- est.dat %>% 
@@ -166,7 +154,7 @@ state.dat3 <- est.dat %>% filter(BDTOT<30, distance>10) %>%
   summarize(hospitals=n(), cah_treat=min(state_treat_year), 
     closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE),
     mergers=sum(merged), any_changes=sum(closed_merged),
-    state_year_treat=first(state_treat_year)) %>%
+    state_treat_year=first(state_treat_year)) %>%
   mutate(
     event_time=case_when(
       state_treat_year>0 ~ year - state_treat_year,
@@ -175,6 +163,144 @@ state.dat3 <- est.dat %>% filter(BDTOT<30, distance>10) %>%
     treat_post=ifelse(year>=state_treat_year & state_treat_year>0, 1, 0)) %>%
   ungroup() %>%
   mutate(state=as.numeric(factor(MSTATE)))
+
+
+# Stacked data (treatment at hospital level) ----------------------------
+
+## loop over all possible values of eff_year (year of CAH designation)
+post.period <- 5
+pre.period <- 5
+stack.hosp1 <- tibble()
+for (i in unique(est.dat$eff_year)) {
+
+  ## define treated group relative to eff_year i within event window
+  treat.dat <- est.dat %>%
+    filter(eff_year==i,
+           year>=(i-pre.period), year<=(i+post.period)) %>%
+    select(ID, year) %>%
+    mutate(treat_type="treated")
+
+  ## define control group relative to eff_year i within event window
+  ## never treated (+ never a CAH designation in the state)
+  control.dat.never <- est.dat %>% 
+    filter(is.na(eff_year), state_treat_year==0,
+           year>=(i-pre.period), year<=(i+post.period)) %>%
+    select(ID, year) %>%
+    mutate(treat_type="never")
+
+  ## not yet treated (+ no CAH designation *yet* in the state)
+  control.dat.notyet <- est.dat %>% 
+    filter( (eff_year>(i+post.period) | is.na(eff_year)),
+            state_treat_year>(i+post.period),
+            year>=(i-pre.period), year<=(i+post.period)) %>%
+    select(ID, year) %>%
+    mutate(treat_type="notyet")
+  
+  ## inner join back to est.dat
+  stack.dat.group <- est.dat %>% 
+    inner_join(bind_rows(treat.dat, control.dat.never, control.dat.notyet), by=c("ID","year")) %>%
+    mutate(state=as.numeric(factor(MSTATE)),
+      stacked_event_time=year-i,
+      stack_group=i)
+
+  stack.hosp1 <- bind_rows(stack.hosp1, stack.dat.group)
+ 
+}
+
+## drop the eff_year==0 phantom treatment group
+stack.hosp1 <- stack.hosp1 %>% ungroup() %>%
+  filter(stack_group>0) %>%
+  mutate(treated=ifelse(treat_type=="treated",1,0),
+         control_any=ifelse(treat_type!="treated",1,0),
+         control_notyet=ifelse(treat_type=="notyet",1,0),
+         control_never=ifelse(treat_type=="never",1,0),
+         post=ifelse(stacked_event_time>=0,1,0),
+         post_treat=post*treated,
+         stacked_event_time_treat=stacked_event_time*treated,
+         all_treated=sum(treated),
+         all_control=sum(control_any),
+         all_control_notyet=sum(control_notyet)) %>%
+  group_by(stack_group) %>%
+  mutate(group_treated=sum(treated),
+         group_control_any=sum(control_any),
+         group_control_notyet=sum(control_notyet)) %>%
+  ungroup() %>%
+  mutate(weight_any=case_when(
+           treat_type=="treated" ~ 1,
+           treat_type!="treated" ~ (group_treated/all_treated)/(group_control_any/all_control)),
+         weight_notyet=case_when(
+           treat_type=="treated" ~ 1,
+           treat_type=="notyet" ~ (group_treated/all_treated)/(group_control_notyet/all_control_notyet))
+  )
+
+
+# Stacked data (treatment at state level) --------------------------------
+
+## loop over all possible values of state_treat_year (year of CAH availability)
+post.period <- 5
+pre.period <- 5
+stack.hosp2 <- tibble()
+for (i in unique(est.dat$state_treat_year)) {
+
+  ## define treated group relative to state_treat_year i within event window
+  treat.dat <- est.dat %>%
+    filter(state_treat_year==i,
+           year>=(i-pre.period), year<=(i+post.period)) %>%
+    select(ID, year) %>%
+    mutate(treat_type="treated")
+
+  ## define control group relative to state_treat_year i within event window
+  ## never treated
+  control.dat.never <- est.dat %>% 
+    filter(state_treat_year==0,
+           year>=(i-pre.period), year<=(i+post.period)) %>%
+    select(ID, year) %>%
+    mutate(treat_type="never")
+
+  ## not yet treated
+  control.dat.notyet <- est.dat %>% 
+    filter( state_treat_year>(i+post.period),
+            year>=(i-pre.period), year<=(i+post.period)) %>%
+    select(ID, year) %>%
+    mutate(treat_type="notyet")
+  
+  ## inner join back to est.dat
+  stack.dat.group <- est.dat %>% 
+    inner_join(bind_rows(treat.dat, control.dat.never, control.dat.notyet), by=c("ID","year")) %>%
+    mutate(state=as.numeric(factor(MSTATE)),
+      stacked_event_time=year-i,
+      stack_group=i)
+
+  stack.hosp2 <- bind_rows(stack.hosp2, stack.dat.group)
+ 
+}
+
+## drop the state_treat_year==0 phantom treatment group
+stack.hosp2 <- stack.hosp2 %>% ungroup() %>%
+  filter(stack_group>0) %>%
+  mutate(treated=ifelse(treat_type=="treated",1,0),
+         control_any=ifelse(treat_type!="treated",1,0),
+         control_notyet=ifelse(treat_type=="notyet",1,0),
+         control_never=ifelse(treat_type=="never",1,0),
+         post=ifelse(stacked_event_time>=0,1,0),
+         post_treat=post*treated,
+         stacked_event_time_treat=stacked_event_time*treated,
+         all_treated=sum(treated),
+         all_control=sum(control_any),
+         all_control_notyet=sum(control_notyet)) %>%
+  group_by(stack_group) %>%
+  mutate(group_treated=sum(treated),
+         group_control_any=sum(control_any),
+         group_control_notyet=sum(control_notyet)) %>%
+  ungroup() %>%
+  mutate(weight_any=case_when(
+           treat_type=="treated" ~ 1,
+           treat_type!="treated" ~ (group_treated/all_treated)/(group_control_any/all_control)),
+         weight_notyet=case_when(
+           treat_type=="treated" ~ 1,
+           treat_type=="notyet" ~ (group_treated/all_treated)/(group_control_notyet/all_control_notyet))
+  )
+
 
 
 # Source analysis code files -----------------------------------------------

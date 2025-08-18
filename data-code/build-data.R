@@ -208,7 +208,7 @@ fuzzy.match.cah <- as_tibble(fuzzy.merge.cah$matches) %>%
 
 form990.small <- form990.data %>%
   filter(is.na(ID_hospital_1)) %>%
-  filter(str_detect(str_to_lower(name), "hospital|medical|health"))
+  filter(str_detect(str_to_lower(name), "hospital|medical|health")) %>%
   select(ein, name, state, zip, year) %>%
   distinct(ein, name, state, zip) %>%
   group_by(ein, name, state, zip) %>%
@@ -374,10 +374,4 @@ for (yr in unique_years) {
 nearest.neighbor <- final.neighbors %>%
     write_csv('data/output/aha_neighbors.csv')
 
-## check means and count of hospitals with distances by year
-check <- nearest.neighbor %>%
-  group_by(year) %>%
-  summarize(mean_dist=mean(distance, na.rm=TRUE),
-            count_dist=sum(!is.na(distance)),
-            count_all=n())
 
