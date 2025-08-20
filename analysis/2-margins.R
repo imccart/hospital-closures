@@ -50,11 +50,11 @@ plot.2001 <- ggplot(plot_df.2001, aes(x = year, y = margin, linetype = group)) +
   theme(legend.key.width = grid::unit(2, "cm")) +
   annotate("text", x = x_tr, y = y_tr, label = att_lab, hjust = 1, vjust = 1, size = 3.5)
 
-ggsave("results/sdid-margin-2001.png", plot.2001, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
+ggsave("results/margin-sdid-2001.png", plot.2001, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
 
 
 ## use stacked DD data at hospital level for all cohorts and combine
-cohorts <- 1999:2003
+cohorts <- 1999:2002
 
 run_sdid_cohort <- function(c){
   # Build cohort panel (re-using your style/objects)
@@ -157,16 +157,43 @@ p_evt <- ggplot(agg_paths, aes(x = tau)) +
            label = att_body, hjust = 0, vjust = 1,
            size = 3.4, lineheight = 1.05)
 
-ggsave("results/sdid-margin-eventtime.png", p_evt, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
+ggsave("results/margin-sdid.png", p_evt, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
 
 
-## Callaway and Sant'Anna -----------------------------------------------------
+# Standard TWFE ------------------------------------------------------
 
-# treatment at hospital-level
+min.es <- -5
+max.es <- 5
+
+twfe.dat <- est.dat %>%
+      mutate(ID=as.numeric(factor(ID)),treat_group=if_else(!is.na(eff_year),eff_year,-1)) %>%
+      filter(!is.na(margin), !is.na(year), BDTOT<30, distance>10, ID!=6740050,
+        treat_group %in% c(-1, 1999, 2000, 2001, 2002)) %>%
+      mutate(own_type=as.factor(own_type),
+             hosp_event_time=case_when(
+                hosp_event_time> max.es ~ max.es,
+                hosp_event_time< min.es ~ min.es,
+                TRUE ~ hosp_event_time),
+             ) %>%
+      select(ID, year, margin, BDTOT, distance, eff_year,
+            own_type, teach_major, hosp_event_time, treat_group) 
+
+twfe.mod1 <- feols(margin~i(hosp_event_time, ref=-1) + BDTOT + distance | ID + year, 
+      data=twfe.dat, cluster="ID") 
+
+
+
+# Sun and Abraham ------------------------------------------------------
+
+sa.mod1 <- feols(margin~sunab(treat_group, hosp_event_time) + BDTOT + distance | ID + year, 
+      data=twfe.dat, cluster="ID")
+
+# Callaway and Sant'Anna -----------------------------------------------------
+
 cs.dat1 <- est.dat %>%
       mutate(ID2=as.numeric(factor(ID)), treat_group=if_else(!is.na(eff_year),eff_year,0)) %>%
-      filter(!is.na(margin), !is.na(year), !is.na(BDTOT), !is.na(distance), 
-          BDTOT<30, distance>10, ID!=6740050) %>%
+      filter(!is.na(margin), !is.na(year), !is.na(BDTOT), !is.na(distance),
+          BDTOT<30, distance>10, ID!=6740050, treat_group %in% c(0, 1999, 2000, 2001, 2002)) %>%
       select(ID, ID2, treat_group, year, margin, BDTOT, distance, own_type, teach_major) %>%
       mutate(own_type=as.factor(own_type))
 
@@ -183,50 +210,107 @@ csa.margin1 <- att_gt(yname="margin",
                    est_method="ipw")
 csa.att1 <- aggte(csa.margin1, type="simple", na.rm=TRUE)
 summary(csa.att1)
-csa.es1 <- aggte(csa.margin1, type="dynamic", na.rm=TRUE, min_e=-10, max_e=10)
+csa.es1 <- aggte(csa.margin1, type="dynamic", na.rm=TRUE, min_e=min.es, max_e=max.es)
 summary(csa.es1)
-png("results/cs-margin.png")
-ggdid(csa.es1)
-dev.off()            
+
+
 
 ## Identifying problematic IDs via spikes in ATT
-raw.att <- tibble(
-    group = csa.margin1$group,
-    time = csa.margin1$t,
-    att = csa.margin1$att,
-    se = csa.margin1$se
-  ) %>%
-  mutate(event_time = time - group)
+#raw.att <- tibble(
+#    group = csa.margin1$group,
+#    time = csa.margin1$t,
+#    att = csa.margin1$att,
+#    se = csa.margin1$se
+#  ) %>%
+#  mutate(event_time = time - group)
 
-raw.att %>% filter(event_time %in% c(-10,-9, -8, -5,-2,-3)) %>% 
-  group_by(event_time) %>% 
-  summarize(matt=mean(att, na.rm=TRUE), maxatt=max(att, na.rm=TRUE), mina= min(att, na.rm=TRUE), n=n(),
-            se=mean(se, na.rm=TRUE))
+#raw.att %>% filter(event_time %in% c(-10,-9, -8, -5,-2,-3)) %>% 
+#  group_by(event_time) %>% 
+#  summarize(matt=mean(att, na.rm=TRUE), maxatt=max(att, na.rm=TRUE), mina= min(att, na.rm=TRUE), n=n(),
+#            se=mean(se, na.rm=TRUE))
 
 ## Problematic IDs
 #  6740050
 
-## Standard TWFE -----------------------------------------------------
 
-twfe.dat <- est.dat %>%
-      mutate(ID=as.numeric(factor(ID)),treat_group=if_else(!is.na(eff_year),eff_year,-1)) %>%
-      filter(!is.na(margin), !is.na(year), BDTOT<30, distance>10, ID!=6740050) %>%
-      mutate(own_type=as.factor(own_type),
-             hosp_event_time=case_when(
-                hosp_event_time> 10 ~ 10,
-                hosp_event_time< -10 ~ -10,
-                TRUE ~ hosp_event_time),
-             ) %>%
-      select(ID, year, margin, BDTOT, distance, eff_year,
-            own_type, teach_major, hosp_event_time, treat_group) 
+# Graph of TWFE, CS, SA estimators ---------------------------------------------------
 
-feols(margin~i(hosp_event_time, ref=-1) + BDTOT + distance | ID + year, 
-      data=twfe.dat, cluster="ID") 
-      
-feols(margin~sunab(treat_group, hosp_event_time) + BDTOT + distance | ID + year, 
-      data=twfe.dat, cluster="ID") %>%
-  iplot(
-    main     = "fixest::sunab",
-    xlab     = "Time to treatment",
-    ref.line = 0
-    )
+new.row <- tibble(
+  estimate=0,
+  conf.low=0,
+  conf.high=0,
+  event_time=-1
+)
+
+## Collect TWFE estimates
+point.twfe1 <- as_tibble(twfe.mod1$coefficients, rownames="term") %>%
+  filter(str_starts(term,"hosp_event_time::")) %>%
+  rename(estimate=value) %>%
+  mutate(event_time = as.integer(str_remove(term, "hosp_event_time::"))) %>%
+  select(-term)
+
+ci.twfe1 <- as_tibble(confint(twfe.mod1), rownames="term") %>%
+  filter(str_starts(term,"hosp_event_time::")) %>%
+  rename(conf.low = `2.5 %`, conf.high = `97.5 %`) %>%
+  mutate(event_time = as.integer(str_remove(term, "hosp_event_time::"))) %>%
+  select(-term)
+
+est.twfe1 <- point.twfe1 %>%
+  left_join(ci.twfe1, by="event_time") %>%
+  bind_rows(new.row) %>% 
+  mutate(estimator="TWFE") %>%
+  arrange(event_time) %>%
+  select(event_time, estimate, conf.low, conf.high, estimator)
+
+
+## Collect SA estimates
+est.sa1 <- tidy(sa.mod1, conf.int = TRUE) %>%
+  filter(str_detect(term, "^hosp_event_time::")) %>%
+  mutate(event_time = as.integer(str_remove(term, "hosp_event_time::"))) %>%
+  bind_rows(new.row) %>% 
+  mutate(estimator = "SA") %>%
+  select(event_time, estimate, conf.low, conf.high, estimator)
+
+
+## Collect CS estimates
+est.cs1 <- tibble(
+  event_time = csa.es1$egt,
+  estimate   = csa.es1$att,
+  se         = csa.es1$se
+) %>%
+  mutate(
+    conf.low  = if_else(event_time!= -1, estimate - 1.96 * se, 0),
+    conf.high = if_else(event_time!= -1, estimate + 1.96 * se, 0),
+    estimator = "CS"
+  ) %>%
+  select(-se)
+
+
+## Combine all estimates
+est.all <- bind_rows(est.twfe1, est.cs1, est.sa1) %>%
+  arrange(estimator, event_time) %>%
+  mutate(
+    Estimator = factor(estimator, levels = c("TWFE", "CS", "SA"))
+  )  
+
+## Plot
+plot.margins <- ggplot(est.all, aes(x = event_time, y = estimate, shape = Estimator)) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+                position = position_dodge(width = 0.5), 
+                width = 0, linewidth = 0.2, alpha = 0.3, color = "black") +
+  geom_point(position = position_dodge(width = 0.5), 
+             size = 2.5, color = "black", stroke = 0.1, fill="white") +
+  scale_shape_manual(values = c(
+    "TWFE" = 24,    # hollow triangle
+    "CS" = 21,      # hollow circle
+    "SA" = 22       # hollow square
+  )) +
+  scale_x_continuous(breaks = seq(-10, 10, by = 1)) +
+  labs(x = "Event time", y = "Estimate") +
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+
+ggsave("results/margin-other.png", plot.margins, width = 6.5, height = 4.25, dpi = 300, scale=1.5)  

@@ -38,14 +38,14 @@ closure.plot  <- changes.plot %>%
   geom_line(linewidth=0.8, color="black") +
   scale_linetype_manual(values=c("solid", "dashed"), labels=c("Never CAH States", "CAH States")) +
   theme_bw() +
-  labs(x="Year", y="Number of closures", linetype="Group") +
+  labs(x="Year", y="Closures per State per Year", linetype="Group") +
   theme(
     legend.position = "inside",
-    legend.position.inside = c(0.9, .95),
+    legend.position.inside = c(0.85, .85),
     legend.background = element_blank(),
     legend.key.width = unit(2, "cm") 
   )
-ggsave("results/closures.png", closure.plot, width = 6.5, height = 4.25, dpi = 300)
+ggsave("results/desc-closures.png", closure.plot, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
 
 
 merger.plot  <- changes.plot %>%
@@ -53,29 +53,28 @@ merger.plot  <- changes.plot %>%
   geom_line(linewidth=0.8, color="black") +
   scale_linetype_manual(values=c("solid", "dashed"), labels=c("Never CAH States", "CAH States")) +
   theme_bw() +
-  labs(x="Year", y="Number of mergers", linetype="Group") +
+  labs(x="Year", y="Mergers per State per Year", linetype="Group") +
   theme(
     legend.position = "inside",
-    legend.position.inside = c(0.9, .95),
+    legend.position.inside = c(0.85, .85),
     legend.background = element_blank(),
     legend.key.width = unit(2, "cm") 
   )
-ggsave("results/merger.png", merger.plot, width = 6.5, height = 4.25, dpi = 300)
-
+ggsave("results/desc-mergers.png", merger.plot, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
 
 anychange.plot  <- changes.plot %>%
   ggplot(aes(x=year, y=all_changes, linetype=as.factor(treat_state))) +
   geom_line(linewidth=0.8, color="black") +
   scale_linetype_manual(values=c("solid", "dashed"), labels=c("Never CAH States", "CAH States")) +
   theme_bw() +
-  labs(x="Year", y="Number of mergers", linetype="Group") +
+  labs(x="Year", y="Mergers + Closures per State per Year", linetype="Group") +
   theme(
     legend.position = "inside",
-    legend.position.inside = c(0.9, .95),
+    legend.position.inside = c(0.85, .85),
     legend.background = element_blank(),
     legend.key.width = unit(2, "cm") 
   )
-ggsave("results/all-changes.png", anychange.plot, width = 6.5, height = 4.25, dpi = 300)
+ggsave("results/desc-all-changes.png", anychange.plot, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
 
 
 ## count of critical access by year
@@ -100,8 +99,8 @@ fig.hosp.type <- est.dat %>% group_by(year, cah) %>%
   geom_line() + geom_point() + theme_bw() +
   geom_text(data = est.dat %>% filter(year==2016) %>% group_by(cah, year) %>% summarize(hosp_count=n()), 
             aes(label = c("Non-CAH", "CAH"),
-                x = year+1,
-                y = hosp_count-100)) +
+                x = year,
+                y = hosp_count-110)) +
   scale_y_continuous(labels = comma,
                      breaks=seq(0, 8000, 500)) +
   scale_x_continuous(breaks=seq(1980, 2019, 5)) +
@@ -111,7 +110,8 @@ fig.hosp.type <- est.dat %>% group_by(year, cah) %>%
     y="Count of Hospital Types",
     caption="Limited to general, short-term, acute care community hospitals"
   )
-ggsave("results/hosp-types.png", fig.hosp.type, width = 6.5, height = 4.25, dpi = 300)
+ggsave("results/desc-hosp-types.png", fig.hosp.type, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
+
 
 ## Share of CAH and Non-CAH closures over time
 cah.change <- est.dat %>%
@@ -144,26 +144,35 @@ all.change <- est.dat %>%
   ungroup()
 
 
-fig.close <- all.change %>%
-  left_join(non.cah.change,
-            by=c("year","change_type")) %>%
-  left_join(cah.change, 
-            by=c("year", "change_type")) %>%
+fig.change.type <- all.change %>%
+  left_join(non.cah.change, by = c("year","change_type")) %>%
+  left_join(cah.change,      by = c("year","change_type")) %>%
   filter(change_type %in% c("Closure", "Merger")) %>%
   select(year, change_type, prop_non_cah, prop_cah) %>%
-  replace_na(list(prop_non_cah=0, prop_cah=0)) %>%
-  pivot_longer(cols = starts_with("prop"), names_to = "type", values_to = "value") %>%
-  ggplot(aes(x = year, y = value, color = type, linetype = change_type)) +
-  geom_line() +
-  ylim(0,0.02) + 
-  scale_x_continuous(breaks=seq(1980, 2019, 1)) +
-  labs(x = "Year", y = "Proportion", color = "Hospital Type", linetype = "Change Type") +
-  theme_minimal() +
-  scale_color_discrete(labels=c("CAH","Non-CAH")) + 
-  guides(color = guide_legend(order = 2), linetype = guide_legend(order = 1)) +
-  theme(axis.text.x = element_text(angle = 45, hjust=1),
-        legend.position=c(0.8,0.65))
-
+  replace_na(list(prop_non_cah = 0, prop_cah = 0)) %>%
+  pivot_longer(
+    cols = starts_with("prop"),
+    names_to = "type", values_to = "value"
+  ) %>%
+  mutate(
+    type = dplyr::recode(type,
+                         prop_non_cah = "Non-CAH",
+                         prop_cah     = "CAH"),
+    type = factor(type, levels = c("Non-CAH","CAH"))
+  ) %>%
+  ggplot(aes(x = year, y = value, linetype = change_type, group = change_type)) +
+  geom_line(color = "black", size = 0.7) +
+  facet_wrap(~ type, nrow = 2) +
+  ylim(0, 0.0175) +
+  scale_x_continuous(breaks = seq(1980, 2019, 5)) +
+  scale_linetype_manual(values = c("Closure" = "solid", "Merger" = "dotted")) +
+  labs(x = "Year", y = "Proportion of Hospitals Closing or Merging", linetype = "Change Type") +
+  guides(linetype = guide_legend(order = 1)) +
+  theme_bw() +
+  theme(
+    legend.position = "bottom"
+  )
+ggsave("results/desc-changes-by-type.png", fig.change.type, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
 
 ## Treatment timing --------------------------------------------------------
 
@@ -171,7 +180,7 @@ panel.cah <- panelview(1~treat_post, data=state.dat1 %>% mutate(MSTATE=as.charac
                       index=c("MSTATE","year"), legendOff=TRUE, 
           theme.bw=TRUE, by.timing=TRUE, xlab="Year", ylab="State",
           main="", color=c("white","gray"), axis.lab.angle=45)
-ggsave("results/panelview-cah-treat.png", panel.cah, width = 6.5, height = 4.25, dpi = 300)
+ggsave("results/desc-panelview-treat.png", panel.cah, width = 6.5, height = 4.25, dpi = 300, scale=2)
 
 panel.closure <- panelview(closures ~ treat_post,
           data = state.dat1, index = c("MSTATE","year"), type = "outcome",
@@ -179,4 +188,4 @@ panel.closure <- panelview(closures ~ treat_post,
           legend.labs = c("Never CAH States","Treated States (before CAH)",
                           "Treated States (after CAH)"),
           theme.bw=TRUE, xlab="Year", ylab="Count of Closures")          
-ggsave("results/panelview-cah-closure.png", panel.closure, width = 6.5, height = 4.25, dpi = 300)
+ggsave("results/desc-panelview-closures.png", panel.closure, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
