@@ -9,7 +9,7 @@
 # Preliminaries -----------------------------------------------------------
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here,
-               fedmatch, scales, zipcodeR, did, fixest, panelView, did2s,
+               fedmatch, scales, zipcodeR, did, fixest, panelView, did2s, dotwhisker,
                haven, sf, igraph, plotly, synthdid, BMisc, nnet, glmnet, zoo, purrr, grid)
 
 # Read-in data ------------------------------------------------------------
@@ -48,7 +48,7 @@ write_csv(copa.dat,'data/output/copa_data.csv')
 data.merge <- aha.data %>% 
     left_join(aha.neighbors, by=c("ID", "year")) %>%
     left_join(cah.dates %>% select(cah_date_law=cah_date, cah_year_law=cah_year, MSTATE="abb"), by="MSTATE") %>%
-    filter(! MSTATE %in% c("AK","HI","PR","VI","GU","MP","AS", "N","0", "AS", "DC", "DE", "MH", "ML"), 
+    filter(! MSTATE %in% c("AK","HI","PR","VI","GU","MP","AS", "N","0", "AS", "DC", "DE", "MH", "ML","MD"), 
            !is.na(MSTATE), MSTATE!="NA") %>%
     filter(COMMTY=="Y", hosp_type=="General") %>%
     group_by(ID, year) %>%
