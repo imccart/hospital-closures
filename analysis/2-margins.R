@@ -5,8 +5,8 @@
 ##   - Must be data frame (tibble forces errors) and must have more than 1 pre-treatment period
 
 ## use stacked DD data at hospital level for single cohort
-synth.2001 <- stack.hosp1 %>% group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE)) %>% ungroup() %>%
-            filter(stack_group==2002, !is.na(margin), min_bedsize<=75) %>%
+synth.2001 <- stack.hosp %>% group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE)) %>% ungroup() %>%
+            filter(stack_group==2001, !is.na(margin), min_bedsize<=75) %>%
             select(ID, year, margin, post_treat)
 
 balance.2001  <- as_tibble(makeBalancedPanel(synth.2001, idname="ID", tname="year"))
@@ -58,7 +58,7 @@ cohorts <- 1999:2002
 
 run_sdid_cohort <- function(c){
   # Build cohort panel (re-using your style/objects)
-  synth.c <- stack.hosp1 %>%
+  synth.c <- stack.hosp %>%
     group_by(ID) %>% mutate(min_bedsize = min(BDTOT, na.rm = TRUE)) %>% ungroup() %>%
     filter(stack_group == c, !is.na(margin), min_bedsize <= 75) %>%
     select(ID, year, margin, post_treat)
