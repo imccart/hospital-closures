@@ -142,7 +142,7 @@ p_evt <- ggplot(agg_paths, aes(x = tau)) +
   geom_vline(xintercept = 0, linewidth = 1) +
   scale_linetype_manual(values = c("Treated" = "solid", "Synthetic control" = "dashed")) +
   scale_x_continuous(breaks = seq(min(agg_paths$tau), max(agg_paths$tau), by = 1)) +
-  labs(x = "Event time (τ)", y = "Margin", linetype = NULL) +
+  labs(x = "Event time", y = "Margin", linetype = NULL) +
   theme_bw() +
   theme(
     legend.position = "inside",

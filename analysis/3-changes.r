@@ -1,16 +1,35 @@
-# Synthetic DD ---------------------------------------------------------------
+# =========================================================
+# Select outcome (one of: "closures", "mergers", "changes")
+# =========================================================
+outcome <- "changes"
 
-## Notes on Synth DD. 
-##   - Must be data frame (tibble forces errors) and must have more than 1 pre-treatment period
+# Map outcome -> variable names, axis labels, filename slugs
+vars <- list(
+  closures = list(y_count="closures", y_rate="rate_closed",
+                  axis_label="Closures", slug="closure-rate"),
+  mergers  = list(y_count="mergers", y_rate="rate_merged",
+                  axis_label="Mergers", slug="merger-rate"),
+  changes  = list(y_count="changes", y_rate="rate_changes",
+                  axis_label="Closures or mergers", slug="change-rate")
+)
+o <- vars[[outcome]]
+
+# =====================================================================
+# Synthetic DD ---------------------------------------------------------
+# =====================================================================
 
 ## Single year
-stack.state1 %>% filter(stacked_event_time <= -1, treated==1, stack_group==2001) %>% summarize(mean_hosp=mean(hospitals, na.rm=TRUE))
+denom.2001 <- stack.state1 %>% 
+  filter(stacked_event_time <= -1, treated==1, stack_group==2001) %>% 
+  summarize(mean_hosp=mean(hospitals, na.rm=TRUE)) %>%
+  pull(mean_hosp)
+
 synth.2001 <- stack.state1 %>%     
-    filter(stack_group == 2001) %>%
-    transmute(ID = as.numeric(factor(MSTATE)),
-              year,
-              rate = closures,                  # outcome = closure rate
-              post_treat)                          # treatment timing for this cohort
+  filter(stack_group == 2001) %>%
+  transmute(ID = as.numeric(factor(MSTATE)),
+            year,
+            rate = .data[[o$y_count]],        # outcome = counts (closures/mergers/changes)
+            post_treat)
 
 balance.2001  <- as_tibble(makeBalancedPanel(synth.2001, idname="ID", tname="year"))
 
@@ -18,7 +37,7 @@ setup <- panel.matrices(as.data.frame(balance.2001))
 synth.est <- synthdid_estimate(setup$Y, setup$N0, setup$T0)
 se  <- synthdid_se(synth.est, method="jackknife")
 
-w      <- attr(synth.est, "weights")$omega    # unit weights on controls
+w      <- attr(synth.est, "weights")$omega
 Y      <- setup$Y
 N0     <- setup$N0
 N      <- nrow(Y)
@@ -28,38 +47,40 @@ treated_path   <- colMeans(Y[(N0+1):N, , drop = FALSE])
 synthetic_path <- as.numeric(drop(t(w) %*% Y[1:N0, , drop = FALSE]))
 
 plot_df.2001 <- bind_rows(
-  tibble(year = years, group = "Synthetic control", rate_closed = synthetic_path),
-  tibble(year = years, group = "Treated",            rate_closed = treated_path)
-) %>%
-  mutate(group = factor(group, levels = c("Synthetic control","Treated")))
+  tibble(year = years, group="Synthetic control",
+         rate_closed = (synthetic_path/denom.2001)*100),
+  tibble(year = years, group="Treated",
+         rate_closed = (treated_path/denom.2001)*100)
+)
 
 # 95% CI label (top-right), no box/border
-att      <- (as.numeric(synth.est)/80)*100
-se_num   <- (as.numeric(se)/80)*100
+att      <- (as.numeric(synth.est)/denom.2001)*100
+se_num   <- (as.numeric(se)/denom.2001)*100
 ci_low   <- att - 1.96 * se_num
 ci_high  <- att + 1.96 * se_num
 
 y_top <- max(plot_df.2001$rate_closed, na.rm = TRUE)
 x_pos <- max(plot_df.2001$year)
 
-lab_txt <- sprintf("ATT and 95%% CI: %.2f [%.2f, %.2f]",
-                   att, ci_low, ci_high)
+lab_txt <- sprintf("ATT and 95%% CI: %.2f [%.2f, %.2f]", att, ci_low, ci_high)
 
-plot.2001 <- ggplot(plot_df.2001, aes(x = year, y = rate_closed, linetype = group)) +
+plot.sdid2001 <- ggplot(plot_df.2001, aes(x = year, y = rate_closed, linetype = group)) +
   geom_line(linewidth = 0.8, color = "black")   +
   geom_vline(xintercept = 2001, linewidth = 1)  +
   scale_linetype_manual(values = c("Synthetic control" = "dashed", "Treated" = "solid")) +
-  labs(x = "Year", y = "Closure rate per 100 hospitals", linetype = NULL) +
+  labs(x = "Year", y = paste0(o$axis_label, " per 100 hospitals"), linetype = NULL) +
   theme_bw() +
   theme(legend.position = "bottom", legend.key.width = unit(2, "cm"))  +
   annotate("text", x = x_pos, y = y_top, label = lab_txt, hjust = 1, vjust = 1, size = 3.4)
 
-ggsave("results/closure-rate-sdid-2001.png", plot.2001, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
-
-
+ggsave(paste0("results/", o$slug, "-sdid-2001.png"), plot.sdid2001,
+       width = 6.5, height = 4.25, dpi = 300, scale=1.5)
 
 ## All cohorts
-denom.lag <- stack.state1 %>% filter(stacked_event_time <= -1, treated==1) %>% group_by(stack_group) %>% summarize(mean_hosp=mean(hospitals, na.rm=TRUE))
+denom.lag <- stack.state1 %>% 
+  filter(stacked_event_time <= -1, treated==1) %>% 
+  group_by(stack_group) %>% 
+  summarize(mean_hosp=mean(hospitals, na.rm=TRUE))
 
 cohorts <- c(1999, 2000, 2001, 2002)
 
@@ -68,11 +89,11 @@ run_sdid_state <- function(c){
     filter(stack_group == c) %>%
     transmute(ID = as.numeric(factor(MSTATE)),
               year,
-              rate = closures,                  # outcome = closure rate
-              post_treat)  # treatment timing for this cohort
+              rate = .data[[o$y_count]],     # outcome = counts (closures/mergers/changes)
+              post_treat)
 
   bal <- as_tibble(makeBalancedPanel(dat, idname = "ID", tname = "year"))
-  setup <- panel.matrices(as.data.frame(bal))      # Y, N0, T0
+  setup <- panel.matrices(as.data.frame(bal))
 
   est <- synthdid_estimate(setup$Y, setup$N0, setup$T0)
   se  <- synthdid_se(est, method = "jackknife")
@@ -93,11 +114,11 @@ run_sdid_state <- function(c){
   list(
     cohort = c,
     paths  = tibble(cohort = c, tau = tau,
-                    treated = (treat_path/denom_c)*100,      # per 100 hospitals
+                    treated = (treat_path/denom_c)*100,
                     synthetic = (syn_path/denom_c)*100,
                     Ntr = Ntr),
     att_se = tibble(cohort = c,
-                    att = (as.numeric(est)/denom_c)*100,     # ATT in closures per 100 hospitals
+                    att = (as.numeric(est)/denom_c)*100,
                     se  = (as.numeric(se)/denom_c)*100,
                     Ntr = Ntr)
   )
@@ -108,7 +129,7 @@ out        <- map(cohorts, run_sdid_state)
 paths_all  <- bind_rows(map(out, "paths"))
 atts_all   <- bind_rows(map(out, "att_se"))
 
-# Weighted-average paths across cohorts at each event time tau (weights = # treated units)
+# Weighted-average paths across cohorts at each event time tau
 agg_paths <- paths_all %>%
   group_by(tau) %>%
   summarise(
@@ -119,10 +140,11 @@ agg_paths <- paths_all %>%
   )
 
 # Pooled ATT using inverse-variance weights (approximate independence across cohorts)
-att_w   <- with(atts_all, sum(Ntr * att) / sum(Ntr))
-se_w    <- with(atts_all, sqrt(sum( (Ntr / sum(Ntr))^2 * se^2 )))
-ci_low  <- att_w - 1.96 * se_w
-ci_high <- att_w + 1.96 * se_w
+atts_all <- atts_all %>% mutate(var = se^2, w = 1/var)
+att_w  <- with(atts_all, sum(w * att) / sum(w))
+se_w   <- sqrt(1 / sum(atts_all$w))
+ci_low <- att_w - 1.96 * se_w
+ci_high<- att_w + 1.96 * se_w
 
 atts_table <- atts_all %>%
   mutate(ci_lo = att - 1.96 * se,
@@ -140,18 +162,18 @@ att_lab <- paste(
 att_header <- "ATT and 95%CI"
 att_body   <- sub("^ATT and 95%CI\\n", "", att_lab)
 
-# Plot: treated vs synthetic, event time, solid vline at 0, wider legend key
+# Plot SDID paths
 y_top  <- max(c(agg_paths$treated, agg_paths$synthetic), na.rm = TRUE)
-x_pos  <- max(agg_paths$tau) - 2   # or your preferred x
+x_pos  <- max(agg_paths$tau) - 2
 yrange <- diff(range(c(agg_paths$treated, agg_paths$synthetic), na.rm = TRUE))
 
-p_state_evt <- ggplot(agg_paths, aes(x = tau)) +
+plot.sdid <- ggplot(agg_paths, aes(x = tau)) +
   geom_line(aes(y = treated,   linetype = "Treated"),   linewidth = 0.8, color = "black") +
   geom_line(aes(y = synthetic, linetype = "Synthetic"), linewidth = 0.8, color = "black") +
   geom_vline(xintercept = 0, linewidth = 1) +
   scale_linetype_manual(values = c("Treated" = "solid", "Synthetic" = "dashed")) +
   scale_x_continuous(breaks = seq(min(agg_paths$tau), max(agg_paths$tau), by = 1)) +
-  labs(x = "Event time", y = "Closures per 100 hospitals", linetype = NULL) +
+  labs(x = "Event time", y = paste0(o$axis_label, " per 100 hospitals"), linetype = NULL) +
   theme_bw() +
   theme(
     legend.position = "inside",
@@ -162,32 +184,29 @@ p_state_evt <- ggplot(agg_paths, aes(x = tau)) +
   annotate("text", x = x_pos, y = y_top,
            label = att_header, hjust = 0, vjust = 1,
            size = 3.6, fontface = "bold") +
-  annotate("text", x = x_pos, y = y_top - 0.03*yrange,  # small line break below header
+  annotate("text", x = x_pos, y = y_top - 0.03*yrange,
            label = att_body, hjust = 0, vjust = 1,
            size = 3.4, lineheight = 1.05)
 
-ggsave("results/closure-rate-sdid.png", p_state_evt, width = 6.5, height = 4.25, dpi = 300, scale = 1.5)
+ggsave(paste0("results/", o$slug, "-sdid.png"), plot.sdid,
+       width = 6.5, height = 4.25, dpi = 300, scale = 1.5)
 
-
-
-
-
-
-# Standard TWFE ------------------------------------------------------
+# =====================================================================
+# Standard TWFE / SA / CS ---------------------------------------------
+# =====================================================================
 
 min.es <- -5
 max.es <- 5
 
-twfe.mod1 <- fepois(closures~i(event_time, ref=-1) | MSTATE + year, 
-    offset = ~ log(hospitals_lag),
-    cluster=~MSTATE,
-    data=state.dat1 %>% filter(state_treat_year == 0 | state_treat_year > 1995) %>%
-            mutate(event_time=case_when(
-                  event_time > max.es ~ max.es,
-                  event_time < min.es ~ min.es,
-                  TRUE ~ event_time),
-               )) 
-
+twfe.mod1 <- fepois(.data[[o$y_count]] ~ i(event_time, ref=-1) | MSTATE + year, 
+  offset = ~ log(hospitals_lag),
+  cluster=~MSTATE,
+  data=state.dat1 %>% filter(state_treat_year == 0 | state_treat_year > 1995) %>%
+    mutate(event_time=case_when(
+      event_time > max.es ~ max.es,
+      event_time < min.es ~ min.es,
+      TRUE ~ event_time))
+) 
 
 # Sun and Abraham ------------------------------------------------------
 
@@ -195,21 +214,19 @@ min.es <- -10
 max.es <- 10
 
 sa.mod1 <- fepois(
-  closures ~ sunab(state_treat_year, event_time, ref.p=c(-2,-1), bin.rel = "bin::2") | MSTATE + year,
+  .data[[o$y_count]] ~ sunab(state_treat_year, event_time, ref.p=c(-2,-1), bin.rel = "bin::2") | MSTATE + year,
   offset   = ~ log(hospitals_lag),
   cluster  = ~ MSTATE,
   data=state.dat1 %>% filter(state_treat_year == 0 | state_treat_year > 1995) %>%
-            mutate(event_time=case_when(
-                     event_time > max.es ~ max.es,
-                     event_time < min.es ~ min.es,
-                     TRUE ~ event_time),
-               )) 
+    mutate(event_time=case_when(
+      event_time > max.es ~ max.es,
+      event_time < min.es ~ min.es,
+      TRUE ~ event_time))
+) 
 
+# Callaway and Sant'Anna ------------------------------------------------
 
-
-# Callaway and Sant'Anna -----------------------------------------------------
-
-csa.mod1 <- att_gt(yname="rate_closed",
+csa.mod1 <- att_gt(yname=o$y_rate,
                    gname="state_treat_year",
                    idname="state",
                    tname="year",
@@ -226,11 +243,13 @@ summary(csa.att1)
 csa.es1 <- aggte(csa.mod1, type="dynamic", na.rm=TRUE, min_e=-5, max_e=5)
 summary(csa.es1)
 
+# Graph of TWFE, CS, SA estimators -------------------------------------
 
-
-# Graph of TWFE, CS, SA estimators ---------------------------------------------------
-
-base.rate <- 0.004
+base.rate <- state.dat1 %>%
+  filter(event_time <= -1, treat==1,
+         state_treat_year == 0 | state_treat_year > 1995) %>%
+  summarise(rate = sum(.data[[o$y_count]], na.rm=TRUE) / sum(hospitals_lag, na.rm=TRUE)) %>%
+  pull(rate)  
 
 new.row <- tibble(
   estimate=0,
@@ -239,7 +258,7 @@ new.row <- tibble(
   event_time=-1
 )
 
-## Collect TWFE estimates
+## TWFE
 point.twfe1 <- as_tibble(twfe.mod1$coefficients, rownames="term") %>%
   filter(str_starts(term,"event_time::")) %>%
   rename(estimate=value) %>%
@@ -262,8 +281,7 @@ est.twfe1 <- point.twfe1 %>%
          conf.low = (exp(conf.low) - 1) * base.rate,
          conf.high= (exp(conf.high) - 1) * base.rate)
 
-
-## Collect SA estimates
+## SA
 est.sa1 <- tidy(sa.mod1, conf.int = TRUE) %>%
   filter(str_detect(term, "^event_time::")) %>%
   mutate(event_time = as.integer(str_remove(term, "event_time::"))) %>%
@@ -275,9 +293,7 @@ est.sa1 <- tidy(sa.mod1, conf.int = TRUE) %>%
          conf.low = (exp(conf.low) - 1) * base.rate,
          conf.high= (exp(conf.high) - 1) * base.rate)
 
-
-
-## Collect CS estimates
+## CS
 est.cs1 <- tibble(
   event_time = csa.es1$egt,
   estimate   = csa.es1$att,
@@ -290,8 +306,7 @@ est.cs1 <- tibble(
   ) %>%
   select(-se)
 
-
-## Combine all estimates
+## Combine and plot
 est.all <- bind_rows(est.twfe1, est.cs1, est.sa1) %>%
   arrange(estimator, event_time) %>%
   mutate(
@@ -301,8 +316,7 @@ est.all <- bind_rows(est.twfe1, est.cs1, est.sa1) %>%
     conf.high= 100*conf.high
   )  
 
-## Plot
-plot.closures <- ggplot(est.all, aes(x = event_time, y = estimate, shape = Estimator)) +
+plot.estimators <- ggplot(est.all, aes(x = event_time, y = estimate, shape = Estimator)) +
   geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
                 position = position_dodge(width = 0.5), 
                 width = 0, linewidth = 0.2, alpha = 0.3, color = "black") +
@@ -314,30 +328,12 @@ plot.closures <- ggplot(est.all, aes(x = event_time, y = estimate, shape = Estim
     "SA" = 22       # hollow square
   )) +
   scale_x_continuous(breaks = seq(-10, 10, by = 1)) +
-  labs(x = "Event time", y = "Closures per 100 hospitals", linetype = NULL) +
+  labs(x = "Event time", y = paste0(o$axis_label, " per 100 hospitals"), linetype = NULL) +
   theme_bw() +
   theme(
     legend.position = "bottom",
     panel.grid.minor = element_blank()
   )
 
-ggsave("results/closure-rate-other.png", plot.closures, width = 6.5, height = 4.25, dpi = 300, scale=1.5)  
-
-
-
-
-# "Standard" stacked DD ---------------------------------------------------
-
-stack.mod <- fepois(closures ~ i(stacked_event_time, ref=-1) | state^stack_group,
-                   data=stack.state1 %>% filter(group_type!="never", stack_group>1995),
-                   offset   = ~ log(hospitals_lag),
-                   vcov = "HC1")
-iplot(stack.mod)
-
-stack.mod <- fepois(closures ~ i(stacked_event_time, ref=-1) | state^stack_group,
-                   data=stack.state2,
-                   offset   = ~ log(hospitals_lag),
-                   vcov = "HC1")
-iplot(stack.mod)
-
-
+ggsave(paste0("results/", o$slug, "-other.png"), plot.estimators,
+       width = 6.5, height = 4.25, dpi = 300, scale=1.5)
