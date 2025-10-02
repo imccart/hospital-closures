@@ -189,3 +189,27 @@ panel.closure <- panelview(closures ~ treat_post,
                           "Treated States (after CAH)"),
           theme.bw=TRUE, xlab="Year", ylab="Count of Closures")          
 ggsave("results/desc-panelview-closures.png", panel.closure, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
+
+
+## Characteristics of CAH Hospitals --------------------------------------------------------
+cah.desc <- est.dat %>% 
+  filter(cah == 1, eff_year == year) %>% 
+  group_by(eff_year) %>% 
+  summarize(
+    n          = n(),
+    bed_mean   = mean(BDTOT, na.rm = TRUE),
+    bed_p10    = quantile(BDTOT, 0.10, na.rm = TRUE),
+    bed_p25    = quantile(BDTOT, 0.25, na.rm = TRUE),
+    bed_p50    = quantile(BDTOT, 0.50, na.rm = TRUE),
+    bed_p75    = quantile(BDTOT, 0.75, na.rm = TRUE),
+    bed_p90    = quantile(BDTOT, 0.90, na.rm = TRUE),
+    distance   = mean(distance, na.rm = TRUE),
+    discharges = mean(tot_discharges, na.rm = TRUE)
+  )
+
+  summarize(cah_change=n()) %>%
+  group_by(year) %>%
+  mutate(all_cah=sum(cah_change),
+         prop_cah=cah_change/all_cah) %>%
+  select(year, prop_cah, change_type) %>%
+  ungroup()

@@ -1,7 +1,7 @@
 # =========================================================
 # Select outcome (one of: "closures", "mergers", "changes")
 # =========================================================
-outcome <- "changes"
+outcome <- "closures"
 
 # Map outcome -> variable names, axis labels, filename slugs
 vars <- list(
@@ -25,7 +25,7 @@ denom.2001 <- stack.state1 %>%
   pull(mean_hosp)
 
 synth.2001 <- stack.state1 %>%     
-  filter(stack_group == 2001) %>%
+  filter(stack_group == 1999) %>%
   transmute(ID = as.numeric(factor(MSTATE)),
             year,
             rate = .data[[o$y_count]],        # outcome = counts (closures/mergers/changes)
@@ -198,14 +198,15 @@ ggsave(paste0("results/", o$slug, "-sdid.png"), plot.sdid,
 min.es <- -5
 max.es <- 5
 
-twfe.mod1 <- fepois(.data[[o$y_count]] ~ i(event_time, ref=-1) | MSTATE + year, 
+twfe.mod1 <- fepois(y ~ i(event_time, ref=-1) | MSTATE + year, 
   offset = ~ log(hospitals_lag),
   cluster=~MSTATE,
   data=state.dat1 %>% filter(state_treat_year == 0 | state_treat_year > 1995) %>%
     mutate(event_time=case_when(
       event_time > max.es ~ max.es,
       event_time < min.es ~ min.es,
-      TRUE ~ event_time))
+      TRUE ~ event_time),
+      y=.data[[o$y_count]])
 ) 
 
 # Sun and Abraham ------------------------------------------------------
@@ -214,14 +215,15 @@ min.es <- -10
 max.es <- 10
 
 sa.mod1 <- fepois(
-  .data[[o$y_count]] ~ sunab(state_treat_year, event_time, ref.p=c(-2,-1), bin.rel = "bin::2") | MSTATE + year,
+  y ~ sunab(state_treat_year, event_time, ref.p=c(-2,-1), bin.rel = "bin::2") | MSTATE + year,
   offset   = ~ log(hospitals_lag),
   cluster  = ~ MSTATE,
   data=state.dat1 %>% filter(state_treat_year == 0 | state_treat_year > 1995) %>%
     mutate(event_time=case_when(
       event_time > max.es ~ max.es,
       event_time < min.es ~ min.es,
-      TRUE ~ event_time))
+      TRUE ~ event_time),
+      y=.data[[o$y_count]])      
 ) 
 
 # Callaway and Sant'Anna ------------------------------------------------
@@ -235,7 +237,7 @@ csa.mod1 <- att_gt(yname=o$y_rate,
                    allow_unbalanced_panel=TRUE,
                    data = state.dat1 %>% filter(state_treat_year == 0 | state_treat_year > 1995),
                    base_period="universal",
-                   est_method="reg",
+                   est_method="ipw",
                    clustervars="state",
                    bstrap=TRUE)
 csa.att1 <- aggte(csa.mod1, type="simple", na.rm=TRUE)
@@ -245,7 +247,7 @@ summary(csa.es1)
 
 # Graph of TWFE, CS, SA estimators -------------------------------------
 
-base.rate <- state.dat1 %>%
+base.rate <- state.dat2 %>%
   filter(event_time <= -1, treat==1,
          state_treat_year == 0 | state_treat_year > 1995) %>%
   summarise(rate = sum(.data[[o$y_count]], na.rm=TRUE) / sum(hospitals_lag, na.rm=TRUE)) %>%
@@ -337,3 +339,10 @@ plot.estimators <- ggplot(est.all, aes(x = event_time, y = estimate, shape = Est
 
 ggsave(paste0("results/", o$slug, "-other.png"), plot.estimators,
        width = 6.5, height = 4.25, dpi = 300, scale=1.5)
+
+
+
+
+
+
+

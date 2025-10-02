@@ -6,14 +6,14 @@
 
 ## use stacked DD data at hospital level for single cohort
 synth.2001 <- stack.hosp %>% group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE)) %>% ungroup() %>%
-            filter(stack_group==2001, !is.na(margin), min_bedsize<=75) %>%
+            filter(stack_group==2001, !is.na(margin), min_bedsize<=50) %>%
             select(ID, year, margin, post_treat)
 
 balance.2001  <- as_tibble(makeBalancedPanel(synth.2001, idname="ID", tname="year"))
 
 setup <- panel.matrices(as.data.frame(balance.2001))
 synth.est <- synthdid_estimate(setup$Y, setup$N0, setup$T0)
-se  <- synthdid_se(synth.est, method="bootstrap")
+se  <- synthdid_se(synth.est, method="jackknife")
 
 w      <- attr(synth.est, "weights")$omega    # unit weights on controls
 Y      <- setup$Y
@@ -60,13 +60,13 @@ run_sdid_cohort <- function(c){
   # Build cohort panel (re-using your style/objects)
   synth.c <- stack.hosp %>%
     group_by(ID) %>% mutate(min_bedsize = min(BDTOT, na.rm = TRUE)) %>% ungroup() %>%
-    filter(stack_group == c, !is.na(margin), min_bedsize <= 75) %>%
+    filter(stack_group == c, !is.na(margin), min_bedsize <= 50) %>%
     select(ID, year, margin, post_treat)
 
   bal.c   <- as_tibble(makeBalancedPanel(synth.c, idname = "ID", tname = "year"))
   setup   <- panel.matrices(as.data.frame(bal.c))
   est     <- synthdid_estimate(setup$Y, setup$N0, setup$T0)
-  se_c    <- synthdid_se(est, method = "bootstrap")
+  se_c    <- synthdid_se(est, method = "jackknife")
 
   # SDID unit weights (omega) on controls → synthetic-control path over time
   w       <- attr(est, "weights")$omega         # length = N0 (controls)
@@ -166,8 +166,15 @@ min.es <- -5
 max.es <- 5
 
 twfe.dat <- est.dat %>%
-      mutate(ID=as.numeric(factor(ID)),treat_group=if_else(!is.na(eff_year),eff_year,-1)) %>%
-      filter(!is.na(margin), !is.na(year), BDTOT<30, distance>10, ID!=6740050,
+      group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE), max_distance=max(distance, na.rm=TRUE)) %>% ungroup() %>%  
+      filter(min_bedsize<=50) %>%
+      mutate(ID=as.numeric(factor(ID)),
+            treat_group=case_when(
+                !is.na(eff_year) ~ eff_year,
+                is.na(eff_year) & state_treat_year > year + max.es ~ -1,
+                is.na(eff_year) & state_treat_year==0 ~ -1,
+                TRUE ~ NA )) %>%
+      filter(!is.na(margin), !is.na(year),
         treat_group %in% c(-1, 1999, 2000, 2001, 2002)) %>%
       mutate(own_type=as.factor(own_type),
              hosp_event_time=case_when(
@@ -182,18 +189,25 @@ twfe.mod1 <- feols(margin~i(hosp_event_time, ref=-1) + BDTOT + distance | ID + y
       data=twfe.dat, cluster="ID") 
 
 
-
 # Sun and Abraham ------------------------------------------------------
 
 sa.mod1 <- feols(margin~sunab(treat_group, hosp_event_time) + BDTOT + distance | ID + year, 
       data=twfe.dat, cluster="ID")
 
+
 # Callaway and Sant'Anna -----------------------------------------------------
 
 cs.dat1 <- est.dat %>%
-      mutate(ID2=as.numeric(factor(ID)), treat_group=if_else(!is.na(eff_year),eff_year,0)) %>%
+      group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE), max_distance=max(distance, na.rm=TRUE)) %>% ungroup() %>%  
+      filter(min_bedsize<=50) %>%
+      mutate(ID2=as.numeric(factor(ID)), 
+            treat_group=case_when(
+                !is.na(eff_year) ~ eff_year,
+                is.na(eff_year) & state_treat_year > year + max.es ~ 0,
+                is.na(eff_year) & state_treat_year==0 ~ 0,
+                TRUE ~ NA )) %>%
       filter(!is.na(margin), !is.na(year), !is.na(BDTOT), !is.na(distance),
-          BDTOT<30, distance>10, ID!=6740050, treat_group %in% c(0, 1999, 2000, 2001, 2002)) %>%
+         treat_group %in% c(0, 1999, 2000, 2001, 2002)) %>%
       select(ID, ID2, treat_group, year, margin, BDTOT, distance, own_type, teach_major) %>%
       mutate(own_type=as.factor(own_type))
 
@@ -204,7 +218,7 @@ csa.margin1 <- att_gt(yname="margin",
                    control_group="notyettreated",
                    panel=TRUE,
                    allow_unbalanced_panel=TRUE,
-                   data = cs.dat1,
+                   data = cs.dat1 %>% filter(year>=1988),
                    xformla = ~BDTOT+distance,
                    base_period="universal",
                    est_method="ipw")
@@ -212,25 +226,6 @@ csa.att1 <- aggte(csa.margin1, type="simple", na.rm=TRUE)
 summary(csa.att1)
 csa.es1 <- aggte(csa.margin1, type="dynamic", na.rm=TRUE, min_e=min.es, max_e=max.es)
 summary(csa.es1)
-
-
-
-## Identifying problematic IDs via spikes in ATT
-#raw.att <- tibble(
-#    group = csa.margin1$group,
-#    time = csa.margin1$t,
-#    att = csa.margin1$att,
-#    se = csa.margin1$se
-#  ) %>%
-#  mutate(event_time = time - group)
-
-#raw.att %>% filter(event_time %in% c(-10,-9, -8, -5,-2,-3)) %>% 
-#  group_by(event_time) %>% 
-#  summarize(matt=mean(att, na.rm=TRUE), maxatt=max(att, na.rm=TRUE), mina= min(att, na.rm=TRUE), n=n(),
-#            se=mean(se, na.rm=TRUE))
-
-## Problematic IDs
-#  6740050
 
 
 # Graph of TWFE, CS, SA estimators ---------------------------------------------------

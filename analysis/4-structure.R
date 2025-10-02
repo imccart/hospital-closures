@@ -3,172 +3,234 @@
 # does CAH designation improve hospital survival through continuation, or does it block efficiency-enhancing mergers, ultimately increasing closures?
 
 # Step 1: Prepare State Space -----------------------------------------------------
-# We assume est.dat includes all state variables s_it and discrete choices
-# d_it ∈ {0, 1, 2} for {continue, close, merge}
+# d_it ∈ {0, 1, 2} for {continue, close, merge}; add year FE; construct COPA; keep required vars
 
-vars_used <- c("d_it", "cah", "distance", "margin_1", "beds", "year")
+vars_used <- c("cah", "distance", "margin_1", "BDTOT", "year", "year_f", "copa", "d_it")
 
-struct_data <- est.dat %>%
+struc.dat <- est.dat %>%
   mutate(
     d_it = case_when(
-      closed == 1 ~ 1,
-      merged == 1 ~ 2,
-      TRUE ~ 0
-    )
+      closed == 1 ~ 1L,
+      merged == 1 ~ 2L,
+      TRUE ~ 0L
+    ),
+    year_f = factor(year)   # year FE (used throughout)
   ) %>%
-  filter(complete.cases(across(all_of(vars_used)))) %>%
-  left_join(copa.dat, by = c("MSTATE")) %>%
-  mutate(copa = case_when(
-    !is.na(copa_start) & year >= copa_start & year <= copa_end ~ 1,
-    TRUE ~ 0
-  ))
+  left_join(copa.dat, by = "MSTATE") %>%
+  mutate(
+    copa = as.integer(!is.na(copa_start) & year >= copa_start & year <= copa_end)
+  ) %>%
+  filter(complete.cases(across(all_of(vars_used))))  
 
-# Step 2: Estimate Choice Probabilities -------------------------------------------
+# Step 2: Estimate Choice Probabilities (Nested Logit to relax IIA) ---------------
 
-# Fit multinomial logit model for P(d_it | s_it)
-choice_model <- multinom(
-  d_it ~ cah + BDTOT + distance + margin_1 + beds + year,
-  data = struct_data
+# Alternatives and long data with a choice-situation id (chid)
+alts <- c("continue","close","merge")
+
+long <- struc.dat %>%
+  mutate(
+    choice = factor(c("continue","close","merge")[d_it + 1L], levels = alts),
+    chid   = paste0(ID, "_", year)   # one row per choice situation
+  ) %>%
+  select(all_of(vars_used), choice, chid, ID) %>%
+  expand_grid(alt = alts) %>%
+  mutate(chosen = as.integer(choice == alt))
+
+mnl.data <- mlogit.data(
+  long,
+  choice  = "chosen",
+  shape   = "long",
+  alt.var = "alt",
+  chid.var= "chid"
 )
 
-# Predicted choice probabilities
-struct_data <- struct_data %>%
-  mutate(
-    p_continue = predict(choice_model, type = "probs")[,1],
-    p_close    = predict(choice_model, type = "probs")[,2],
-    p_merge    = predict(choice_model, type = "probs")[,3]
+mnl.model <- mlogit(
+  chosen ~ 1 | cah + BDTOT + distance + margin_1,
+  data     = mnl.data,
+  reflevel = "continue"
+)
+
+# Map fitted probabilities back to (ID, year), pivot wide, and trim
+key <- long %>% distinct(chid, ID, year)
+
+prob_long <- cbind(index(ml_data), p = fitted(mnl_model)) %>%
+  as_tibble() %>%
+  select(chid, alt, p) %>%
+  left_join(key, by = "chid")
+
+P_hat <- prob_long %>%
+  pivot_wider(names_from = alt, values_from = p) %>%
+  transmute(
+    ID, year,
+    p0 = pmax(pmin(continue, 1 - 1e-6), 1e-6),  # continue
+    p1 = pmax(pmin(close,    1 - 1e-6), 1e-6),  # close
+    p2 = pmax(pmin(merge,    1 - 1e-6), 1e-6)   # merge
   )
 
-# Step 3: Estimate Transition Probabilities ---------------------------------------
+struct_data <- struct_data %>% left_join(P_hat, by = c("ID","year"))
 
-# Estimate transitions for next-period state variables (for d_it = 0 only)
-trans_data <- struct_data %>%
-  group_by(ID) %>%
-  arrange(year) %>%
-  mutate(lead_cah = lead(cah), lead_profit = lead(margin_1)) %>%
-  filter(d_it == 0 & !is.na(lead_profit)) %>%
-  ungroup()
+# Step 3–5: Inversion (full sample), Emax, and Transitions ------------------------
 
-# Use random forest or logistic/glmnet if high-dimensional
-trans_model <- lm(lead_profit ~ cah + distance + beds + year, data = trans_data)
-
-# Predict expected future values
-trans_data <- trans_data %>%
+# Hotz–Miller log-odds on FULL sample (no conditioning on d_it)
+log_odds <- struct_data %>%
   mutate(
-    E_profit_next = predict(trans_model)
+    v1_minus_v0 = log(p1) - log(p0),   # close vs continue
+    v2_minus_v0 = log(p2) - log(p0)    # merge vs continue
   )
 
-# Step 4: Construct Value Function Components -------------------------------------
+# Inversion regressions with year & market FE; cluster at market
+close_model_base <- feols(v1_minus_v0 ~ distance + beds + copa | year_f + MSTATE,
+                          data = log_odds, cluster = ~ MSTATE)
 
-# Flow payoff from continuation
-trans_data <- trans_data %>%
+# Baseline merge model WITHOUT 'cah' (so CF2 can "turn it on")
+merge_model_base <- feols(v2_minus_v0 ~ distance + beds + copa | year_f + MSTATE,
+                          data = log_odds, cluster = ~ MSTATE)
+
+# Extended merge model WITH 'cah' (for CF2)
+merge_model_ext  <- feols(v2_minus_v0 ~ distance + beds + copa + cah | year_f + MSTATE,
+                          data = log_odds, cluster = ~ MSTATE)
+
+# Deterministic utilities up to v0=0
+log_odds <- log_odds %>%
   mutate(
-    pi = margin_1,  # or a linear index: pi = X * beta1
-    V_continue = pi + 0.95 * E_profit_next  # β = 0.95
+    v1_base = as.numeric(predict(close_model_base, newdata = log_odds)),
+    v2_base = as.numeric(predict(merge_model_base, newdata = log_odds)),
+    v2_ext  = as.numeric(predict(merge_model_ext,  newdata = log_odds)),
+    v0 = 0
   )
 
-# Step 5: Estimate Structural Parameters by Inversion ------------------------------
+# Flow payoff π(s): fit with FE, use fitted values (or set to 0 if you prefer)
+pi_model <- feols(margin_1 ~ cah + beds + distance | year_f + MSTATE,
+                  data = struct_data, cluster = ~ MSTATE)
+struct_data <- struct_data %>% mutate(pi_hat = as.numeric(fitted(pi_model)))
 
-# Terminal values (closure and merger), function of observed covariates
-# Use logit inversion:
-# v_d = log(P_d) - log(P_0) = v_d - v_0
+# Helper: log-sum-exp
+logsumexp3 <- function(a,b,c){ m <- pmax(a, pmax(b,c)); m + log(exp(a-m)+exp(b-m)+exp(c-m)) }
 
-log_odds <- trans_data %>%
-  mutate(
-    v_close_diff = log(p_close / p_continue),
-    v_merge_diff = log(p_merge / p_continue)
-  )
+# Baseline one-shot Emax from base utilities (for initializing transitions)
+init <- log_odds %>%
+  transmute(ID, year, v0 = 0, v1 = v1_base, v2 = v2_base,
+            Emax = logsumexp3(v0, v1_base, v2_base))
 
-# Estimate structural parameters by regressing inverted values
-close_model <- lm(v_close_diff ~ distance + beds + year, data = log_odds)
-merge_model <- lm(v_merge_diff ~ distance + beds + year + copa, data = log_odds)
+# Estimate transitions for Emax by action
+# d=0 (continuation): E[Emax_{t+1} | s_t, d=0]
+trans0 <- struct_data %>%
+  select(ID, year, cah, distance, beds, year_f, d_it) %>%
+  left_join(init, by = c("ID","year")) %>%
+  group_by(ID) %>% arrange(year) %>%
+  mutate(lead_Emax = lead(Emax)) %>%
+  ungroup() %>%
+  filter(d_it == 0, !is.na(lead_Emax))
 
-# Output parameter estimates
-summary(close_model)
-summary(merge_model)
+T0 <- feols(lead_Emax ~ cah + distance + beds | year_f, data = trans0, cluster = ~ ID)
 
+# d=2 (merger): try to estimate; if too few, calibrate relative to T0
+trans2 <- struct_data %>%
+  select(ID, year, cah, distance, beds, year_f, d_it) %>%
+  left_join(init, by = c("ID","year")) %>%
+  group_by(ID) %>% arrange(year) %>%
+  mutate(lead_Emax = lead(Emax)) %>%
+  ungroup() %>%
+  filter(d_it == 2, !is.na(lead_Emax))
 
-# Counterfactual 1: No CAH Designation ---------------------------------------------
-# Create counterfactual dataset with CAH set to 0
-cf1_data <- struct_data %>%
-  mutate(cah = 0)
+if(nrow(trans2) >= 50){
+  T2 <- feols(lead_Emax ~ cah + distance + beds | year_f, data = trans2, cluster = ~ ID)
+  E_Emax_next_d2_fun <- function(df) as.numeric(predict(T2, newdata = df))
+} else {
+  merger_delta <- -0.10  # calibration if few mergers observed
+  E_Emax_next_d2_fun <- function(df) as.numeric(predict(T0, newdata = df)) + merger_delta
+}
 
-# Recompute expected future profit using transition model
-cf1_data <- cf1_data %>%
-  mutate(E_profit_next = predict(trans_model, newdata = cf1_data))
-
-# Recompute continuation value
-cf1_data <- cf1_data %>%
-  mutate(
-    pi = margin_1,
-    V_continue = pi + 0.95 * E_profit_next
-  )
-
-# Predict choice probabilities under no CAH
-cf1_data <- cf1_data %>%
-  mutate(
-    p_hat = predict(choice_model, newdata = cf1_data, type = "probs"),
-    p_continue_cf1 = p_hat[,1],
-    p_close_cf1    = p_hat[,2],
-    p_merge_cf1    = p_hat[,3]
-  ) %>%
-  select(ID, year, p_continue_cf1, p_close_cf1, p_merge_cf1)
+# Closure (d=1) absorbing
+E_Emax_next_d1_const <- 0
 
 
-# Counterfactual 2: CAH allowed to merge --------------------------------------
-# Step 1: Estimate extended merger model that includes CAH effect
-cf2_data <- log_odds
-merge_model_ext <- lm(v_merge_diff ~ distance + beds + year + copa + cah, data = cf2_data)
 
-# Step 2: Extract gamma_cah coefficient
-gamma_cah <- coef(merge_model_ext)["cah"]
+# CCP fixed-point solver and counterfactuals --------------------------------------
+beta <- 0.95
 
-# Step 3: Create counterfactual merger value differences with CAH included
-cf2_data <- cf2_data %>%
-  mutate(
-    v_merge_diff_cf2 = predict(merge_model_ext, newdata = trans_data)
-  )
+# Utility builders (baseline vs. extended merge)
+build_v_base <- function(df){
+  v1 <- as.numeric(predict(close_model_base, newdata = df))
+  v2 <- as.numeric(predict(merge_model_base, newdata = df))
+  list(v0 = rep(0, nrow(df)), v1 = v1, v2 = v2)
+}
+build_v_ext  <- function(df){
+  v1 <- as.numeric(predict(close_model_base, newdata = df))
+  v2 <- as.numeric(predict(merge_model_ext,  newdata = df))
+  list(v0 = rep(0, nrow(df)), v1 = v1, v2 = v2)
+}
 
-# Step 4: Predict closure value difference as usual
-cf2_data <- cf2_data %>%
-  mutate(
-    v_close_diff_pred = predict(close_model, newdata = cf2_data)
-  )
+# Expectation under d=0 and d=2
+E_Emax_next_d0_fun <- function(df) as.numeric(predict(T0, newdata = df))
 
-# Step 5: Convert log-odds to choice probabilities
-cf2_data <- cf2_data %>%
-  mutate(
-    exp_continue = 1,
-    exp_close = exp(v_close_diff_pred),
-    exp_merge = exp(v_merge_diff_cf2),
-    denom = exp_continue + exp_close + exp_merge,
-    p_continue_cf2 = exp_continue / denom,
-    p_close_cf2    = exp_close / denom,
-    p_merge_cf2    = exp_merge / denom
-  ) %>%
-  select(ID, year, p_continue_cf2, p_close_cf2, p_merge_cf2)
+iterate_ccp <- function(df, build_v_fun, maxit = 100, tol = 1e-6){
+  # df must contain: ID, year, year_f, cah, distance, beds, MSTATE, pi_hat
+  v <- build_v_fun(df)
+  Emax <- logsumexp3(v$v0, v$v1, v$v2)
+  for(it in 1:maxit){
+    # expected Emax next period under actions
+    E_Emax_next_d0 <- E_Emax_next_d0_fun(df)
+    E_Emax_next_d1 <- E_Emax_next_d1_const
+    E_Emax_next_d2 <- E_Emax_next_d2_fun(df)
+
+    v0_new <- df$pi_hat + beta * E_Emax_next_d0
+    v1_new <- v$v1 + beta * E_Emax_next_d1         # closure: no future value
+    v2_new <- v$v2 + beta * E_Emax_next_d2
+
+    Emax_new <- logsumexp3(v0_new, v1_new, v2_new)
+    if(max(abs(Emax_new - Emax)) < tol) break
+
+    v$v0 <- v0_new; v$v1 <- v1_new; v$v2 <- v2_new; Emax <- Emax_new
+  }
+  denom <- exp(v$v0) + exp(v$v1) + exp(v$v2)
+  tibble(ID = df$ID, year = df$year,
+         p0 = as.numeric(exp(v$v0) / denom),
+         p1 = as.numeric(exp(v$v1) / denom),
+         p2 = as.numeric(exp(v$v2) / denom))
+}
+
+# BASELINE probabilities (observed regime: base merge model)
+base_probs <- iterate_ccp(
+  df = struct_data %>% select(ID, year, year_f, MSTATE, copa, cah, distance, beds, pi_hat),
+  build_v_fun = build_v_base
+) %>% rename(p_continue_base = p0, p_close_base = p1, p_merge_base = p2)
+
+# CF1: No CAH designation (set cah = 0 throughout)
+cf1_df <- struct_data %>% mutate(cah = 0) %>% select(ID, year, year_f, MSTATE, cah, copa, distance, beds, pi_hat)
+cf1_probs <- iterate_ccp(
+  df = cf1_df,
+  build_v_fun = build_v_base
+) %>% rename(p_continue_cf1 = p0, p_close_cf1 = p1, p_merge_cf1 = p2)
+
+# CF2: CAH allowed to merge (use extended merge utility with 'cah')
+cf2_df <- struct_data %>% select(ID, year, year_f, MSTATE, cah, copa, distance, beds, pi_hat)
+cf2_probs <- iterate_ccp(
+  df = cf2_df,
+  build_v_fun = build_v_ext
+) %>% rename(p_continue_cf2 = p0, p_close_cf2 = p1, p_merge_cf2 = p2)
 
 
-# Join back to baseline for comparison
-compare_df <- struct_data %>%
-  select(ID, year, p_close_base = p_close, p_merge_base = p_merge) %>%
-  left_join(cf1_data, by = c("ID", "year")) %>%
-  left_join(cf2_data, by = c("ID", "year"))
 
-# Aggregate by year to visualize effects
+
+# Join baseline and counterfactual probabilities ----------------------------------
+compare_df <- base_probs %>%
+  left_join(cf1_probs, by = c("ID","year")) %>%
+  left_join(cf2_probs, by = c("ID","year"))
+
+# Aggregate by year
 compare_summary <- compare_df %>%
   group_by(year) %>%
   summarize(
-    base_close = mean(p_close_base, na.rm=TRUE),
-    cf1_close  = mean(p_close_cf1, na.rm=TRUE),
-    cf2_close  = mean(p_close_cf2, na.rm=TRUE),
-    base_merge = mean(p_merge_base, na.rm=TRUE),
-    cf1_merge  = mean(p_merge_cf1, na.rm=TRUE),
-    cf2_merge  = mean(p_merge_cf2, na.rm=TRUE)
-  )
-
-# Calculate cumulative probabilities
-compare_summary <- compare_summary %>%
+    base_close = mean(p_close_base, na.rm = TRUE),
+    cf1_close  = mean(p_close_cf1,  na.rm = TRUE),
+    cf2_close  = mean(p_close_cf2,  na.rm = TRUE),
+    base_merge = mean(p_merge_base, na.rm = TRUE),
+    cf1_merge  = mean(p_merge_cf1,  na.rm = TRUE),
+    cf2_merge  = mean(p_merge_cf2,  na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(year) %>%
   mutate(
     cum_base_close = cumsum(base_close),
     cum_cf1_close  = cumsum(cf1_close),
@@ -178,77 +240,61 @@ compare_summary <- compare_summary %>%
     cum_cf2_merge  = cumsum(cf2_merge)
   )
 
-# Annual Closure Plot
+# Plots (unchanged styling)
+library(ggplot2)
+library(tidyr)
+
+# Annual Closure
 compare_summary %>%
-  pivot_longer(cols = starts_with("base_close"):starts_with("cf2_close"),
+  pivot_longer(cols = c(base_close, cf1_close, cf2_close),
                names_to = "scenario", values_to = "value") %>%
   ggplot(aes(x = year, y = value, color = scenario)) +
-  geom_line() +
-  geom_point() +
+  geom_line() + geom_point() +
   labs(title = "Predicted Closure Probabilities Over Time",
        y = "Probability of Closure", x = "Year", color = "Scenario") +
   theme_minimal()
 
-# Annual Merger Plot
+# Annual Merger
 compare_summary %>%
-  pivot_longer(cols = starts_with("base_merge"):starts_with("cf2_merge"),
+  pivot_longer(cols = c(base_merge, cf1_merge, cf2_merge),
                names_to = "scenario", values_to = "value") %>%
   ggplot(aes(x = year, y = value, color = scenario)) +
-  geom_line() +
-  geom_point() +
+  geom_line() + geom_point() +
   labs(title = "Predicted Merger Probabilities Over Time",
        y = "Probability of Merger", x = "Year", color = "Scenario") +
   theme_minimal()
 
-# Cumulative Closure Plot
+# Cumulative Closure
 p3 <- compare_summary %>%
-  pivot_longer(cols = starts_with("cum_base_close"):starts_with("cum_cf2_close"),
+  pivot_longer(cols = c(cum_base_close, cum_cf1_close, cum_cf2_close),
                names_to = "scenario", values_to = "value") %>%
-  mutate(scenario = case_when(
-    scenario == "cum_base_close" ~ "Baseline",
-    scenario == "cum_cf1_close"  ~ "No CAH",
-    scenario == "cum_cf2_close"  ~ "CAH Allows Merger"
-  )) %>%               
+  mutate(scenario = recode(scenario,
+                           cum_base_close = "Baseline",
+                           cum_cf1_close  = "No CAH",
+                           cum_cf2_close  = "CAH Allows Merger")) %>%
   ggplot(aes(x = year, y = value, linetype = scenario, group = scenario)) +
   geom_line(aes(linewidth = scenario)) +
   geom_point(size = 1.5, shape = 16, color = "black") +
-  scale_linetype_manual(values = c(
-    "Baseline" = "solid",
-    "No CAH" = "dashed",
-    "CAH Allows Merger" = "dotted"
-  )) +
-  scale_linewidth_manual(values = c(
-    "Baseline" = 0.8,
-    "No CAH" = 0.8,
-    "CAH Allows Merger" = 0.8
-  )) +
+  scale_linetype_manual(values = c("Baseline" = "solid", "No CAH" = "dashed", "CAH Allows Merger" = "dotted")) +
+  scale_linewidth_manual(values = c("Baseline" = 0.8, "No CAH" = 0.8, "CAH Allows Merger" = 0.8)) +
   labs(y = "Cumulative Probability of Closure", x = "Year", color = "Scenario") +
   theme_minimal()
 
 ggsave("results/cuml_closures.png", plot = p3, width = 8, height = 5, dpi = 300)
 
-# Cumulative Merger Plot
+# Cumulative Merger
 p4 <- compare_summary %>%
-  pivot_longer(cols = starts_with("cum_base_merge"):starts_with("cum_cf2_merge"),
+  pivot_longer(cols = c(cum_base_merge, cum_cf1_merge, cum_cf2_merge),
                names_to = "scenario", values_to = "value") %>%
-  mutate(scenario = case_when(
-    scenario == "cum_base_merge" ~ "Baseline",
-    scenario == "cum_cf1_merge"  ~ "No CAH",
-    scenario == "cum_cf2_merge"  ~ "CAH Allows Merger"
-  )) %>%
+  mutate(scenario = recode(scenario,
+                           cum_base_merge = "Baseline",
+                           cum_cf1_merge  = "No CAH",
+                           cum_cf2_merge  = "CAH Allows Merger")) %>%
   ggplot(aes(x = year, y = value, linetype = scenario, group = scenario)) +
   geom_line(aes(linewidth = scenario)) +
   geom_point(size = 1.5, shape = 16, color = "black") +
-  scale_linetype_manual(values = c(
-    "Baseline" = "solid",
-    "No CAH" = "dashed",
-    "CAH Allows Merger" = "dotted"
-  )) +
-  scale_linewidth_manual(values = c(
-    "Baseline" = 0.8,
-    "No CAH" = 0.8,
-    "CAH Allows Merger" = 0.8
-  )) +
+  scale_linetype_manual(values = c("Baseline" = "solid", "No CAH" = "dashed", "CAH Allows Merger" = "dotted")) +
+  scale_linewidth_manual(values = c("Baseline" = 0.8, "No CAH" = 0.8, "CAH Allows Merger" = 0.8)) +
   labs(y = "Cumulative Probability of Merger", x = "Year", color = "Scenario") +
   theme_minimal()
 
