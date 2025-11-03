@@ -339,10 +339,3 @@ plot.estimators <- ggplot(est.all, aes(x = event_time, y = estimate, shape = Est
 
 ggsave(paste0("results/", o$slug, "-other.png"), plot.estimators,
        width = 6.5, height = 4.25, dpi = 300, scale=1.5)
-
-
-
-
-
-
-
