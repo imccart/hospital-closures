@@ -1,7 +1,7 @@
 # =========================================================
 # Select outcome (one of: "closures", "mergers", "changes")
 # =========================================================
-outcome <- "closures"
+outcome <- "changes"
 
 # Map outcome -> variable names, axis labels, filename slugs
 vars <- list(
@@ -25,7 +25,7 @@ denom.2001 <- stack.state1 %>%
   pull(mean_hosp)
 
 synth.2001 <- stack.state1 %>%     
-  filter(stack_group == 1999) %>%
+  filter(stack_group == 2001) %>%
   transmute(ID = as.numeric(factor(MSTATE)),
             year,
             rate = .data[[o$y_count]],        # outcome = counts (closures/mergers/changes)
@@ -73,7 +73,7 @@ plot.sdid2001 <- ggplot(plot_df.2001, aes(x = year, y = rate_closed, linetype = 
   theme(legend.position = "bottom", legend.key.width = unit(2, "cm"))  +
   annotate("text", x = x_pos, y = y_top, label = lab_txt, hjust = 1, vjust = 1, size = 3.4)
 
-ggsave(paste0("results/", o$slug, "-sdid-2001.png"), plot.sdid2001,
+ggsave(paste0("results/", o$slug, "-sdid-1999.png"), plot.sdid2001,
        width = 6.5, height = 4.25, dpi = 300, scale=1.5)
 
 ## All cohorts
@@ -247,7 +247,7 @@ summary(csa.es1)
 
 # Graph of TWFE, CS, SA estimators -------------------------------------
 
-base.rate <- state.dat2 %>%
+base.rate <- state.dat1 %>%
   filter(event_time <= -1, treat==1,
          state_treat_year == 0 | state_treat_year > 1995) %>%
   summarise(rate = sum(.data[[o$y_count]], na.rm=TRUE) / sum(hospitals_lag, na.rm=TRUE)) %>%
@@ -337,5 +337,23 @@ plot.estimators <- ggplot(est.all, aes(x = event_time, y = estimate, shape = Est
     panel.grid.minor = element_blank()
   )
 
-ggsave(paste0("results/", o$slug, "-other.png"), plot.estimators,
+plot.estimators2 <- ggplot(est.all %>% filter(estimator=="CS"), aes(x = event_time, y = estimate, shape = Estimator)) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+                position = position_dodge(width = 0.5), 
+                width = 0, linewidth = 0.2, alpha = 0.3, color = "black") +
+  geom_point(position = position_dodge(width = 0.5), 
+             size = 2.5, color = "black", stroke = 0.1, fill="white") +
+  scale_shape_manual(values = c(
+    "CS" = 21      # hollow circle
+  )) +
+  scale_x_continuous(breaks = seq(-10, 10, by = 1)) +
+  labs(x = "Event time", y = paste0(o$axis_label, " per 100 hospitals"), linetype = NULL) +
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+
+
+ggsave(paste0("results/", o$slug, "-other.png"), plot.estimators2,
        width = 6.5, height = 4.25, dpi = 300, scale=1.5)

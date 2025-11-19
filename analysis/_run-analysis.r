@@ -2,13 +2,13 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   8/12/2025
+## Date Edited:   11/19/2025
 ## Description:   Run Analysis Files
 
 
 # Preliminaries -----------------------------------------------------------
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here,
+pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here, kableExtra,
                fedmatch, scales, zipcodeR, did, fixest, panelView, did2s, dotwhisker, mlogit,
                haven, sf, igraph, plotly, synthdid, BMisc, nnet, glmnet, zoo, purrr, grid, rlang, survival)
 
@@ -105,6 +105,7 @@ est.dat <- final.dat %>%
            margin=ifelse(margin<m_bottom, m_bottom, margin)) %>%
     arrange(ID, year) %>%
     group_by(ID) %>%
+    fill(state, .direction = "downup") %>%    
     mutate(margin=na.approx(margin, x=year, na.rm=FALSE)) %>%
     ungroup()
 
@@ -112,7 +113,7 @@ est.dat <- final.dat %>%
 ## add ipw weights to estimation data
 source('analysis/0-ipw-weights.R')
 est.dat <- est.dat %>%
-  left_join(id.weights %>% select(ID, ipw), by="ID")
+  left_join(id.weights %>% select(ID, ipw, ever_rural), by="ID")
 
 
 # Aggregate to state level --------------------------------------------------
@@ -122,7 +123,7 @@ state.dat1 <- est.dat %>%
   group_by(MSTATE, year) %>%
   summarize(hospitals=n(), cah_treat=min(state_treat_year), 
     closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE),
-    mergers=sum(merged), any_changes=sum(closed_merged),
+    mergers=sum(merged), changes=sum(closed_merged),
     state_treat_year=first(state_treat_year)) %>%
   group_by(MSTATE) %>%
   arrange(year, .by_group = TRUE) %>%
@@ -137,16 +138,16 @@ state.dat1 <- est.dat %>%
     state=as.numeric(factor(MSTATE)),
     rate_closed=closures/hospitals_lag,
     rate_merged=mergers/hospitals_lag,
-    rate_changes=any_changes/hospitals_lag)
+    rate_changes=changes/hospitals_lag)
 
 ## state.dat2 is the same but with distance and size restrictions
 state.dat2 <- est.dat %>%
   group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE), max_distance=max(distance, na.rm=TRUE)) %>% ungroup() %>%  
-  filter(min_bedsize<=50) %>%
+  filter(min_bedsize<=50, ever_rural==1) %>%
   group_by(MSTATE, year) %>%
   summarize(hospitals=n(), cah_treat=min(state_treat_year), 
     closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE),
-    mergers=sum(merged), any_changes=sum(closed_merged),
+    mergers=sum(merged), changes=sum(closed_merged),
     state_treat_year=first(state_treat_year)) %>%
   group_by(MSTATE) %>%
   arrange(year, .by_group = TRUE) %>%
@@ -161,7 +162,7 @@ state.dat2 <- est.dat %>%
     state=as.numeric(factor(MSTATE)),
     rate_closed=closures/hospitals_lag,
     rate_merged=mergers/hospitals_lag,
-    rate_changes=any_changes/hospitals_lag)
+    rate_changes=changes/hospitals_lag)
 
 
 # Stacked data (treatment at hospital level) ----------------------------
@@ -297,7 +298,7 @@ for (i in unique(est.dat$state_treat_year)) {
   ## collapse to state-year level with restrictions on hospital types
   stack.dat2 <- stack.dat.group %>% 
     group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE), max_distance=max(distance, na.rm=TRUE)) %>% ungroup() %>%  
-    filter(min_bedsize<=50) %>%
+    filter(min_bedsize<=50, ever_rural==1) %>%
     group_by(MSTATE, year) %>%
     summarize(changes=sum(closed_merged), sum_cah=sum(cah, na.rm=TRUE),
               group_type=first(treat_type), closures=sum(closed), mergers=sum(merged),

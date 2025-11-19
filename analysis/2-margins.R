@@ -182,17 +182,17 @@ twfe.dat <- est.dat %>%
                 hosp_event_time< min.es ~ min.es,
                 TRUE ~ hosp_event_time),
              ) %>%
-      select(ID, year, margin, BDTOT, distance, eff_year,
+      select(ID, year, margin, BDTOT, distance, eff_year, MSTATE,
             own_type, teach_major, hosp_event_time, treat_group) 
 
-twfe.mod1 <- feols(margin~i(hosp_event_time, ref=-1) + BDTOT + distance | ID + year, 
-      data=twfe.dat, cluster="ID") 
+twfe.mod1 <- feols(margin~i(hosp_event_time, ref=-1) | ID + year, 
+      data=twfe.dat, cluster="MSTATE") 
 
 
 # Sun and Abraham ------------------------------------------------------
 
-sa.mod1 <- feols(margin~sunab(treat_group, hosp_event_time) + BDTOT + distance | ID + year, 
-      data=twfe.dat, cluster="ID")
+sa.mod1 <- feols(margin~sunab(treat_group, hosp_event_time) | ID + year, 
+      data=twfe.dat, cluster="MSTATE")
 
 
 # Callaway and Sant'Anna -----------------------------------------------------
@@ -208,7 +208,8 @@ cs.dat1 <- est.dat %>%
                 TRUE ~ NA )) %>%
       filter(!is.na(margin), !is.na(year), !is.na(BDTOT), !is.na(distance),
          treat_group %in% c(0, 1999, 2000, 2001, 2002)) %>%
-      select(ID, ID2, treat_group, year, margin, BDTOT, distance, own_type, teach_major) %>%
+      select(ID, ID2, MSTATE, treat_group, year, margin, BDTOT, distance, 
+             own_type, teach_major, min_bedsize, max_distance) %>%
       mutate(own_type=as.factor(own_type))
 
 csa.margin1 <- att_gt(yname="margin",
@@ -219,7 +220,7 @@ csa.margin1 <- att_gt(yname="margin",
                    panel=TRUE,
                    allow_unbalanced_panel=TRUE,
                    data = cs.dat1 %>% filter(year>=1988),
-                   xformla = ~BDTOT+distance,
+                   xformla = ~min_bedsize+max_distance,
                    base_period="universal",
                    est_method="ipw")
 csa.att1 <- aggte(csa.margin1, type="simple", na.rm=TRUE)
@@ -308,4 +309,25 @@ plot.margins <- ggplot(est.all, aes(x = event_time, y = estimate, shape = Estima
     panel.grid.minor = element_blank()
   )
 
-ggsave("results/margin-other.png", plot.margins, width = 6.5, height = 4.25, dpi = 300, scale=1.5)  
+## Plot without TWFE
+plot.margins2 <- ggplot(est.all %>% filter(estimator!="TWFE"), aes(x = event_time, y = estimate, shape = Estimator)) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+                position = position_dodge(width = 0.5), 
+                width = 0, linewidth = 0.2, alpha = 0.3, color = "black") +
+  geom_point(position = position_dodge(width = 0.5), 
+             size = 2.5, color = "black", stroke = 0.1, fill="white") +
+  scale_shape_manual(values = c(
+    "CS" = 21,      # hollow circle
+    "SA" = 22       # hollow square
+  )) +
+  scale_x_continuous(breaks = seq(-10, 10, by = 1)) +
+  scale_y_continuous(limits=c(-0.15,0.15)) +
+  labs(x = "Event time", y = "Estimate") +
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+
+
+ggsave("results/margin-other.png", plot.margins2, width = 6.5, height = 4.25, dpi = 300, scale=1.5)  

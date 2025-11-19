@@ -2,9 +2,9 @@
 
 survival.dat <- est.dat %>%
   group_by(ID) %>% 
-  mutate(min_bedsize = min(BDTOT, na.rm = TRUE)) %>% 
+  mutate(min_bedsize = min(BDTOT, na.rm = TRUE), max_distance=max(distance, na.rm=TRUE)) %>% 
   ungroup() %>%
-  filter(min_bedsize <= 50, distance>10) %>%
+  filter(min_bedsize <= 50, ever_rural==1) %>%
   mutate(ID = as.numeric(factor(ID)),
          treat_group = case_when(
            !is.na(eff_year) ~ eff_year,
@@ -23,12 +23,11 @@ survival.dat <- est.dat %>%
     post_treat = ifelse(year >= treat_group & treat_group > 0, 1, 0)
    ) %>%  
   select(ID, year, closed, duration_years, treated, post_treat,
-         BDTOT, distance, own_type, MSTATE)
+         BDTOT, distance, own_type, MSTATE, min_bedsize, max_distance)
 
 
 cox_closure_did_mod <- coxph(
-  Surv(duration_years, closed) ~ post_treat + treated + factor(year) +
-                                   factor(own_type) + factor(MSTATE),
+  Surv(duration_years, closed) ~ post_treat + treated + factor(year) + factor(MSTATE),
   data = survival.dat,
   cluster = survival.dat$ID
 )

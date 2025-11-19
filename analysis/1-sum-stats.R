@@ -193,8 +193,8 @@ ggsave("results/desc-panelview-closures.png", panel.closure, width = 6.5, height
 
 ## Characteristics of CAH Hospitals --------------------------------------------------------
 cah.desc <- est.dat %>% 
-  filter(cah == 1, eff_year == year) %>% 
-  group_by(eff_year) %>% 
+  filter(ever_cah==1, eff_year > year) %>% 
+  group_by(year) %>% 
   summarize(
     n          = n(),
     bed_mean   = mean(BDTOT, na.rm = TRUE),
@@ -204,12 +204,68 @@ cah.desc <- est.dat %>%
     bed_p75    = quantile(BDTOT, 0.75, na.rm = TRUE),
     bed_p90    = quantile(BDTOT, 0.90, na.rm = TRUE),
     distance   = mean(distance, na.rm = TRUE),
-    discharges = mean(tot_discharges, na.rm = TRUE)
+    ip_days    = mean(IPDTOT, na.rm = TRUE),
+    rural      = mean(ever_rural, na.rm=TRUE)
+  ) 
+
+noncah.desc <- est.dat %>% 
+  filter(ever_cah==0) %>% 
+  group_by(year) %>% 
+  summarize(
+    n          = n(),
+    bed_mean   = mean(BDTOT, na.rm = TRUE),
+    bed_p10    = quantile(BDTOT, 0.10, na.rm = TRUE),
+    bed_p25    = quantile(BDTOT, 0.25, na.rm = TRUE),
+    bed_p50    = quantile(BDTOT, 0.50, na.rm = TRUE),
+    bed_p75    = quantile(BDTOT, 0.75, na.rm = TRUE),
+    bed_p90    = quantile(BDTOT, 0.90, na.rm = TRUE),
+    distance   = mean(distance, na.rm = TRUE),
+    ip_days    = mean(IPDTOT, na.rm = TRUE),
+    rural      = mean(ever_rural, na.rm=TRUE)
+  )   
+
+
+cah_wide <- cah.desc %>% 
+  mutate(rural = rural * 100) %>%
+  mutate(across(-c(year, n), ~round(., 2))) %>%
+  rename_with(~paste0(., "_cah"), -year)
+
+noncah_wide <- noncah.desc %>% 
+  mutate(rural = rural * 100) %>%
+  mutate(across(-c(year, n), ~round(., 2))) %>%
+  rename_with(~paste0(., "_noncah"), -year)
+
+combined_wide <- full_join(cah_wide, noncah_wide, by = "year") %>%
+  filter(year>=1995) %>%
+  # Select columns in a logical order
+  select(
+    year,
+    n_cah, bed_mean_cah, bed_p10_cah, bed_p90_cah, distance_cah, ip_days_cah, rural_cah,
+    n_noncah, bed_mean_noncah, bed_p10_noncah, bed_p90_noncah, distance_noncah, ip_days_noncah, rural_noncah
+  ) %>%
+  # Make sure it's sorted by year
+  arrange(year)
+
+stat_names <- c("N", "Mean", "10th P'tile", "90th P'tile", "Distance", "IP Days", "Rural (%)")
+col_names <- c("Year", stat_names, stat_names)
+header_spanner <- c(
+  " " = 1, # A blank spanner for the 'year' column
+  "CAH (Pre-treatment)" = 7, # Spans 10 CAH columns
+  "Non-CAH" = 7              # Spans 10 Non-CAH columns
+)
+
+latex_table_wide <- combined_wide %>%
+  kbl(
+    format = "latex",
+    booktabs = TRUE,
+    caption = "Descriptive Statistics by Hospital Type and Year",
+    col.names = col_names,
+    align = c("l", rep("r", 20)) 
+  ) %>%
+  add_header_above(header_spanner) %>%
+  kable_styling(
+    font_size = 9, 
+    latex_options = c("scale_down", "hold_position")
   )
 
-  summarize(cah_change=n()) %>%
-  group_by(year) %>%
-  mutate(all_cah=sum(cah_change),
-         prop_cah=cah_change/all_cah) %>%
-  select(year, prop_cah, change_type) %>%
-  ungroup()
+save_kable(latex_table_wide, file = "results/desc_compare.tex")
