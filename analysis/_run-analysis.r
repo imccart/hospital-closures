@@ -124,7 +124,8 @@ state.dat1 <- est.dat %>%
   summarize(hospitals=n(), cah_treat=min(state_treat_year), 
     closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE),
     mergers=sum(merged), changes=sum(closed_merged),
-    state_treat_year=first(state_treat_year)) %>%
+    state_treat_year=first(state_treat_year),
+    mean_beds=mean(BDTOT, na.rm=TRUE), mean_distance=mean(distance, na.rm=TRUE)) %>%
   group_by(MSTATE) %>%
   arrange(year, .by_group = TRUE) %>%
   mutate(hospitals_lag = lag(hospitals)) %>%

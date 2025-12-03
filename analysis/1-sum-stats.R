@@ -107,8 +107,7 @@ fig.hosp.type <- est.dat %>% group_by(year, cah) %>%
   guides(linetype="none") +
   labs(
     x="Year",
-    y="Count of Hospital Types",
-    caption="Limited to general, short-term, acute care community hospitals"
+    y="Count of Hospitals"
   )
 ggsave("results/desc-hosp-types.png", fig.hosp.type, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
 
