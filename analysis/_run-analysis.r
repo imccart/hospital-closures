@@ -97,17 +97,17 @@ est.dat <- final.dat %>%
       year<1999 & BDTOT<12 & distance>30 ~ 1,
       year>=1999 & BDTOT<25 & distance>30 ~ 1,
       TRUE ~ 0)) %>%
-    group_by(year) %>% 
-    mutate(m_top=quantile(margin, probs=0.95, na.rm=TRUE),
-           m_bottom=quantile(margin, probs=0.05, na.rm=TRUE)) %>%
-    ungroup() %>% 
-    mutate(margin=ifelse(margin>m_top, m_top, margin),
-           margin=ifelse(margin<m_bottom, m_bottom, margin)) %>%
-    arrange(ID, year) %>%
-    group_by(ID) %>%
-    fill(state, .direction = "downup") %>%    
-    mutate(margin=na.approx(margin, x=year, na.rm=FALSE)) %>%
-    ungroup()
+  group_by(year) %>% 
+  mutate(m_top=quantile(margin, probs=0.95, na.rm=TRUE),
+         m_bottom=quantile(margin, probs=0.05, na.rm=TRUE)) %>%
+  ungroup() %>% 
+  mutate(margin=ifelse(margin>m_top, m_top, margin),
+         margin=ifelse(margin<m_bottom, m_bottom, margin)) %>%
+  arrange(ID, year) %>%
+  group_by(ID) %>%
+  fill(state, .direction = "downup") %>%    
+  mutate(margin=na.approx(margin, x=year, na.rm=FALSE)) %>%
+  ungroup()
 
 
 ## add ipw weights to estimation data

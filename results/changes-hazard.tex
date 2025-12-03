@@ -1,0 +1,27 @@
+\begin{table}[!h]
+\centering
+\caption{Discrete-time hazard models for closure, merger, and any change}
+\centering
+\resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{
+\fontsize{9}{11}\selectfont
+\begin{tabular}[t]{lcccccc}
+\toprule
+\multicolumn{1}{c}{ } & \multicolumn{2}{c}{Closed} & \multicolumn{2}{c}{Merged} & \multicolumn{2}{c}{Closed or merged} \\
+\cmidrule(l{3pt}r{3pt}){2-3} \cmidrule(l{3pt}r{3pt}){4-5} \cmidrule(l{3pt}r{3pt}){6-7}
+ & (1) & (2) & (3) & (4) & (5) & (6)\\
+\midrule
+\addlinespace[0.3em]
+\multicolumn{7}{l}{\textbf{Hazard ratios}}\\
+\hspace{1em}Post-treatment & 0.491 & 0.487 & 0.077 & 0.066 & 0.157 & 0.154\\
+\hspace{1em} & (0.399) & (0.396) & (0.119) & (0.095) & (0.106) & (0.099)\\
+\hspace{1em}Treated & 0.099 & 0.103 & 0.178 & 0.541 & 0.113 & 0.134\\
+\hspace{1em} & (0.054) & (0.058) & (0.138) & (0.442) & (0.050) & (0.062)\\
+\addlinespace[0.3em]
+\multicolumn{7}{l}{\textbf{Specification}}\\
+\hspace{1em}Hospital controls & No & Yes & No & Yes & No & Yes\\
+\hspace{1em}State FE & Yes & Yes & Yes & Yes & Yes & Yes\\
+\hspace{1em}Year FE & Yes & Yes & Yes & Yes & Yes & Yes\\
+\hspace{1em}Duration FE & Yes & Yes & Yes & Yes & Yes & Yes\\
+\bottomrule
+\end{tabular}}
+\end{table}

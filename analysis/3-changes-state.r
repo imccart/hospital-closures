@@ -48,9 +48,9 @@ synthetic_path <- as.numeric(drop(t(w) %*% Y[1:N0, , drop = FALSE]))
 
 plot_df.2001 <- bind_rows(
   tibble(year = years, group="Synthetic control",
-         rate_closed = (synthetic_path/denom.2001)*100),
+         rate_out = (synthetic_path/denom.2001)*100),
   tibble(year = years, group="Treated",
-         rate_closed = (treated_path/denom.2001)*100)
+         rate_out = (treated_path/denom.2001)*100)
 )
 
 # 95% CI label (top-right), no box/border
@@ -59,12 +59,12 @@ se_num   <- (as.numeric(se)/denom.2001)*100
 ci_low   <- att - 1.96 * se_num
 ci_high  <- att + 1.96 * se_num
 
-y_top <- max(plot_df.2001$rate_closed, na.rm = TRUE)
+y_top <- max(plot_df.2001$rate_out, na.rm = TRUE)
 x_pos <- max(plot_df.2001$year)
 
 lab_txt <- sprintf("ATT and 95%% CI: %.2f [%.2f, %.2f]", att, ci_low, ci_high)
 
-plot.sdid2001 <- ggplot(plot_df.2001, aes(x = year, y = rate_closed, linetype = group)) +
+plot.sdid2001 <- ggplot(plot_df.2001, aes(x = year, y = rate_out, linetype = group)) +
   geom_line(linewidth = 0.8, color = "black")   +
   geom_vline(xintercept = 2001, linewidth = 1)  +
   scale_linetype_manual(values = c("Synthetic control" = "dashed", "Treated" = "solid")) +
@@ -73,7 +73,7 @@ plot.sdid2001 <- ggplot(plot_df.2001, aes(x = year, y = rate_closed, linetype = 
   theme(legend.position = "bottom", legend.key.width = unit(2, "cm"))  +
   annotate("text", x = x_pos, y = y_top, label = lab_txt, hjust = 1, vjust = 1, size = 3.4)
 
-ggsave(paste0("results/", o$slug, "-sdid-1999.png"), plot.sdid2001,
+ggsave(paste0("results/", o$slug, "-sdid-2001.png"), plot.sdid2001,
        width = 6.5, height = 4.25, dpi = 300, scale=1.5)
 
 ## All cohorts
@@ -191,42 +191,11 @@ plot.sdid <- ggplot(agg_paths, aes(x = tau)) +
 ggsave(paste0("results/", o$slug, "-sdid.png"), plot.sdid,
        width = 6.5, height = 4.25, dpi = 300, scale = 1.5)
 
-# =====================================================================
-# Standard TWFE / SA / CS ---------------------------------------------
-# =====================================================================
+
+# Callaway and Sant'Anna ------------------------------------------------
 
 min.es <- -5
 max.es <- 5
-
-twfe.mod1 <- fepois(y ~ i(event_time, ref=-1) | MSTATE + year, 
-  offset = ~ log(hospitals_lag),
-  cluster=~MSTATE,
-  data=state.dat1 %>% filter(state_treat_year == 0 | state_treat_year > 1995) %>%
-    mutate(event_time=case_when(
-      event_time > max.es ~ max.es,
-      event_time < min.es ~ min.es,
-      TRUE ~ event_time),
-      y=.data[[o$y_count]])
-) 
-
-# Sun and Abraham ------------------------------------------------------
-
-min.es <- -10
-max.es <- 10
-
-sa.mod1 <- fepois(
-  y ~ sunab(state_treat_year, event_time, ref.p=c(-2,-1), bin.rel = "bin::2") | MSTATE + year,
-  offset   = ~ log(hospitals_lag),
-  cluster  = ~ MSTATE,
-  data=state.dat1 %>% filter(state_treat_year == 0 | state_treat_year > 1995) %>%
-    mutate(event_time=case_when(
-      event_time > max.es ~ max.es,
-      event_time < min.es ~ min.es,
-      TRUE ~ event_time),
-      y=.data[[o$y_count]])      
-) 
-
-# Callaway and Sant'Anna ------------------------------------------------
 
 csa.mod1 <- att_gt(yname=o$y_rate,
                    gname="state_treat_year",
@@ -235,7 +204,7 @@ csa.mod1 <- att_gt(yname=o$y_rate,
                    control_group="notyettreated",
                    panel=TRUE,
                    allow_unbalanced_panel=TRUE,
-                   data = state.dat1 %>% filter(state_treat_year == 0 | state_treat_year > 1995),
+                   data = state.dat1 %>% filter(state_treat_year %in% c(0, 1999,2000,2001,2002)),
                    base_period="universal",
                    est_method="ipw",
                    clustervars="state",
@@ -245,61 +214,10 @@ summary(csa.att1)
 csa.es1 <- aggte(csa.mod1, type="dynamic", na.rm=TRUE, min_e=-5, max_e=5)
 summary(csa.es1)
 
-# Graph of TWFE, CS, SA estimators -------------------------------------
-
-base.rate <- state.dat1 %>%
-  filter(event_time <= -1, treat==1,
-         state_treat_year == 0 | state_treat_year > 1995) %>%
-  summarise(rate = sum(.data[[o$y_count]], na.rm=TRUE) / sum(hospitals_lag, na.rm=TRUE)) %>%
-  pull(rate)  
-
-new.row <- tibble(
-  estimate=0,
-  conf.low=0,
-  conf.high=0,
-  event_time=-1
-)
-
-## TWFE
-point.twfe1 <- as_tibble(twfe.mod1$coefficients, rownames="term") %>%
-  filter(str_starts(term,"event_time::")) %>%
-  rename(estimate=value) %>%
-  mutate(event_time = as.integer(str_remove(term, "event_time::"))) %>%
-  select(-term)
-
-ci.twfe1 <- as_tibble(confint(twfe.mod1), rownames="term") %>%
-  filter(str_starts(term,"event_time::")) %>%
-  rename(conf.low = `2.5 %`, conf.high = `97.5 %`) %>%
-  mutate(event_time = as.integer(str_remove(term, "event_time::"))) %>%
-  select(-term)
-
-est.twfe1 <- point.twfe1 %>%
-  left_join(ci.twfe1, by="event_time") %>%
-  bind_rows(new.row) %>% 
-  mutate(estimator="TWFE") %>%
-  arrange(event_time) %>%
-  select(event_time, estimate, conf.low, conf.high, estimator) %>%
-  mutate(estimate = (exp(estimate) - 1) * base.rate,
-         conf.low = (exp(conf.low) - 1) * base.rate,
-         conf.high= (exp(conf.high) - 1) * base.rate)
-
-## SA
-est.sa1 <- tidy(sa.mod1, conf.int = TRUE) %>%
-  filter(str_detect(term, "^event_time::")) %>%
-  mutate(event_time = as.integer(str_remove(term, "event_time::"))) %>%
-  bind_rows(new.row) %>% 
-  mutate(estimator = "SA",
-         event_bin = floor(event_time / 2)) %>%
-  select(event_time=event_bin, estimate, conf.low, conf.high, estimator) %>%
-  mutate(estimate = (exp(estimate) - 1) * base.rate,
-         conf.low = (exp(conf.low) - 1) * base.rate,
-         conf.high= (exp(conf.high) - 1) * base.rate)
-
-## CS
 est.cs1 <- tibble(
   event_time = csa.es1$egt,
-  estimate   = csa.es1$att,
-  se         = csa.es1$se
+  estimate   = 100*csa.es1$att,
+  se         = 100*csa.es1$se
 ) %>%
   mutate(
     conf.low  = if_else(event_time!= -1, estimate - 1.96 * se, 0),
@@ -308,52 +226,22 @@ est.cs1 <- tibble(
   ) %>%
   select(-se)
 
-## Combine and plot
-est.all <- bind_rows(est.twfe1, est.cs1, est.sa1) %>%
-  arrange(estimator, event_time) %>%
-  mutate(
-    Estimator = factor(estimator, levels = c("TWFE", "CS", "SA")),
-    estimate = 100*estimate,
-    conf.low = 100*conf.low,
-    conf.high= 100*conf.high
-  )  
 
-plot.estimators <- ggplot(est.all, aes(x = event_time, y = estimate, shape = Estimator)) +
+plot.cs <- ggplot(est.cs1, aes(x = event_time, y = estimate)) +
   geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
                 position = position_dodge(width = 0.5), 
-                width = 0, linewidth = 0.2, alpha = 0.3, color = "black") +
+                width = 0, linewidth = 0.5, alpha = 0.3, color = "black") +
   geom_point(position = position_dodge(width = 0.5), 
              size = 2.5, color = "black", stroke = 0.1, fill="white") +
-  scale_shape_manual(values = c(
-    "TWFE" = 24,    # hollow triangle
-    "CS" = 21,      # hollow circle
-    "SA" = 22       # hollow square
-  )) +
+  geom_hline(yintercept = 0, color = "black", linewidth = 1) + #             
   scale_x_continuous(breaks = seq(-10, 10, by = 1)) +
   labs(x = "Event time", y = paste0(o$axis_label, " per 100 hospitals"), linetype = NULL) +
   theme_bw() +
   theme(
-    legend.position = "bottom",
-    panel.grid.minor = element_blank()
-  )
-
-plot.estimators2 <- ggplot(est.all %>% filter(estimator=="CS"), aes(x = event_time, y = estimate, shape = Estimator)) +
-  geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
-                position = position_dodge(width = 0.5), 
-                width = 0, linewidth = 0.2, alpha = 0.3, color = "black") +
-  geom_point(position = position_dodge(width = 0.5), 
-             size = 2.5, color = "black", stroke = 0.1, fill="white") +
-  scale_shape_manual(values = c(
-    "CS" = 21      # hollow circle
-  )) +
-  scale_x_continuous(breaks = seq(-10, 10, by = 1)) +
-  labs(x = "Event time", y = paste0(o$axis_label, " per 100 hospitals"), linetype = NULL) +
-  theme_bw() +
-  theme(
-    legend.position = "bottom",
+    legend.position = "none",
     panel.grid.minor = element_blank()
   )
 
 
-ggsave(paste0("results/", o$slug, "-other.png"), plot.estimators2,
+ggsave(paste0("results/", o$slug, "-cs.png"), plot.cs,
        width = 6.5, height = 4.25, dpi = 300, scale=1.5)
