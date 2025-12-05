@@ -24,11 +24,11 @@ years  <- as.numeric(colnames(Y))
 treated_path   <- colMeans(Y[(N0+1):N, , drop = FALSE])
 synthetic_path <- as.numeric(drop(t(w) %*% Y[1:N0, , drop = FALSE]))
 
-plot_df.2001 <- dplyr::bind_rows(
-  tibble::tibble(year = years, group = "Synthetic control", margin = synthetic_path),
-  tibble::tibble(year = years, group = "Treated",            margin = treated_path)
+plot_df.2001 <- bind_rows(
+  tibble(year = years, group = "Synthetic control", margin = synthetic_path),
+  tibble(year = years, group = "Treated",            margin = treated_path)
 ) %>%
-  dplyr::mutate(group = factor(group, levels = c("Synthetic control","Treated")))
+  mutate(group = factor(group, levels = c("Synthetic control","Treated")))
 
 # 95% CI label (top-right), no box/border
 att      <- as.numeric(synth.est)
@@ -45,9 +45,9 @@ plot.2001 <- ggplot(plot_df.2001, aes(x = year, y = margin, linetype = group)) +
   geom_vline(xintercept = 2001, linewidth = 1) +
   scale_linetype_manual(values = c("dashed","solid")) +  # synthetic dashed, treated solid
   scale_x_continuous(breaks = seq(min(plot_df.2001$year), max(plot_df.2001$year), by = 1)) +
-  labs(x = "Year", y = "Coefficient Estimate", linetype = NULL) +
+  labs(x = "Year", y = "Operating Margin", linetype = NULL) +
   theme_bw() +
-  theme(legend.key.width = grid::unit(2, "cm")) +
+  theme(legend.key.width = unit(2, "cm")) +
   annotate("text", x = x_tr, y = y_tr, label = att_lab, hjust = 1, vjust = 1, size = 3.5)
 
 ggsave("results/margin-sdid-2001.png", plot.2001, width = 6.5, height = 4.25, dpi = 300, scale=1.5)

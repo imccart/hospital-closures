@@ -263,7 +263,12 @@ fuzzy.unique.990 <- fuzzy.match.990 %>%
   pivot_wider(values_from=c("ein","multivar_score","name_compare","aha_name","ein_name"), names_from="rcount") %>%
   ungroup()
 
-unique.990 <- bind_rows(fuzzy.unique.990, form990.id %>% select(ein_1=ein, ID))
+unique.990 <- bind_rows(fuzzy.unique.990 %>% anti_join(form990.id %>% distinct(ID), by='ID'), form990.id %>% select(ein_1=ein, ID))
+
+aha.cah.dates <- aha.combine %>%
+  filter(critical_access==1) %>%
+  group_by(ID) %>%
+  summarize(eff_year_aha=min(year, na.rm=TRUE))
 
 aha.final <- aha.combine %>% 
   left_join(fuzzy.unique.cah, by='ID') %>%
@@ -282,7 +287,11 @@ aha.final <- aha.combine %>%
       is.na(MCRNUM) & !is.na(MCRNUM_xw) ~ MCRNUM_xw
     )) %>%
   left_join(hcris.data, by=c('MCRNUM','year')) %>%
-  mutate(eff_year=year(first_date),
+  left_join(aha.cah.dates, by='ID') %>%
+  mutate(eff_year=case_when(
+           !is.na(first_date) ~ year(first_date),
+           is.na(first_date) & !is.na(eff_year_aha) ~ eff_year_aha,
+           TRUE ~ NA_real_),
          cah = case_when(
            is.na(critical_access) & cah_sup==1 & year>=eff_year ~ 1,
            critical_access==0 & cah_sup==1 & year>=eff_year ~ 1,
@@ -307,9 +316,9 @@ aha.final <- aha.combine %>%
 
 ## hospital closures and mergers
 merge.close <- aha.final %>% 
-  group_by(year, change_type, critical_access) %>%
+  group_by(year, change_type, cah) %>%
   summarize(hosp_count=n()) %>% ungroup() %>%
-  group_by(year, critical_access) %>%
+  group_by(year, cah) %>%
   mutate(hosp_type_count=sum(hosp_count)) %>% ungroup() %>%
   group_by(year, change_type) %>%
   mutate(change_type_count=sum(hosp_count)) %>% ungroup() %>%

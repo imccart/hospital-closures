@@ -73,7 +73,7 @@ final.dat <- data.merge %>%
                                 state_first_law=min(cah_year_law, na.rm=TRUE)) %>% ungroup() %>%
     mutate(state_first_obs=ifelse(is.infinite(state_first_obs), 0, state_first_obs),
            state_first_law=ifelse(is.infinite(state_first_law), 0, state_first_law),
-           state_treat_year=state_first_obs) 
+           state_treat_year=state_first_obs)
 
 est.dat <- final.dat %>%
   mutate(margin_990=case_when(
@@ -96,7 +96,8 @@ est.dat <- final.dat %>%
     compare_hosp=case_when(
       year<1999 & BDTOT<12 & distance>30 ~ 1,
       year>=1999 & BDTOT<25 & distance>30 ~ 1,
-      TRUE ~ 0)) %>%
+      TRUE ~ 0)
+  ) %>%
   group_by(year) %>% 
   mutate(m_top=quantile(margin, probs=0.95, na.rm=TRUE),
          m_bottom=quantile(margin, probs=0.05, na.rm=TRUE)) %>%

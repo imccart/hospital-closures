@@ -1,7 +1,7 @@
 # =========================================================
 # Select outcome (one of: "closures", "mergers", "changes")
 # =========================================================
-outcome <- "changes"
+outcome <- "mergers"
 
 # Map outcome -> variable names, axis labels, filename slugs
 vars <- list(
@@ -82,7 +82,7 @@ denom.lag <- stack.state1 %>%
   group_by(stack_group) %>% 
   summarize(mean_hosp=mean(hospitals, na.rm=TRUE))
 
-cohorts <- c(1999, 2000, 2001, 2002)
+cohorts <- c(1999, 2000, 2001)
 
 run_sdid_state <- function(c){
   dat <- stack.state1 %>%
@@ -197,7 +197,15 @@ ggsave(paste0("results/", o$slug, "-sdid.png"), plot.sdid,
 min.es <- -5
 max.es <- 5
 
-csa.mod1 <- att_gt(yname=o$y_rate,
+denom_cs <- state.dat1 %>% 
+  filter(year < state_treat_year,
+         state_treat_year %in% c(1999, 2000, 2001)) %>%
+  summarise(mean_hosp = mean(hospitals, na.rm = TRUE)) %>%
+  pull(mean_hosp)
+
+scale_cs <- 100 / denom_cs
+
+csa.mod1 <- att_gt(yname=o$y_count,
                    gname="state_treat_year",
                    idname="state",
                    tname="year",
@@ -216,8 +224,8 @@ summary(csa.es1)
 
 est.cs1 <- tibble(
   event_time = csa.es1$egt,
-  estimate   = 100*csa.es1$att,
-  se         = 100*csa.es1$se
+  estimate   = scale_cs*csa.es1$att,
+  se         = scale_cs*csa.es1$se
 ) %>%
   mutate(
     conf.low  = if_else(event_time!= -1, estimate - 1.96 * se, 0),
