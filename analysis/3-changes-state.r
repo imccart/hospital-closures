@@ -1,7 +1,5 @@
-# =========================================================
 # Select outcome (one of: "closures", "mergers", "changes")
-# =========================================================
-outcome <- "mergers"
+outcome <- "closures"
 
 # Map outcome -> variable names, axis labels, filename slugs
 vars <- list(
@@ -14,26 +12,29 @@ vars <- list(
 )
 o <- vars[[outcome]]
 
-# =====================================================================
+# Build state-level dataset for analysis
+stack.state <- stack_state(pre.period=5, post.period=5, state.period=0)
+
+
 # Synthetic DD ---------------------------------------------------------
-# =====================================================================
 
 ## Single year
-denom.2001 <- stack.state1 %>% 
-  filter(stacked_event_time <= -1, treated==1, stack_group==2001) %>% 
+cohort.year <- 2001
+denom.year <- stack.state %>% 
+  filter(stacked_event_time <= -1, treated==1, stack_group==cohort.year) %>% 
   summarize(mean_hosp=mean(hospitals, na.rm=TRUE)) %>%
   pull(mean_hosp)
 
-synth.2001 <- stack.state1 %>%     
-  filter(stack_group == 2001) %>%
+synth.year <- stack.state %>%     
+  filter(stack_group == cohort.year) %>%
   transmute(ID = as.numeric(factor(MSTATE)),
             year,
             rate = .data[[o$y_count]],        # outcome = counts (closures/mergers/changes)
             post_treat)
 
-balance.2001  <- as_tibble(makeBalancedPanel(synth.2001, idname="ID", tname="year"))
+balance.year  <- as_tibble(makeBalancedPanel(synth.year, idname="ID", tname="year"))
 
-setup <- panel.matrices(as.data.frame(balance.2001))
+setup <- panel.matrices(as.data.frame(balance.year))
 synth.est <- synthdid_estimate(setup$Y, setup$N0, setup$T0)
 se  <- synthdid_se(synth.est, method="jackknife")
 
@@ -46,38 +47,38 @@ years  <- as.numeric(colnames(Y))
 treated_path   <- colMeans(Y[(N0+1):N, , drop = FALSE])
 synthetic_path <- as.numeric(drop(t(w) %*% Y[1:N0, , drop = FALSE]))
 
-plot_df.2001 <- bind_rows(
+plot_df.year <- bind_rows(
   tibble(year = years, group="Synthetic control",
-         rate_out = (synthetic_path/denom.2001)*100),
+         rate_out = (synthetic_path/denom.year)*100),
   tibble(year = years, group="Treated",
-         rate_out = (treated_path/denom.2001)*100)
+         rate_out = (treated_path/denom.year)*100)
 )
 
 # 95% CI label (top-right), no box/border
-att      <- (as.numeric(synth.est)/denom.2001)*100
-se_num   <- (as.numeric(se)/denom.2001)*100
+att      <- (as.numeric(synth.est)/denom.year)*100
+se_num   <- (as.numeric(se)/denom.year)*100
 ci_low   <- att - 1.96 * se_num
 ci_high  <- att + 1.96 * se_num
 
-y_top <- max(plot_df.2001$rate_out, na.rm = TRUE)
-x_pos <- max(plot_df.2001$year)
+y_top <- max(plot_df.year$rate_out, na.rm = TRUE)
+x_pos <- max(plot_df.year$year)
 
 lab_txt <- sprintf("ATT and 95%% CI: %.2f [%.2f, %.2f]", att, ci_low, ci_high)
 
-plot.sdid2001 <- ggplot(plot_df.2001, aes(x = year, y = rate_out, linetype = group)) +
+plot.sdid.year <- ggplot(plot_df.year, aes(x = year, y = rate_out, linetype = group)) +
   geom_line(linewidth = 0.8, color = "black")   +
-  geom_vline(xintercept = 2001, linewidth = 1)  +
+  geom_vline(xintercept = cohort.year, linewidth = 1)  +
   scale_linetype_manual(values = c("Synthetic control" = "dashed", "Treated" = "solid")) +
   labs(x = "Year", y = paste0(o$axis_label, " per 100 hospitals"), linetype = NULL) +
   theme_bw() +
   theme(legend.position = "bottom", legend.key.width = unit(2, "cm"))  +
   annotate("text", x = x_pos, y = y_top, label = lab_txt, hjust = 1, vjust = 1, size = 3.4)
 
-ggsave(paste0("results/", o$slug, "-sdid-2001.png"), plot.sdid2001,
+ggsave(paste0("results/", o$slug, "-sdid-year.png"), plot.sdid.year,
        width = 6.5, height = 4.25, dpi = 300, scale=1.5)
 
 ## All cohorts
-denom.lag <- stack.state1 %>% 
+denom.lag <- stack.state %>% 
   filter(stacked_event_time <= -1, treated==1) %>% 
   group_by(stack_group) %>% 
   summarize(mean_hosp=mean(hospitals, na.rm=TRUE))
@@ -85,7 +86,7 @@ denom.lag <- stack.state1 %>%
 cohorts <- c(1999, 2000, 2001)
 
 run_sdid_state <- function(c){
-  dat <- stack.state1 %>%
+  dat <- stack.state %>%
     filter(stack_group == c) %>%
     transmute(ID = as.numeric(factor(MSTATE)),
               year,
@@ -197,7 +198,7 @@ ggsave(paste0("results/", o$slug, "-sdid.png"), plot.sdid,
 min.es <- -5
 max.es <- 5
 
-denom_cs <- state.dat1 %>% 
+denom_cs <- state.dat %>% 
   filter(year < state_treat_year,
          state_treat_year %in% c(1999, 2000, 2001)) %>%
   summarise(mean_hosp = mean(hospitals, na.rm = TRUE)) %>%
@@ -212,7 +213,7 @@ csa.mod1 <- att_gt(yname=o$y_count,
                    control_group="notyettreated",
                    panel=TRUE,
                    allow_unbalanced_panel=TRUE,
-                   data = state.dat1 %>% filter(state_treat_year %in% c(0, 1999,2000,2001,2002)),
+                   data = state.dat %>% filter(state_treat_year %in% c(0, 1999,2000,2001,2002)),
                    base_period="universal",
                    est_method="ipw",
                    clustervars="state",

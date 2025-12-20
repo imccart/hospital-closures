@@ -1,17 +1,36 @@
-
-# Synthetic DD ---------------------------------------------------------------
-
+# Synthetic DD --------------------------------------------------------
 ## Notes on Synth DD. 
 ##   - Must be data frame (tibble forces errors) and must have more than 1 pre-treatment period
 
-## use stacked DD data at hospital level for single cohort
-synth.2001 <- stack.hosp %>% group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE)) %>% ungroup() %>%
-            filter(stack_group==2001, !is.na(margin), min_bedsize<=50) %>%
-            select(ID, year, margin, post_treat)
+## first build stacked data at hospital level
+stack.hosp <- stack_hosp(pre.period=5, post.period=5, state.period=0)
 
-balance.2001  <- as_tibble(makeBalancedPanel(synth.2001, idname="ID", tname="year"))
+## select outcome variable ("margin" or "net_fixed")
+outcome_var   <- "net_fixed"
+outcome_sym   <- sym(outcome_var)
 
-setup <- panel.matrices(as.data.frame(balance.2001))
+outcome_label <- case_when(
+  outcome_var == "margin"    ~ "Operating margin",
+  outcome_var == "net_fixed" ~ "Net fixed assets",
+  TRUE                       ~ outcome_var
+)
+
+file_stub <- case_when(
+  outcome_var == "margin"    ~ "margin",
+  outcome_var == "net_fixed" ~ "netfixed",
+  TRUE                       ~ outcome_var
+)
+
+# SYNTH DD for single cohort ------------------------------------------------
+
+cohort.year <- 2000
+synth.year <- stack.hosp %>% group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE)) %>% ungroup() %>%
+            filter(stack_group==cohort.year, !is.na(!!outcome_sym), min_bedsize<=50) %>%
+            select(ID, year, outcome=!!outcome_sym, post_treat)
+
+balance.year  <- as_tibble(makeBalancedPanel(synth.year, idname="ID", tname="year"))
+
+setup <- panel.matrices(as.data.frame(balance.year))
 synth.est <- synthdid_estimate(setup$Y, setup$N0, setup$T0)
 se  <- synthdid_se(synth.est, method="jackknife")
 
@@ -24,9 +43,9 @@ years  <- as.numeric(colnames(Y))
 treated_path   <- colMeans(Y[(N0+1):N, , drop = FALSE])
 synthetic_path <- as.numeric(drop(t(w) %*% Y[1:N0, , drop = FALSE]))
 
-plot_df.2001 <- bind_rows(
-  tibble(year = years, group = "Synthetic control", margin = synthetic_path),
-  tibble(year = years, group = "Treated",            margin = treated_path)
+plot_df.year <- bind_rows(
+  tibble(year = years, group = "Synthetic control", value = synthetic_path),
+  tibble(year = years, group = "Treated",           value = treated_path)
 ) %>%
   mutate(group = factor(group, levels = c("Synthetic control","Treated")))
 
@@ -35,33 +54,42 @@ att      <- as.numeric(synth.est)
 se_num   <- as.numeric(se)
 ci_low   <- att - 1.96 * se_num
 ci_high  <- att + 1.96 * se_num
-att_lab  <- sprintf("ATT and 95%% CI: %.2f, [%.2f, %.2f]", att, ci_low, ci_high)
+att_lab <- sprintf(
+  "ATT and 95%% CI for %d: %.2f, [%.2f, %.2f]",
+  cohort.year, att, ci_low, ci_high
+)
 
-x_tr <- max(plot_df.2001$year)
-y_tr <- max(plot_df.2001$margin, na.rm = TRUE)
-
-plot.2001 <- ggplot(plot_df.2001, aes(x = year, y = margin, linetype = group)) +
+plot.year <- ggplot(plot_df.year, aes(x = year, y = value, linetype = group)) +
   geom_line(linewidth = 0.8, color = "black") +
-  geom_vline(xintercept = 2001, linewidth = 1) +
-  scale_linetype_manual(values = c("dashed","solid")) +  # synthetic dashed, treated solid
-  scale_x_continuous(breaks = seq(min(plot_df.2001$year), max(plot_df.2001$year), by = 1)) +
-  labs(x = "Year", y = "Operating Margin", linetype = NULL) +
+  geom_vline(xintercept = cohort.year, linewidth = 1) +
+  scale_linetype_manual(values = c("dashed","solid")) +
+  scale_x_continuous(breaks = seq(min(plot_df.year$year), max(plot_df.year$year), by = 1)) +
+  labs(x = "Year", y = outcome_label, linetype = NULL) +
   theme_bw() +
-  theme(legend.key.width = unit(2, "cm")) +
-  annotate("text", x = x_tr, y = y_tr, label = att_lab, hjust = 1, vjust = 1, size = 3.5)
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.88, 0.12),
+    legend.background = element_blank(),
+    legend.key.width = unit(2, "cm")
+  ) +
+  annotate("text", x = max(plot_df.year$year), y = Inf,
+           label = att_lab, hjust = 1, vjust = 1.5, size = 3.5)
 
-ggsave("results/margin-sdid-2001.png", plot.2001, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
+ggsave(
+  sprintf("results/%s-sdid-yearly.png", file_stub),
+  plot.year, width = 6.5, height = 4.25, dpi = 300, scale = 1.5
+)
 
 
-## use stacked DD data at hospital level for all cohorts and combine
+# SYNTH DD across cohorts ------------------------------------------------
 cohorts <- 1999:2002
 
 run_sdid_cohort <- function(c){
   # Build cohort panel (re-using your style/objects)
   synth.c <- stack.hosp %>%
     group_by(ID) %>% mutate(min_bedsize = min(BDTOT, na.rm = TRUE)) %>% ungroup() %>%
-    filter(stack_group == c, !is.na(margin), min_bedsize <= 50) %>%
-    select(ID, year, margin, post_treat)
+    filter(stack_group == c, !is.na(!!outcome_sym), min_bedsize <= 50) %>%
+    select(ID, year, outcome=!!outcome_sym, post_treat)
 
   bal.c   <- as_tibble(makeBalancedPanel(synth.c, idname = "ID", tname = "year"))
   setup   <- panel.matrices(as.data.frame(bal.c))
@@ -142,7 +170,7 @@ p_evt <- ggplot(agg_paths, aes(x = tau)) +
   geom_vline(xintercept = 0, linewidth = 1) +
   scale_linetype_manual(values = c("Treated" = "solid", "Synthetic control" = "dashed")) +
   scale_x_continuous(breaks = seq(min(agg_paths$tau), max(agg_paths$tau), by = 1)) +
-  labs(x = "Event time", y = "Operating margin", linetype = NULL) +
+  labs(x = "Event time", y = outcome_label, linetype = NULL) +
   theme_bw() +
   theme(
     legend.position = "inside",
@@ -157,7 +185,10 @@ p_evt <- ggplot(agg_paths, aes(x = tau)) +
            label = att_body, hjust = 0, vjust = 1,
            size = 3.4, lineheight = 1.05)
 
-ggsave("results/margin-sdid.png", p_evt, width = 6.5, height = 4.25, dpi = 300, scale=1.5)
+ggsave(
+  sprintf("results/%s-sdid.png", file_stub),
+  p_evt, width = 6.5, height = 4.25, dpi = 300, scale = 1.5
+)
 
 
 # Callaway and Sant'Anna -----------------------------------------------------
@@ -165,43 +196,44 @@ ggsave("results/margin-sdid.png", p_evt, width = 6.5, height = 4.25, dpi = 300, 
 min.es <- -5
 max.es <- 5
 
-cs.dat1 <- est.dat %>%
+cs.dat <- est.dat %>%
       group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE), max_distance=max(distance, na.rm=TRUE)) %>% ungroup() %>%  
       filter(min_bedsize<=50) %>%
-      mutate(ID2=as.numeric(factor(ID)), 
+      mutate(y=!!outcome_sym,
+            ID2=as.numeric(factor(ID)), 
             treat_group=case_when(
                 !is.na(eff_year) ~ eff_year,
                 is.na(eff_year) & state_treat_year > year + max.es ~ 0,
                 is.na(eff_year) & state_treat_year==0 ~ 0,
                 TRUE ~ NA )) %>%
-      filter(!is.na(margin), !is.na(year), !is.na(BDTOT), !is.na(distance),
+      filter(!is.na(y), !is.na(year), !is.na(BDTOT), !is.na(distance),
          treat_group %in% c(0, 1999, 2000, 2001, 2002)) %>%
-      select(ID, ID2, MSTATE, treat_group, year, margin, BDTOT, distance, 
+      select(ID, ID2, MSTATE, treat_group, year, y, BDTOT, distance, 
              own_type, teach_major, min_bedsize, max_distance) %>%
       mutate(own_type=as.factor(own_type))
 
-csa.margin1 <- att_gt(yname="margin",
+csa.raw <- att_gt(yname="y",
                    gname="treat_group",
                    idname="ID2",
                    tname="year",
                    control_group="notyettreated",
                    panel=TRUE,
                    allow_unbalanced_panel=TRUE,
-                   data = cs.dat1,
+                   data = cs.dat,
                    xformla = ~min_bedsize+max_distance,
                    base_period="universal",
                    est_method="ipw")
-csa.att1 <- aggte(csa.margin1, type="simple", na.rm=TRUE)
-summary(csa.att1)
-csa.es1 <- aggte(csa.margin1, type="dynamic", na.rm=TRUE, min_e=min.es, max_e=max.es)
-summary(csa.es1)
+csa.att <- aggte(csa.raw, type="simple", na.rm=TRUE)
+summary(csa.att)
+csa.es <- aggte(csa.raw, type="dynamic", na.rm=TRUE, min_e=min.es, max_e=max.es)
+summary(csa.es)
 
 
 ## Collect CS estimates
-est.cs1 <- tibble(
-  event_time = csa.es1$egt,
-  estimate   = csa.es1$att,
-  se         = csa.es1$se
+est.cs <- tibble(
+  event_time = csa.es$egt,
+  estimate   = csa.es$att,
+  se         = csa.es$se
 ) %>%
   mutate(
     conf.low  = if_else(event_time!= -1, estimate - 1.96 * se, 0),
@@ -211,7 +243,7 @@ est.cs1 <- tibble(
   select(-se)
 
 ## Plot
-plot.cs <- ggplot(est.cs1, aes(x = event_time, y = estimate)) +
+plot.cs <- ggplot(est.cs, aes(x = event_time, y = estimate)) +
   geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
                 position = position_dodge(width = 0.5), 
                 width = 0, linewidth = 0.5, alpha = 0.3, color = "black") +
@@ -219,11 +251,13 @@ plot.cs <- ggplot(est.cs1, aes(x = event_time, y = estimate)) +
              size = 2.5, color = "black", stroke = 0.1, fill="white") +
   geom_hline(yintercept = 0, color = "black", linewidth = 1) + #               
   scale_x_continuous(breaks = seq(-10, 10, by = 1)) +
-  labs(x = "Event time", y = "Operating Margin") +
+  labs(x = "Event time", y = "Estimated Effects") +
   theme_bw() +
   theme(
     legend.position = "none"
   )
 
-
-ggsave("results/margin-cs.png", plot.cs, width = 6.5, height = 4.25, dpi = 300, scale=1.5)  
+ggsave(
+  sprintf("results/%s-cs.png", file_stub),
+  plot.cs, width = 6.5, height = 4.25, dpi = 300, scale = 1.5
+)

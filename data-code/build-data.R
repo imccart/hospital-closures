@@ -2,7 +2,7 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   8/15/2025
+## Date Edited:   12/19/2025
 ## Description:   Build Analytic Data
 
 
@@ -273,9 +273,12 @@ aha.cah.dates <- aha.combine %>%
 aha.final <- aha.combine %>% 
   left_join(fuzzy.unique.cah, by='ID') %>%
   left_join(unique.990, by='ID') %>%
-  left_join(form990.data %>% select(ein_1=ein, year, margin_1=margin, current_ratio_1=current_ratio), by=c('ein_1','year')) %>%
-  left_join(form990.data %>% select(ein_2=ein, year, margin_2=margin, current_ratio_2=current_ratio), by=c('ein_2','year')) %>%
-  left_join(form990.data %>% select(ein_3=ein, year, margin_3=margin, current_ratio_3=current_ratio), by=c('ein_3','year')) %>%
+  left_join(form990.data %>% 
+    select(ein_1=ein, year, margin_1=margin, current_ratio_1=current_ratio, net_fixed_1=fixed_assets), by=c('ein_1','year')) %>%
+  left_join(form990.data %>% 
+    select(ein_2=ein, year, margin_2=margin, current_ratio_2=current_ratio, net_fixed_2=fixed_assets), by=c('ein_2','year')) %>%
+  left_join(form990.data %>% 
+    select(ein_3=ein, year, margin_3=margin, current_ratio_3=current_ratio, net_fixed_3=fixed_assets), by=c('ein_3','year')) %>%
   left_join(state.zip.xwalk, by=c("MLOCZIP"="zcta5")) %>%
   mutate(MSTATE=case_when(
       !is.na(MSTATE) ~ MSTATE,
