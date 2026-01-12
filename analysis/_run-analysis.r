@@ -2,7 +2,7 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   12/16/2025
+## Date Edited:   1/9/2025
 ## Description:   Run Analysis Files
 
 
@@ -44,9 +44,7 @@ copa.dat <- read_csv('data/input/copa-states.csv', col_names=c("state", "empty",
 
 write_csv(copa.dat,'data/output/copa_data.csv')
 
-
 cpi.data <- read_xlsx("data/input/CPI_1913_2019.xlsx", skip = 11)
-
 cpi.data <- pivot_longer(cpi.data, 
                          cols=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"),
                          names_to="month",
@@ -63,6 +61,7 @@ cpi.final <- cpi.data %>%
   mutate(cpi_2010 = cpi.2010,
          cpi_deflator = index/cpi_2010) %>%
   select(year, cpi_deflator)
+
 
 # Merge and finalize hospital-level data -----------------------------------
 
@@ -101,6 +100,12 @@ hosp.beds <- final.dat %>%
   group_by(ID) %>%
   summarize(beds_base=mean(BDTOT, na.rm=TRUE))
 
+
+winsor_by_year <- function(x, probs = c(0.05, 0.95)) {
+  qs <- quantile(x, probs = probs, na.rm = TRUE)
+  pmin(pmax(x, qs[1]), qs[2])
+}
+
 est.dat <- final.dat %>%
   left_join(hosp.beds, by="ID") %>%
   left_join(cpi.final , by="year") %>%
@@ -111,12 +116,23 @@ est.dat <- final.dat %>%
          net_fixed_990=case_when(
             !is.na(net_fixed_1) ~ net_fixed_1,
             is.na(net_fixed_1) & !is.na(net_fixed_2) ~ net_fixed_2,
-            is.na(net_fixed_1) & is.na(net_fixed_2) & !is.na(net_fixed_3) ~ net_fixed_3)
+            is.na(net_fixed_1) & is.na(net_fixed_2) & !is.na(net_fixed_3) ~ net_fixed_3),
+         depreciation_990=case_when(
+            !is.na(depreciation_1) ~ depreciation_1,
+            is.na(depreciation_1) & !is.na(depreciation_2) ~ depreciation_2,
+            is.na(depreciation_1) & is.na(depreciation_2) & !is.na(depreciation_3) ~ depreciation_3),            
+         current_ratio_990=case_when(
+            !is.na(current_ratio_1) ~ current_ratio_1,
+            is.na(current_ratio_1) & !is.na(current_ratio_2) ~ current_ratio_2,
+            is.na(current_ratio_1) & is.na(current_ratio_2) & !is.na(current_ratio_3) ~ current_ratio_3)
           ) %>%
   mutate(
+    gross_fixed_hcris = fixed_assets + accum_dep,
+    current_ratio_hcris=current_assets/current_liabilities,
     margin_hcris=(net_pat_rev - tot_operating_exp)/net_pat_rev,
-    margin=ifelse(!is.na(margin_990), margin_990, margin_hcris),
-    net_fixed=ifelse(!is.na(net_fixed_990), net_fixed_990, fixed_assets),
+    margin=ifelse(!is.na(margin_hcris), margin_hcris, margin_990),
+    net_fixed=ifelse(!is.na(fixed_assets), fixed_assets, net_fixed_990),
+    current_ratio=ifelse(!is.na(current_ratio_hcris), current_ratio_hcris, current_ratio_990),
     state_event_time=case_when(
       state_treat_year>0 ~ year - state_treat_year,
       state_treat_year==0 ~ -1),
@@ -127,25 +143,33 @@ est.dat <- final.dat %>%
     treat_state=ifelse(state_treat_year>0, 1, 0),
     treat_state_post=ifelse(year>=state_treat_year & state_treat_year>0, 1, 0)
   ) %>%
+  group_by(ID) %>%
+  arrange(year, .by_group=TRUE) %>%
+  mutate(capex_990=net_fixed_990 - lag(net_fixed_990) + depreciation_990,
+         capex_hcris=gross_fixed_hcris - lag(gross_fixed_hcris)) %>%
+  ungroup() %>%
+  mutate(capex=ifelse(!is.na(capex_hcris), capex_hcris, capex_990)) %>%
   group_by(year) %>% 
-  mutate(m_top=quantile(margin, probs=0.95, na.rm=TRUE),
-         m_bottom=quantile(margin, probs=0.05, na.rm=TRUE),
-         fa_top=quantile(net_fixed, probs=0.95, na.rm=TRUE),
-         fa_bottom=quantile(net_fixed, probs=0.05, na.rm=TRUE)) %>%
-  ungroup() %>% 
-  mutate(margin=ifelse(margin>m_top, m_top, margin),
-         margin=ifelse(margin<m_bottom, m_bottom, margin),
-         net_fixed=ifelse(net_fixed>fa_top, fa_top, net_fixed),
-         net_fixed=ifelse(net_fixed<fa_bottom, fa_bottom, net_fixed),
-         net_fixed=net_fixed/1000000,
-         net_fixed=net_fixed/beds_base,
-         net_fixed=net_fixed/cpi_deflator,
-         margin=margin/cpi_deflator) %>%
+ mutate(
+    margin        = winsor_by_year(margin),
+    net_fixed     = winsor_by_year(net_fixed),
+    current_ratio = winsor_by_year(current_ratio),
+    capex         = winsor_by_year(capex)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    net_fixed    = net_fixed / 1e6 / beds_base / cpi_deflator,
+    capex        = capex / 1e4 / beds_base / cpi_deflator,
+    capex_total  = capex / 1e4 / cpi_deflator
+  ) %>%
   arrange(ID, year) %>%
   group_by(ID) %>%
   fill(state, .direction = "downup") %>%    
   mutate(margin=na.approx(margin, x=year, na.rm=FALSE),
-         net_fixed=na.approx(net_fixed, x=year, na.rm=FALSE)) %>%
+         net_fixed=na.approx(net_fixed, x=year, na.rm=FALSE),
+         current_ratio=na.approx(current_ratio, x=year, na.rm=FALSE),
+         capex=na.approx(capex, x=year, na.rm=FALSE),
+         capex_total=na.approx(capex_total, x=year, na.rm=FALSE)) %>%
   ungroup()
 
 
@@ -154,6 +178,16 @@ source('analysis/0-ipw-weights.R')
 est.dat <- est.dat %>%
   left_join(id.weights %>% select(ID, ipw, ever_rural), by="ID")
 
+## check missing values by year
+missing.dat <- est.dat %>%
+  group_by(year) %>%
+  summarize(
+    n=n(),
+    missing_margin=sum(is.na(margin)),
+    missing_net_fixed=sum(is.na(net_fixed)),
+    missing_current_ratio=sum(is.na(current_ratio)),
+    missing_capex=sum(is.na(capex))
+  )
 
 # Aggregate to state level --------------------------------------------------
 

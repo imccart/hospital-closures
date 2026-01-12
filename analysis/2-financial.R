@@ -1,31 +1,45 @@
-# Synthetic DD --------------------------------------------------------
-## Notes on Synth DD. 
-##   - Must be data frame (tibble forces errors) and must have more than 1 pre-treatment period
+# Preliminary setup ------------------------------------------------------------
 
-## first build stacked data at hospital level
-stack.hosp <- stack_hosp(pre.period=5, post.period=5, state.period=0)
-
-## select outcome variable ("margin" or "net_fixed")
-outcome_var   <- "net_fixed"
+## select outcome variable ("margin", "net_fixed", "current_ratio", "capex", "FTERN", "BDTOT", or "OBBD")
+outcome_var   <- "OBBD"
 outcome_sym   <- sym(outcome_var)
 
 outcome_label <- case_when(
   outcome_var == "margin"    ~ "Operating margin",
   outcome_var == "net_fixed" ~ "Net fixed assets",
+  outcome_var == "current_ratio" ~ "Current ratio",
+  outcome_var == "capex" ~ "Capital expenditures",
+  outcome_var == "BDTOT" ~ "Total beds",
+  outcome_var == "OBBD" ~ "OB beds",
+  outcome_var == "FTERN" ~ "FTE RNs",
   TRUE                       ~ outcome_var
 )
 
 file_stub <- case_when(
   outcome_var == "margin"    ~ "margin",
   outcome_var == "net_fixed" ~ "netfixed",
+  outcome_var == "current_ratio" ~ "currentratio",
+  outcome_var == "capex" ~ "capex",
+  outcome_var == "BDTOT" ~ "beds",
+  outcome_var == "OBBD" ~ "beds_ob",
+  outcome_var == "FTERN" ~ "ftern",  
   TRUE                       ~ outcome_var
 )
 
+## set bedsize threshold
+bed.cut <- 50
+
 # SYNTH DD for single cohort ------------------------------------------------
+
+## Notes on Synth DD. 
+##   - Must be data frame (tibble forces errors) and must have more than 1 pre-treatment period
+
+## first build stacked data at hospital level
+stack.hosp <- stack_hosp(pre.period=5, post.period=5, state.period=0)
 
 cohort.year <- 2000
 synth.year <- stack.hosp %>% group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE)) %>% ungroup() %>%
-            filter(stack_group==cohort.year, !is.na(!!outcome_sym), min_bedsize<=50) %>%
+            filter(stack_group==cohort.year, !is.na(!!outcome_sym), min_bedsize<=bed.cut) %>%
             select(ID, year, outcome=!!outcome_sym, post_treat)
 
 balance.year  <- as_tibble(makeBalancedPanel(synth.year, idname="ID", tname="year"))
@@ -82,7 +96,7 @@ ggsave(
 
 
 # SYNTH DD across cohorts ------------------------------------------------
-cohorts <- 1999:2002
+cohorts <- 1999:2001
 
 run_sdid_cohort <- function(c){
   # Build cohort panel (re-using your style/objects)
@@ -160,9 +174,9 @@ att_header <- "ATT and 95%CI"
 att_body   <- sub("^ATT and 95%CI\\n", "", att_lab)
 
 # Plot: treated vs synthetic, event time, solid vline at 0, wider legend key
-y_top  <- max(c(agg_paths$treated, agg_paths$synthetic), na.rm = TRUE)
-x_pos  <- max(agg_paths$tau) - 2 
 yrange <- diff(range(c(agg_paths$treated, agg_paths$synthetic), na.rm = TRUE))
+y_top  <- max(c(agg_paths$treated, agg_paths$synthetic), na.rm = TRUE) + .25*yrange
+x_pos  <- max(agg_paths$tau) - 2 
 
 p_evt <- ggplot(agg_paths, aes(x = tau)) +
   geom_line(aes(y = treated,  linetype = "Treated"),  linewidth = 0.8, color = "black") +
@@ -181,7 +195,7 @@ p_evt <- ggplot(agg_paths, aes(x = tau)) +
   annotate("text", x = x_pos, y = y_top,
            label = att_header, hjust = 0, vjust = 1,
            size = 3.6, fontface = "bold") +
-  annotate("text", x = x_pos, y = y_top - 0.03*yrange,  # small line break below header
+  annotate("text", x = x_pos, y = y_top - 0.04*yrange,  # small line break below header
            label = att_body, hjust = 0, vjust = 1,
            size = 3.4, lineheight = 1.05)
 
@@ -198,7 +212,7 @@ max.es <- 5
 
 cs.dat <- est.dat %>%
       group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE), max_distance=max(distance, na.rm=TRUE)) %>% ungroup() %>%  
-      filter(min_bedsize<=50) %>%
+      filter(min_bedsize<=bed.cut) %>%
       mutate(y=!!outcome_sym,
             ID2=as.numeric(factor(ID)), 
             treat_group=case_when(
@@ -207,7 +221,7 @@ cs.dat <- est.dat %>%
                 is.na(eff_year) & state_treat_year==0 ~ 0,
                 TRUE ~ NA )) %>%
       filter(!is.na(y), !is.na(year), !is.na(BDTOT), !is.na(distance),
-         treat_group %in% c(0, 1999, 2000, 2001, 2002)) %>%
+         treat_group %in% c(0, 1999, 2000, 2001)) %>%
       select(ID, ID2, MSTATE, treat_group, year, y, BDTOT, distance, 
              own_type, teach_major, min_bedsize, max_distance) %>%
       mutate(own_type=as.factor(own_type))

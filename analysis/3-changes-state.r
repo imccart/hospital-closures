@@ -1,5 +1,5 @@
 # Select outcome (one of: "closures", "mergers", "changes")
-outcome <- "closures"
+outcome <- "mergers"
 
 # Map outcome -> variable names, axis labels, filename slugs
 vars <- list(
@@ -19,7 +19,7 @@ stack.state <- stack_state(pre.period=5, post.period=5, state.period=0)
 # Synthetic DD ---------------------------------------------------------
 
 ## Single year
-cohort.year <- 2001
+cohort.year <- 2000
 denom.year <- stack.state %>% 
   filter(stacked_event_time <= -1, treated==1, stack_group==cohort.year) %>% 
   summarize(mean_hosp=mean(hospitals, na.rm=TRUE)) %>%
@@ -213,7 +213,7 @@ csa.mod1 <- att_gt(yname=o$y_count,
                    control_group="notyettreated",
                    panel=TRUE,
                    allow_unbalanced_panel=TRUE,
-                   data = state.dat %>% filter(state_treat_year %in% c(0, 1999,2000,2001,2002)),
+                   data = state.dat %>% filter(state_treat_year %in% c(0, 1999,2000,2001)),
                    base_period="universal",
                    est_method="ipw",
                    clustervars="state",

@@ -30,6 +30,7 @@ form990.data <- read_tsv('data/input/form990_ahaid.txt') %>%
          total_expenses=abs(total_expenses),
          total_assets=abs(total_assets),
          total_liabilities=abs(total_liabilities),
+         depreciation=abs(depreciation),
          margin=if_else(
               !is.na(total_revenue) & total_revenue>0 & !is.na(total_expenses) & total_expenses>0,
               (total_revenue-total_expenses)/total_revenue,
@@ -274,11 +275,11 @@ aha.final <- aha.combine %>%
   left_join(fuzzy.unique.cah, by='ID') %>%
   left_join(unique.990, by='ID') %>%
   left_join(form990.data %>% 
-    select(ein_1=ein, year, margin_1=margin, current_ratio_1=current_ratio, net_fixed_1=fixed_assets), by=c('ein_1','year')) %>%
+    select(ein_1=ein, year, margin_1=margin, current_ratio_1=current_ratio, net_fixed_1=fixed_assets, depreciation_1=depreciation), by=c('ein_1','year')) %>%
   left_join(form990.data %>% 
-    select(ein_2=ein, year, margin_2=margin, current_ratio_2=current_ratio, net_fixed_2=fixed_assets), by=c('ein_2','year')) %>%
+    select(ein_2=ein, year, margin_2=margin, current_ratio_2=current_ratio, net_fixed_2=fixed_assets, depreciation_2=depreciation), by=c('ein_2','year')) %>%
   left_join(form990.data %>% 
-    select(ein_3=ein, year, margin_3=margin, current_ratio_3=current_ratio, net_fixed_3=fixed_assets), by=c('ein_3','year')) %>%
+    select(ein_3=ein, year, margin_3=margin, current_ratio_3=current_ratio, net_fixed_3=fixed_assets, depreciation_3=depreciation), by=c('ein_3','year')) %>%
   left_join(state.zip.xwalk, by=c("MLOCZIP"="zcta5")) %>%
   mutate(MSTATE=case_when(
       !is.na(MSTATE) ~ MSTATE,
