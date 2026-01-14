@@ -217,5 +217,5 @@ state.dat <- est.dat %>%
 # Source analysis code files -----------------------------------------------
 
 source('analysis/1-sum-stats.R')
-source('analysis/2-margins.R')
-source('analysis/3-closures-mergers.R')
+source('analysis/2-hospital-dd.R')
+source('analysis/3-changes-state-dd.R')

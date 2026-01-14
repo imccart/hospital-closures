@@ -1,13 +1,13 @@
 # Preliminary setup ------------------------------------------------------------
 
-## select outcome variable ("margin", "net_fixed", "current_ratio", "capex", "FTERN", "BDTOT", or "OBBD")
-outcome_var   <- "OBBD"
+## select outcome variable ("margin", "current_ratio", "net_fixed", "capex", "FTERN", "BDTOT", or "OBBD")
+outcome_var   <- "FTERN"
 outcome_sym   <- sym(outcome_var)
 
 outcome_label <- case_when(
   outcome_var == "margin"    ~ "Operating margin",
+  outcome_var == "current_ratio" ~ "Current ratio",  
   outcome_var == "net_fixed" ~ "Net fixed assets",
-  outcome_var == "current_ratio" ~ "Current ratio",
   outcome_var == "capex" ~ "Capital expenditures",
   outcome_var == "BDTOT" ~ "Total beds",
   outcome_var == "OBBD" ~ "OB beds",

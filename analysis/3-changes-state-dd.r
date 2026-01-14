@@ -1,4 +1,4 @@
-# Select outcome (one of: "closures", "mergers", "changes")
+# Select outcome (one of: "closures", "mergers")
 outcome <- "mergers"
 
 # Map outcome -> variable names, axis labels, filename slugs
@@ -6,9 +6,7 @@ vars <- list(
   closures = list(y_count="closures", y_rate="rate_closed",
                   axis_label="Closures", slug="closure-rate"),
   mergers  = list(y_count="mergers", y_rate="rate_merged",
-                  axis_label="Mergers", slug="merger-rate"),
-  changes  = list(y_count="changes", y_rate="rate_changes",
-                  axis_label="Closures or mergers", slug="change-rate")
+                  axis_label="Mergers", slug="merger-rate")
 )
 o <- vars[[outcome]]
 
