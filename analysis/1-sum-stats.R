@@ -175,14 +175,14 @@ ggsave("results/desc-changes-by-type.png", fig.change.type, width = 6.5, height 
 
 ## Treatment timing --------------------------------------------------------
 
-panel.cah <- panelview(1~treat_post, data=state.dat1 %>% mutate(MSTATE=as.character(MSTATE)), 
+panel.cah <- panelview(1~treat_post, data=state.dat %>% mutate(MSTATE=as.character(MSTATE)), 
                       index=c("MSTATE","year"), legendOff=TRUE, 
           theme.bw=TRUE, by.timing=TRUE, xlab="Year", ylab="State",
           main="", color=c("white","gray"), axis.lab.angle=45)
 ggsave("results/desc-panelview-treat.png", panel.cah, width = 6.5, height = 4.25, dpi = 300, scale=2)
 
 panel.closure <- panelview(closures ~ treat_post,
-          data = state.dat1, index = c("MSTATE","year"), type = "outcome",
+          data = state.dat, index = c("MSTATE","year"), type = "outcome",
           main = "", by.cohort = TRUE, outcome.type="discrete",
           legend.labs = c("Never CAH States","Treated States (before CAH)",
                           "Treated States (after CAH)"),
