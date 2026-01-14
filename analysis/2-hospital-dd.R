@@ -155,7 +155,7 @@ se_w    <- with(atts_all, sqrt(sum( (Ntr / sum(Ntr))^2 * se^2 )))
 ci_low  <- att_w - 1.96 * se_w
 ci_high <- att_w + 1.96 * se_w
 
-# Per-cohort CIs and formatted lines (ordered 1999→2003)
+# Per-cohort CIs and formatted lines
 atts_table <- atts_all %>%
   mutate(ci_lo = att - 1.96 * se,
          ci_hi = att + 1.96 * se) %>%
