@@ -218,7 +218,7 @@ cah.desc <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     obs        = n()
   ) %>%
   mutate(rural = rural * 100) %>%
-  mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~./1000)) %>%
+  mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%
   mutate(across(-c(closures, mergers, hospitals, obs), ~round(., 2))) %>%
   mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%  
   rename_with(~paste0(., "_cah"))
@@ -246,7 +246,7 @@ cah.pre <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     obs        = n()
   ) %>%
   mutate(rural = rural * 100) %>%
-  mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~./1000)) %>%  
+  mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%  
   mutate(across(-c(closures, mergers, hospitals, obs), ~round(., 2))) %>%
   mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%  
   rename_with(~paste0(., "_cahpre"))
@@ -274,7 +274,7 @@ cah.post <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     obs        = n()
   ) %>%
   mutate(rural = rural * 100) %>%
-  mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~./1000)) %>%  
+  mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%  
   mutate(across(-c(closures, mergers, hospitals, obs), ~round(., 2))) %>%
   mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%  
   rename_with(~paste0(., "_cahpost"))
@@ -302,7 +302,7 @@ non.cah.desc <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     obs        = n()
   ) %>%
   mutate(rural = rural * 100) %>%
-  mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~./1000)) %>%  
+  mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%  
   mutate(across(-c(closures, mergers, hospitals, obs), ~round(., 2))) %>%
   mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%
   rename_with(~paste0(., "_noncah"))

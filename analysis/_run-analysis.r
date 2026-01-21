@@ -154,7 +154,11 @@ est.dat <- final.dat %>%
     margin        = winsor_by_year(margin),
     net_fixed     = winsor_by_year(net_fixed),
     current_ratio = winsor_by_year(current_ratio),
-    capex         = winsor_by_year(capex)
+    capex         = winsor_by_year(capex),
+    BDTOT         = winsor_by_year(BDTOT),
+    OBBD          = winsor_by_year(OBBD),
+    FTERN         = winsor_by_year(FTERN),
+    IPDTOT        = winsor_by_year(IPDTOT)
   ) %>%
   ungroup() %>%
   mutate(
@@ -169,7 +173,12 @@ est.dat <- final.dat %>%
          net_fixed=na.approx(net_fixed, x=year, na.rm=FALSE),
          current_ratio=na.approx(current_ratio, x=year, na.rm=FALSE),
          capex=na.approx(capex, x=year, na.rm=FALSE),
-         capex_total=na.approx(capex_total, x=year, na.rm=FALSE)) %>%
+         capex_total=na.approx(capex_total, x=year, na.rm=FALSE),
+         BDTOT = na.approx(BDTOT, x=year, na.rm=FALSE),
+         OBBD = na.approx(OBBD, x=year, na.rm=FALSE),
+         FTERN = na.approx(FTERN, x=year, na.rm=FALSE),
+         IPDTOT = na.approx(IPDTOT, x=year, na.rm=FALSE)/BDTOT,
+         ln_capex=log(capex_total*1e4 +1)) %>%
   ungroup()
 
 
@@ -217,5 +226,77 @@ state.dat <- est.dat %>%
 # Source analysis code files -----------------------------------------------
 
 source('analysis/1-sum-stats.R')
+
+sdid_cohort_table <- tibble(
+  outcome = character(),
+  cohort  = numeric(),
+  att     = numeric(),
+  ci_low  = numeric(),
+  ci_high = numeric()
+)
+
+sdid_overall_table <- 
+  tibble(outcome = character(), 
+         att = numeric(), 
+         ci_low = numeric(), 
+         ci_high = numeric() )
+
+## options: "margin", "current_ratio", "net_fixed", "capex", "BDTOT", "OBBD", "FTERN", or "IPDTOT"
+outcome_var   <- "IPDTOT"
+outcome_sym   <- sym(outcome_var)
+
 source('analysis/2-hospital-dd.R')
+sdid_cohort_table <- bind_rows(sdid_cohort_table,
+  atts_all %>%
+  mutate(
+    ci_low  = att - 1.96 * se,
+    ci_high = att + 1.96 * se
+  ) %>%
+  select(cohort, att, ci_low, ci_high) %>%
+  mutate(outcome = outcome_label))
+sdid_cohort_table
+
+sdid_overall_table <- bind_rows( sdid_overall_table, 
+      tibble( outcome = outcome_label, 
+              att = as.numeric(att_w), 
+              ci_low = as.numeric(ci_low), 
+              ci_high = as.numeric(ci_high) ) )
+sdid_overall_table              
+
+
+# options: "closures", "mergers"
+outcome <- "mergers"
+
 source('analysis/3-changes-state-dd.R')
+sdid_overall_table <- bind_rows(
+  sdid_overall_table,
+  tibble(
+    outcome = outcome_label,
+    att     = as.numeric(att_w),
+    ci_low  = as.numeric(ci_low),
+    ci_high = as.numeric(ci_high)
+  )
+)
+sdid_overall_table
+
+# format CI as one column
+int <- function(lo, hi) sprintf("[%.2f, %.2f]", lo, hi)
+
+sdid_tab <- sdid_overall_table %>%
+  dplyr::mutate(
+    ATT = sprintf("%.3f", att),
+    `95\\% CI` = int(ci_low, ci_high)
+  ) %>%
+  dplyr::select(Outcome = outcome, ATT, `95\\% CI`)
+
+# LaTeX table
+sdid_tab %>%
+  knitr::kable(
+    format   = "latex",
+    booktabs = TRUE,
+    align    = c("l", "c", "c"),
+    escape   = FALSE,
+    caption  = "Overall ATT Estimates from SDID"
+  ) %>%
+  kableExtra::kable_styling(latex_options = "hold_position") %>% 
+  kableExtra::save_kable("results/sdid_overall.tex") 

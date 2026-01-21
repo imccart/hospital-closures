@@ -1,6 +1,3 @@
-# Select outcome (one of: "closures", "mergers")
-outcome <- "mergers"
-
 # Map outcome -> variable names, axis labels, filename slugs
 vars <- list(
   closures = list(y_count="closures", y_rate="rate_closed",
@@ -9,6 +6,12 @@ vars <- list(
                   axis_label="Mergers", slug="merger-rate")
 )
 o <- vars[[outcome]]
+
+outcome_label <- case_when(
+  outcome == "closures"    ~ "Closure rate",
+  outcome == "mergers" ~ "Merger rate"
+)
+
 
 # Build state-level dataset for analysis
 stack.state <- stack_state(pre.period=5, post.period=5, state.period=0)
@@ -65,7 +68,7 @@ lab_txt <- sprintf("ATT and 95%% CI: %.2f [%.2f, %.2f]", att, ci_low, ci_high)
 
 plot.sdid.year <- ggplot(plot_df.year, aes(x = year, y = rate_out, linetype = group)) +
   geom_line(linewidth = 0.8, color = "black")   +
-  geom_vline(xintercept = cohort.year, linewidth = 1)  +
+  geom_vline(xintercept = cohort.year - 1, linewidth = 1)  +
   scale_linetype_manual(values = c("Synthetic control" = "dashed", "Treated" = "solid")) +
   labs(x = "Year", y = paste0(o$axis_label, " per 100 hospitals"), linetype = NULL) +
   theme_bw() +
@@ -169,7 +172,7 @@ yrange <- diff(range(c(agg_paths$treated, agg_paths$synthetic), na.rm = TRUE))
 plot.sdid <- ggplot(agg_paths, aes(x = tau)) +
   geom_line(aes(y = treated,   linetype = "Treated"),   linewidth = 0.8, color = "black") +
   geom_line(aes(y = synthetic, linetype = "Synthetic"), linewidth = 0.8, color = "black") +
-  geom_vline(xintercept = 0, linewidth = 1) +
+  geom_vline(xintercept = -1, linewidth = 1) +
   scale_linetype_manual(values = c("Treated" = "solid", "Synthetic" = "dashed")) +
   scale_x_continuous(breaks = seq(min(agg_paths$tau), max(agg_paths$tau), by = 1)) +
   labs(x = "Event time", y = paste0(o$axis_label, " per 100 hospitals"), linetype = NULL) +

@@ -1,17 +1,16 @@
 # Preliminary setup ------------------------------------------------------------
 
-## select outcome variable ("margin", "current_ratio", "net_fixed", "capex", "FTERN", "BDTOT", or "OBBD")
-outcome_var   <- "FTERN"
-outcome_sym   <- sym(outcome_var)
-
 outcome_label <- case_when(
   outcome_var == "margin"    ~ "Operating margin",
   outcome_var == "current_ratio" ~ "Current ratio",  
   outcome_var == "net_fixed" ~ "Net fixed assets",
   outcome_var == "capex" ~ "Capital expenditures",
+  outcome_var == "ln_capex" ~ "Log capital expenditures",
   outcome_var == "BDTOT" ~ "Total beds",
   outcome_var == "OBBD" ~ "OB beds",
   outcome_var == "FTERN" ~ "FTE RNs",
+  outcome_var == "IPDTOT" ~ "Total inpatient days",
+  outcome_var == "ln_ipdays" ~ "Log inpatient days",
   TRUE                       ~ outcome_var
 )
 
@@ -20,14 +19,18 @@ file_stub <- case_when(
   outcome_var == "net_fixed" ~ "netfixed",
   outcome_var == "current_ratio" ~ "currentratio",
   outcome_var == "capex" ~ "capex",
+  outcome_var == "ln_capex" ~ "capex_ln",
   outcome_var == "BDTOT" ~ "beds",
   outcome_var == "OBBD" ~ "beds_ob",
-  outcome_var == "FTERN" ~ "ftern",  
+  outcome_var == "FTERN" ~ "ftern",
+  outcome_var == "IPDTOT" ~ "ipdays",
+  outcome_var == "ln_ipdays" ~ "ipdays_ln",
   TRUE                       ~ outcome_var
 )
 
 ## set bedsize threshold
 bed.cut <- 50
+post <- 5
 
 # SYNTH DD for single cohort ------------------------------------------------
 
@@ -35,12 +38,20 @@ bed.cut <- 50
 ##   - Must be data frame (tibble forces errors) and must have more than 1 pre-treatment period
 
 ## first build stacked data at hospital level
-stack.hosp <- stack_hosp(pre.period=5, post.period=5, state.period=0)
+stack.hosp <- stack_hosp(pre.period=5, post.period=post, state.period=0)
 
 cohort.year <- 2000
-synth.year <- stack.hosp %>% group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE)) %>% ungroup() %>%
+synth.year <- stack.hosp %>% group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE), max_distance = max(distance, na.rm = TRUE), min_ipdays=min(IPDTOT, na.rm=TRUE)) %>% ungroup() %>%
             filter(stack_group==cohort.year, !is.na(!!outcome_sym), min_bedsize<=bed.cut) %>%
-            select(ID, year, outcome=!!outcome_sym, post_treat)
+            select(ID, year, outcome=!!outcome_sym, post_treat, min_bedsize, max_distance, min_ipdays, treated)
+
+#fs_dat <- synth.year %>% filter(treated==0)
+
+#fs <- feols(outcome ~ min_bedsize + max_distance | year, data = fs_dat)
+
+#synth.year <- synth.year %>%
+  #mutate(outcome = outcome - predict(fs, newdata = synth.year)) %>%  # overwrite outcome
+  #select(-treated, -min_bedsize, -max_distance)
 
 balance.year  <- as_tibble(makeBalancedPanel(synth.year, idname="ID", tname="year"))
 
@@ -75,7 +86,7 @@ att_lab <- sprintf(
 
 plot.year <- ggplot(plot_df.year, aes(x = year, y = value, linetype = group)) +
   geom_line(linewidth = 0.8, color = "black") +
-  geom_vline(xintercept = cohort.year, linewidth = 1) +
+  geom_vline(xintercept = cohort.year - 1, linewidth = 1) +
   scale_linetype_manual(values = c("dashed","solid")) +
   scale_x_continuous(breaks = seq(min(plot_df.year$year), max(plot_df.year$year), by = 1)) +
   labs(x = "Year", y = outcome_label, linetype = NULL) +
@@ -100,10 +111,18 @@ cohorts <- 1999:2001
 
 run_sdid_cohort <- function(c){
   # Build cohort panel (re-using your style/objects)
-  synth.c <- stack.hosp %>%
-    group_by(ID) %>% mutate(min_bedsize = min(BDTOT, na.rm = TRUE)) %>% ungroup() %>%
-    filter(stack_group == c, !is.na(!!outcome_sym), min_bedsize <= 50) %>%
-    select(ID, year, outcome=!!outcome_sym, post_treat)
+  synth.c <- stack.hosp %>% filter (stack_group==c) %>%
+    group_by(ID) %>% mutate(min_bedsize = min(BDTOT, na.rm = TRUE), max_distance = max(distance, na.rm = TRUE), min_ipdays=min(IPDTOT, na.rm=TRUE)) %>% ungroup() %>%
+    filter(!is.na(!!outcome_sym), min_bedsize <= bed.cut) %>%
+    select(ID, year, outcome=!!outcome_sym, post_treat, min_bedsize, max_distance, min_ipdays, treated)
+
+  #fs_dat <- synth.c %>% filter(treated==0)
+
+  #fs <- feols(outcome ~ min_bedsize + max_distance + min_ipdays | year, data = fs_dat)
+
+  #synth.c <- synth.c %>%
+    #mutate(outcome = outcome - predict(fs, newdata = synth.c)) %>%  # overwrite outcome
+    #select(-treated, -min_bedsize, -max_distance)
 
   bal.c   <- as_tibble(makeBalancedPanel(synth.c, idname = "ID", tname = "year"))
   setup   <- panel.matrices(as.data.frame(bal.c))
@@ -149,12 +168,13 @@ agg_paths <- paths_all %>%
     .groups = "drop"
   )
 
-# Combined ATT and 95% CI (weighted by Ntr; SE uses independence approximation)
-att_w   <- with(atts_all, sum(Ntr * att) / sum(Ntr))
-se_w    <- with(atts_all, sqrt(sum( (Ntr / sum(Ntr))^2 * se^2 )))
+# Combined ATT and 95% CI (weighted by inverse variance)
+w_iv  <- with(atts_all, 1 / se^2)
+att_w <- sum(w_iv * atts_all$att) / sum(w_iv)
+se_w  <- sqrt(1 / sum(w_iv))
+
 ci_low  <- att_w - 1.96 * se_w
 ci_high <- att_w + 1.96 * se_w
-
 # Per-cohort CIs and formatted lines
 atts_table <- atts_all %>%
   mutate(ci_lo = att - 1.96 * se,
@@ -181,7 +201,7 @@ x_pos  <- max(agg_paths$tau) - 2
 p_evt <- ggplot(agg_paths, aes(x = tau)) +
   geom_line(aes(y = treated,  linetype = "Treated"),  linewidth = 0.8, color = "black") +
   geom_line(aes(y = synthetic,linetype = "Synthetic control"), linewidth = 0.8, color = "black") +
-  geom_vline(xintercept = 0, linewidth = 1) +
+  geom_vline(xintercept = -1, linewidth = 1) +
   scale_linetype_manual(values = c("Treated" = "solid", "Synthetic control" = "dashed")) +
   scale_x_continuous(breaks = seq(min(agg_paths$tau), max(agg_paths$tau), by = 1)) +
   labs(x = "Event time", y = outcome_label, linetype = NULL) +
