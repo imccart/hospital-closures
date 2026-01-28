@@ -163,8 +163,7 @@ est.dat <- final.dat %>%
   ungroup() %>%
   mutate(
     net_fixed    = net_fixed / 1e6 / beds_base / cpi_deflator,
-    capex        = capex / 1e4 / beds_base / cpi_deflator,
-    capex_total  = capex / 1e4 / cpi_deflator
+    capex        = capex / 1e4 / beds_base / cpi_deflator
   ) %>%
   arrange(ID, year) %>%
   group_by(ID) %>%
@@ -173,12 +172,10 @@ est.dat <- final.dat %>%
          net_fixed=na.approx(net_fixed, x=year, na.rm=FALSE),
          current_ratio=na.approx(current_ratio, x=year, na.rm=FALSE),
          capex=na.approx(capex, x=year, na.rm=FALSE),
-         capex_total=na.approx(capex_total, x=year, na.rm=FALSE),
          BDTOT = na.approx(BDTOT, x=year, na.rm=FALSE),
          OBBD = na.approx(OBBD, x=year, na.rm=FALSE),
          FTERN = na.approx(FTERN, x=year, na.rm=FALSE),
-         IPDTOT = na.approx(IPDTOT, x=year, na.rm=FALSE)/BDTOT,
-         ln_capex=log(capex_total*1e4 +1)) %>%
+         IPDTOT = na.approx(IPDTOT, x=year, na.rm=FALSE)/BDTOT) %>%
   ungroup()
 
 
@@ -241,6 +238,7 @@ sdid_overall_table <-
          ci_low = numeric(), 
          ci_high = numeric() )
 
+## DD for hospital financials and operations...
 ## options: "margin", "current_ratio", "net_fixed", "capex", "BDTOT", "OBBD", "FTERN", or "IPDTOT"
 outcome_var   <- "IPDTOT"
 outcome_sym   <- sym(outcome_var)
@@ -262,6 +260,33 @@ sdid_overall_table <- bind_rows( sdid_overall_table,
               ci_low = as.numeric(ci_low), 
               ci_high = as.numeric(ci_high) ) )
 sdid_overall_table              
+
+
+## DD for organizational changes...
+## options: "closed", "merged", "system", or "attrition"
+outcome_var   <- "closed"
+outcome_sym   <- sym(outcome_var)
+
+source('analysis/3-changes-hospital-dd.R')
+sdid_cohort_table <- bind_rows(sdid_cohort_table,
+  atts_all %>%
+  mutate(
+    ci_low  = att - 1.96 * se,
+    ci_high = att + 1.96 * se
+  ) %>%
+  select(cohort, att, ci_low, ci_high) %>%
+  mutate(outcome = outcome_label))
+sdid_cohort_table
+
+sdid_overall_table <- bind_rows( sdid_overall_table, 
+      tibble( outcome = outcome_label, 
+              att = as.numeric(att_w), 
+              ci_low = as.numeric(ci_low), 
+              ci_high = as.numeric(ci_high) ) )
+sdid_overall_table              
+
+
+
 
 
 # options: "closures", "mergers"

@@ -1,30 +1,22 @@
 # Preliminary setup ------------------------------------------------------------
 
 outcome_label <- case_when(
-  outcome_var == "margin"    ~ "Operating margin",
-  outcome_var == "current_ratio" ~ "Current ratio",  
-  outcome_var == "net_fixed" ~ "Net fixed assets",
-  outcome_var == "capex" ~ "Capital expenditures per bed",
-  outcome_var == "BDTOT" ~ "Total beds",
-  outcome_var == "OBBD" ~ "OB beds",
-  outcome_var == "FTERN" ~ "FTE RNs",
-  outcome_var == "IPDTOT" ~ "Inpatient days per bed",
+  outcome_var == "closed" ~ "Closure",
+  outcome_var == "merged" ~ "Acquisition",  
+  outcome_var == "system" ~ "System membership",
+  outcome_var == "attrition" ~ "Leave AHA",
   TRUE                       ~ outcome_var
 )
 
 file_stub <- case_when(
-  outcome_var == "margin"    ~ "margin",
-  outcome_var == "net_fixed" ~ "netfixed",
-  outcome_var == "current_ratio" ~ "currentratio",
-  outcome_var == "capex" ~ "capex",
-  outcome_var == "BDTOT" ~ "beds",
-  outcome_var == "OBBD" ~ "beds_ob",
-  outcome_var == "FTERN" ~ "ftern",
-  outcome_var == "IPDTOT" ~ "ipdays",
+  outcome_var == "closed" ~ "closed",
+  outcome_var == "merged" ~ "merged",
+  outcome_var == "system" ~ "system",
+  outcome_var == "attrition" ~ "attrition",
   TRUE                       ~ outcome_var
 )
 
-## impose thresholds
+## set thresholds
 bed.cut <- 50
 post <- 5
 state.cut <- 0
@@ -34,21 +26,14 @@ state.cut <- 0
 ## Notes on Synth DD. 
 ##   - Must be data frame (tibble forces errors) and must have more than 1 pre-treatment period
 
-## first build stacked data at hospital level
-stack.hosp <- stack_hosp(pre.period=5, post.period=post, state.period=state.cut)
+## first build stacked data at hospital level (ensuring no organizational change in the pre-period)
+stack.close <- stack_hosp_balance(pre.period=5, post.period=post, state.period=state.cut) %>%
+  mutate(attrition = if_else(fill_flag=="Graveyard - Other/Attrition", 1, 0))
 
 cohort.year <- 2000
-synth.year <- stack.hosp %>% group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE)) %>% ungroup() %>%
+synth.year <- stack.close %>% group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE)) %>% ungroup() %>%
             filter(stack_group==cohort.year, !is.na(!!outcome_sym), min_bedsize<=bed.cut) %>%
             select(ID, year, outcome=!!outcome_sym, post_treat, min_bedsize, treated)
-
-#fs_dat <- synth.year %>% filter(treated==0)
-
-#fs <- feols(outcome ~ min_bedsize + max_distance | year, data = fs_dat)
-
-#synth.year <- synth.year %>%
-  #mutate(outcome = outcome - predict(fs, newdata = synth.year)) %>%  # overwrite outcome
-  #select(-treated, -min_bedsize, -max_distance)
 
 balance.year  <- as_tibble(makeBalancedPanel(synth.year, idname="ID", tname="year"))
 
@@ -104,22 +89,14 @@ ggsave(
 
 
 # SYNTH DD across cohorts ------------------------------------------------
-cohorts <- 1999:2001
+cohorts <- 1999:2000
 
 run_sdid_cohort <- function(c){
   # Build cohort panel (re-using your style/objects)
-  synth.c <- stack.hosp %>% filter (stack_group==c) %>%
+  synth.c <- stack.close %>% filter(stack_group==c) %>%
     group_by(ID) %>% mutate(min_bedsize = min(BDTOT, na.rm = TRUE)) %>% ungroup() %>%
     filter(!is.na(!!outcome_sym), min_bedsize <= bed.cut) %>%
-    select(ID, year, outcome=!!outcome_sym, post_treat, min_bedsize, treated)
-
-  #fs_dat <- synth.c %>% filter(treated==0)
-
-  #fs <- feols(outcome ~ min_bedsize + max_distance + min_ipdays | year, data = fs_dat)
-
-  #synth.c <- synth.c %>%
-    #mutate(outcome = outcome - predict(fs, newdata = synth.c)) %>%  # overwrite outcome
-    #select(-treated, -min_bedsize, -max_distance)
+    select(ID, year, outcome=!!outcome_sym, post_treat, treated)
 
   bal.c   <- as_tibble(makeBalancedPanel(synth.c, idname = "ID", tname = "year"))
   setup   <- panel.matrices(as.data.frame(bal.c))
@@ -227,21 +204,45 @@ ggsave(
 min.es <- -5
 max.es <- 5
 
-cs.dat <- est.dat %>%
-      group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE)) %>% ungroup() %>%  
-      filter(min_bedsize<=bed.cut) %>%
-      mutate(y=!!outcome_sym,
-            ID2=as.numeric(factor(ID)), 
-            treat_group=case_when(
+## Filter zombies and create base data
+cs.base <- est.dat %>%
+      group_by(ID) %>%
+      mutate(
+        min_death_year = min(year[closed == 1 | merged == 1], na.rm = TRUE),
+        max_active_year = max(year, na.rm = TRUE)
+      ) %>%
+      filter(is.infinite(min_death_year) | max_active_year <= min_death_year) %>%
+      mutate(min_bedsize = min(BDTOT, na.rm = TRUE),
+             max_distance = max(distance, na.rm = TRUE)) %>%
+      ungroup() %>%
+      select(-min_death_year, -max_active_year) %>%
+      filter(min_bedsize <= bed.cut)
+
+## Build balanced panel filling forward through event study window
+start_year <- min(c(1999, 2000)) - abs(min.es)
+end_year <- max(c(1999, 2000)) + max.es
+
+cs.skeleton <- expand_grid(ID = unique(cs.base$ID), year = start_year:end_year) %>%
+      left_join(cs.base, by = c("ID", "year")) %>%
+      group_by(ID) %>%
+      arrange(year) %>%
+      fill(everything(), .direction = "down") %>%
+      ungroup() %>%
+      filter(!is.na(MSTATE))
+
+cs.dat <- cs.skeleton %>%
+      mutate(y = !!outcome_sym,
+            ID2 = as.numeric(factor(ID)),
+            treat_group = case_when(
                 !is.na(eff_year) ~ eff_year,
                 is.na(eff_year) & state_treat_year > year + state.cut ~ 0,
-                is.na(eff_year) & state_treat_year==0 ~ 0,
+                is.na(eff_year) & state_treat_year == 0 ~ 0,
                 TRUE ~ NA )) %>%
       filter(!is.na(y), !is.na(year), !is.na(BDTOT), !is.na(distance),
-         treat_group %in% c(0, 1999, 2000, 2001)) %>%
-      select(ID, ID2, MSTATE, treat_group, year, y, BDTOT, distance, 
+         treat_group %in% c(0, 1999, 2000)) %>%
+      select(ID, ID2, MSTATE, treat_group, year, y, BDTOT, distance,
              own_type, teach_major, min_bedsize, max_distance) %>%
-      mutate(own_type=as.factor(own_type))
+      mutate(own_type = as.factor(own_type))
 
 csa.raw <- att_gt(yname="y",
                    gname="treat_group",
