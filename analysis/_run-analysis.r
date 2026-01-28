@@ -38,17 +38,17 @@ copa.dat <- read_csv('data/input/copa-states.csv', col_names=c("state", "empty",
       TRUE ~ copa_start
     )
   ) %>%
-  select(state, copa_status, copa_start, copa_end) %>% 
+  select(state, copa_status, copa_start, copa_end) %>%
   filter(!is.na(state)) %>%
   left_join(state.xwalk, by="state")
 
 write_csv(copa.dat,'data/output/copa_data.csv')
 
 cpi.data <- read_xlsx("data/input/CPI_1913_2019.xlsx", skip = 11)
-cpi.data <- pivot_longer(cpi.data, 
+cpi.data <- pivot_longer(cpi.data,
                          cols=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"),
                          names_to="month",
-                         values_to="index") %>% 
+                         values_to="index") %>%
   mutate(year=Year) %>%
   group_by(year) %>%
   summarize(index=mean(index, na.rm=TRUE))
@@ -65,10 +65,10 @@ cpi.final <- cpi.data %>%
 
 # Merge and finalize hospital-level data -----------------------------------
 
-data.merge <- aha.data %>% 
+data.merge <- aha.data %>%
     left_join(aha.neighbors, by=c("ID", "year")) %>%
     left_join(cah.dates %>% select(cah_date_law=cah_date, cah_year_law=cah_year, MSTATE="abb"), by="MSTATE") %>%
-    filter(! MSTATE %in% c("AK","HI","PR","VI","GU","MP","AS", "N","0", "AS", "DC", "DE", "MH", "ML","MD"), 
+    filter(! MSTATE %in% c("AK","HI","PR","VI","GU","MP","AS", "N","0", "AS", "DC", "DE", "MH", "ML","MD"),
            !is.na(MSTATE), MSTATE!="NA") %>%
     filter(COMMTY=="Y", hosp_type=="General") %>%
     group_by(ID, year) %>%
@@ -120,7 +120,7 @@ est.dat <- final.dat %>%
          depreciation_990=case_when(
             !is.na(depreciation_1) ~ depreciation_1,
             is.na(depreciation_1) & !is.na(depreciation_2) ~ depreciation_2,
-            is.na(depreciation_1) & is.na(depreciation_2) & !is.na(depreciation_3) ~ depreciation_3),            
+            is.na(depreciation_1) & is.na(depreciation_2) & !is.na(depreciation_3) ~ depreciation_3),
          current_ratio_990=case_when(
             !is.na(current_ratio_1) ~ current_ratio_1,
             is.na(current_ratio_1) & !is.na(current_ratio_2) ~ current_ratio_2,
@@ -149,7 +149,7 @@ est.dat <- final.dat %>%
          capex_hcris=gross_fixed_hcris - lag(gross_fixed_hcris)) %>%
   ungroup() %>%
   mutate(capex=ifelse(!is.na(capex_hcris), capex_hcris, capex_990)) %>%
-  group_by(year) %>% 
+  group_by(year) %>%
  mutate(
     margin        = winsor_by_year(margin),
     net_fixed     = winsor_by_year(net_fixed),
@@ -167,7 +167,7 @@ est.dat <- final.dat %>%
   ) %>%
   arrange(ID, year) %>%
   group_by(ID) %>%
-  fill(state, .direction = "downup") %>%    
+  fill(state, .direction = "downup") %>%
   mutate(margin=na.approx(margin, x=year, na.rm=FALSE),
          net_fixed=na.approx(net_fixed, x=year, na.rm=FALSE),
          current_ratio=na.approx(current_ratio, x=year, na.rm=FALSE),
@@ -197,9 +197,9 @@ missing.dat <- est.dat %>%
 
 # Aggregate to state level --------------------------------------------------
 
-state.dat <- est.dat %>% 
+state.dat <- est.dat %>%
   group_by(MSTATE, year) %>%
-  summarize(hospitals=n(), cah_treat=min(state_treat_year), 
+  summarize(hospitals=n(), cah_treat=min(state_treat_year),
     closures=sum(closed), sum_cah=sum(cah, na.rm=TRUE),
     mergers=sum(merged), changes=sum(closed_merged),
     state_treat_year=first(state_treat_year),
@@ -224,104 +224,87 @@ state.dat <- est.dat %>%
 
 source('analysis/1-sum-stats.R')
 
-sdid_cohort_table <- tibble(
-  outcome = character(),
-  cohort  = numeric(),
-  att     = numeric(),
-  ci_low  = numeric(),
-  ci_high = numeric()
+# Build stacked datasets once ------------------------------------------------
+bed.cut   <- 50
+post      <- 5
+state.cut <- 0
+
+stack.hosp  <- stack_hosp(pre.period=5, post.period=post, state.period=state.cut)
+stack.close <- stack_hosp_balance(pre.period=5, post.period=post, state.period=state.cut) %>%
+  mutate(attrition = if_else(fill_flag=="Graveyard - Other/Attrition", 1, 0))
+stack.state <- stack_state(pre.period=5, post.period=post, state.period=state.cut)
+
+# Unified outcome map ---------------------------------------------------------
+outcome_map <- list(
+  # Hospital continuous outcomes (cohorts 1999:2001)
+  margin        = list(script="analysis/2-hospital-dd.R", label="Operating margin",             stub="margin",       cohorts=1999:2001),
+  current_ratio = list(script="analysis/2-hospital-dd.R", label="Current ratio",                stub="currentratio", cohorts=1999:2001),
+  net_fixed     = list(script="analysis/2-hospital-dd.R", label="Net fixed assets",             stub="netfixed",     cohorts=1999:2001),
+  capex         = list(script="analysis/2-hospital-dd.R", label="Capital expenditures per bed", stub="capex",        cohorts=1999:2001),
+  BDTOT         = list(script="analysis/2-hospital-dd.R", label="Total beds",                   stub="beds",         cohorts=1999:2001),
+  OBBD          = list(script="analysis/2-hospital-dd.R", label="OB beds",                      stub="beds_ob",      cohorts=1999:2001),
+  FTERN         = list(script="analysis/2-hospital-dd.R", label="FTE RNs",                      stub="ftern",        cohorts=1999:2001),
+  IPDTOT        = list(script="analysis/2-hospital-dd.R", label="Inpatient days per bed",       stub="ipdays",       cohorts=1999:2001),
+
+  # Hospital binary outcomes (cohorts 1999:2000)
+  closed    = list(script="analysis/3-changes-hospital-dd.R", label="Closure",           stub="closed",    cohorts=1999:2000),
+  merged    = list(script="analysis/3-changes-hospital-dd.R", label="Acquisition",       stub="merged",    cohorts=1999:2000),
+  system    = list(script="analysis/3-changes-hospital-dd.R", label="System membership", stub="system",    cohorts=1999:2000),
+  attrition = list(script="analysis/3-changes-hospital-dd.R", label="Leave AHA",         stub="attrition", cohorts=1999:2000),
+
+  # State-level count outcomes (cohorts 1999:2001)
+  closures = list(script="analysis/4-changes-state-dd.r", label="Closures", stub="closure-rate", cohorts=1999:2001),
+  mergers  = list(script="analysis/4-changes-state-dd.r", label="Mergers",  stub="merger-rate",  cohorts=1999:2001)
 )
 
-sdid_overall_table <- 
-  tibble(outcome = character(), 
-         att = numeric(), 
-         ci_low = numeric(), 
-         ci_high = numeric() )
-
-## DD for hospital financials and operations...
-## options: "margin", "current_ratio", "net_fixed", "capex", "BDTOT", "OBBD", "FTERN", or "IPDTOT"
-outcome_var   <- "IPDTOT"
-outcome_sym   <- sym(outcome_var)
-
-source('analysis/2-hospital-dd.R')
-sdid_cohort_table <- bind_rows(sdid_cohort_table,
-  atts_all %>%
-  mutate(
-    ci_low  = att - 1.96 * se,
-    ci_high = att + 1.96 * se
-  ) %>%
-  select(cohort, att, ci_low, ci_high) %>%
-  mutate(outcome = outcome_label))
-sdid_cohort_table
-
-sdid_overall_table <- bind_rows( sdid_overall_table, 
-      tibble( outcome = outcome_label, 
-              att = as.numeric(att_w), 
-              ci_low = as.numeric(ci_low), 
-              ci_high = as.numeric(ci_high) ) )
-sdid_overall_table              
-
-
-## DD for organizational changes...
-## options: "closed", "merged", "system", or "attrition"
-outcome_var   <- "closed"
-outcome_sym   <- sym(outcome_var)
-
-source('analysis/3-changes-hospital-dd.R')
-sdid_cohort_table <- bind_rows(sdid_cohort_table,
-  atts_all %>%
-  mutate(
-    ci_low  = att - 1.96 * se,
-    ci_high = att + 1.96 * se
-  ) %>%
-  select(cohort, att, ci_low, ci_high) %>%
-  mutate(outcome = outcome_label))
-sdid_cohort_table
-
-sdid_overall_table <- bind_rows( sdid_overall_table, 
-      tibble( outcome = outcome_label, 
-              att = as.numeric(att_w), 
-              ci_low = as.numeric(ci_low), 
-              ci_high = as.numeric(ci_high) ) )
-sdid_overall_table              
-
-
-
-
-
-# options: "closures", "mergers"
-outcome <- "mergers"
-
-source('analysis/3-changes-state-dd.R')
-sdid_overall_table <- bind_rows(
-  sdid_overall_table,
-  tibble(
-    outcome = outcome_label,
-    att     = as.numeric(att_w),
-    ci_low  = as.numeric(ci_low),
-    ci_high = as.numeric(ci_high)
-  )
+# Loop over outcomes, collect into results table ------------------------------
+results_table <- tibble(
+  outcome = character(), sdid_att = numeric(), sdid_ci_low = numeric(), sdid_ci_high = numeric(),
+  cs_att = numeric(), cs_ci_low = numeric(), cs_ci_high = numeric()
 )
-sdid_overall_table
 
-# format CI as one column
+for (oname in names(outcome_map)) {
+  o <- outcome_map[[oname]]
+  outcome_var   <- oname
+  outcome_sym   <- sym(outcome_var)
+  outcome_label <- o$label
+  file_stub     <- o$stub
+  cohorts       <- o$cohorts
+
+  source(o$script)
+
+  # CS results — apply scale_cs for state-level outcomes
+  cs_att_val <- csa.att$overall.att
+  cs_se_val  <- csa.att$overall.se
+  if (o$script == "analysis/4-changes-state-dd.r") {
+    cs_att_val <- cs_att_val * scale_cs
+    cs_se_val  <- cs_se_val * scale_cs
+  }
+
+  results_table <- bind_rows(results_table, tibble(
+    outcome      = outcome_label,
+    sdid_att     = as.numeric(att_w),
+    sdid_ci_low  = as.numeric(ci_low),
+    sdid_ci_high = as.numeric(ci_high),
+    cs_att       = cs_att_val,
+    cs_ci_low    = cs_att_val - 1.96 * cs_se_val,
+    cs_ci_high   = cs_att_val + 1.96 * cs_se_val
+  ))
+}
+
+# LaTeX output (tabular innards only) ----------------------------------------
 int <- function(lo, hi) sprintf("[%.2f, %.2f]", lo, hi)
 
-sdid_tab <- sdid_overall_table %>%
-  dplyr::mutate(
-    ATT = sprintf("%.3f", att),
-    `95\\% CI` = int(ci_low, ci_high)
-  ) %>%
-  dplyr::select(Outcome = outcome, ATT, `95\\% CI`)
+tex_lines <- results_table %>%
+  mutate(line = sprintf("%s & %.3f & %s & %.3f & %s \\\\",
+    outcome, sdid_att, int(sdid_ci_low, sdid_ci_high),
+    cs_att, int(cs_ci_low, cs_ci_high))) %>%
+  pull(line)
 
-# LaTeX table
-sdid_tab %>%
-  knitr::kable(
-    format   = "latex",
-    booktabs = TRUE,
-    align    = c("l", "c", "c"),
-    escape   = FALSE,
-    caption  = "Overall ATT Estimates from SDID"
-  ) %>%
-  kableExtra::kable_styling(latex_options = "hold_position") %>% 
-  kableExtra::save_kable("results/sdid_overall.tex") 
+writeLines(c(
+  "\\toprule",
+  "Outcome & SDID ATT & SDID 95\\% CI & CS ATT & CS 95\\% CI \\\\",
+  "\\midrule",
+  tex_lines,
+  "\\bottomrule"
+), "results/sdid_overall.tex")

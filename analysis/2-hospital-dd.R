@@ -1,41 +1,7 @@
-# Preliminary setup ------------------------------------------------------------
-
-outcome_label <- case_when(
-  outcome_var == "margin"    ~ "Operating margin",
-  outcome_var == "current_ratio" ~ "Current ratio",  
-  outcome_var == "net_fixed" ~ "Net fixed assets",
-  outcome_var == "capex" ~ "Capital expenditures per bed",
-  outcome_var == "BDTOT" ~ "Total beds",
-  outcome_var == "OBBD" ~ "OB beds",
-  outcome_var == "FTERN" ~ "FTE RNs",
-  outcome_var == "IPDTOT" ~ "Inpatient days per bed",
-  TRUE                       ~ outcome_var
-)
-
-file_stub <- case_when(
-  outcome_var == "margin"    ~ "margin",
-  outcome_var == "net_fixed" ~ "netfixed",
-  outcome_var == "current_ratio" ~ "currentratio",
-  outcome_var == "capex" ~ "capex",
-  outcome_var == "BDTOT" ~ "beds",
-  outcome_var == "OBBD" ~ "beds_ob",
-  outcome_var == "FTERN" ~ "ftern",
-  outcome_var == "IPDTOT" ~ "ipdays",
-  TRUE                       ~ outcome_var
-)
-
-## impose thresholds
-bed.cut <- 50
-post <- 5
-state.cut <- 0
-
 # SYNTH DD for single cohort ------------------------------------------------
 
 ## Notes on Synth DD. 
 ##   - Must be data frame (tibble forces errors) and must have more than 1 pre-treatment period
-
-## first build stacked data at hospital level
-stack.hosp <- stack_hosp(pre.period=5, post.period=post, state.period=state.cut)
 
 cohort.year <- 2000
 synth.year <- stack.hosp %>% group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE)) %>% ungroup() %>%
@@ -104,7 +70,6 @@ ggsave(
 
 
 # SYNTH DD across cohorts ------------------------------------------------
-cohorts <- 1999:2001
 
 run_sdid_cohort <- function(c){
   # Build cohort panel (re-using your style/objects)

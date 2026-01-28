@@ -1,22 +1,3 @@
-# Map outcome -> variable names, axis labels, filename slugs
-vars <- list(
-  closures = list(y_count="closures", y_rate="rate_closed",
-                  axis_label="Closures", slug="closure-rate"),
-  mergers  = list(y_count="mergers", y_rate="rate_merged",
-                  axis_label="Mergers", slug="merger-rate")
-)
-o <- vars[[outcome]]
-
-outcome_label <- case_when(
-  outcome == "closures"    ~ "Closure rate",
-  outcome == "mergers" ~ "Merger rate"
-)
-
-
-# Build state-level dataset for analysis
-stack.state <- stack_state(pre.period=5, post.period=5, state.period=0)
-
-
 # Synthetic DD ---------------------------------------------------------
 
 ## Single year
@@ -30,7 +11,7 @@ synth.year <- stack.state %>%
   filter(stack_group == cohort.year) %>%
   transmute(ID = as.numeric(factor(MSTATE)),
             year,
-            rate = .data[[o$y_count]],        # outcome = counts (closures/mergers/changes)
+            rate = .data[[outcome_var]],        # outcome = counts (closures/mergers/changes)
             post_treat)
 
 balance.year  <- as_tibble(makeBalancedPanel(synth.year, idname="ID", tname="year"))
@@ -70,12 +51,12 @@ plot.sdid.year <- ggplot(plot_df.year, aes(x = year, y = rate_out, linetype = gr
   geom_line(linewidth = 0.8, color = "black")   +
   geom_vline(xintercept = cohort.year - 1, linewidth = 1)  +
   scale_linetype_manual(values = c("Synthetic control" = "dashed", "Treated" = "solid")) +
-  labs(x = "Year", y = paste0(o$axis_label, " per 100 hospitals"), linetype = NULL) +
+  labs(x = "Year", y = paste0(outcome_label, " per 100 hospitals"), linetype = NULL) +
   theme_bw() +
   theme(legend.position = "bottom", legend.key.width = unit(2, "cm"))  +
   annotate("text", x = x_pos, y = y_top, label = lab_txt, hjust = 1, vjust = 1, size = 3.4)
 
-ggsave(paste0("results/", o$slug, "-sdid-year.png"), plot.sdid.year,
+ggsave(paste0("results/", file_stub, "-sdid-year.png"), plot.sdid.year,
        width = 6.5, height = 4.25, dpi = 300, scale=1.5)
 
 ## All cohorts
@@ -84,14 +65,12 @@ denom.lag <- stack.state %>%
   group_by(stack_group) %>% 
   summarize(mean_hosp=mean(hospitals, na.rm=TRUE))
 
-cohorts <- c(1999, 2000, 2001)
-
 run_sdid_state <- function(c){
   dat <- stack.state %>%
     filter(stack_group == c) %>%
     transmute(ID = as.numeric(factor(MSTATE)),
               year,
-              rate = .data[[o$y_count]],     # outcome = counts (closures/mergers/changes)
+              rate = .data[[outcome_var]],     # outcome = counts (closures/mergers/changes)
               post_treat)
 
   bal <- as_tibble(makeBalancedPanel(dat, idname = "ID", tname = "year"))
@@ -175,7 +154,7 @@ plot.sdid <- ggplot(agg_paths, aes(x = tau)) +
   geom_vline(xintercept = -1, linewidth = 1) +
   scale_linetype_manual(values = c("Treated" = "solid", "Synthetic" = "dashed")) +
   scale_x_continuous(breaks = seq(min(agg_paths$tau), max(agg_paths$tau), by = 1)) +
-  labs(x = "Event time", y = paste0(o$axis_label, " per 100 hospitals"), linetype = NULL) +
+  labs(x = "Event time", y = paste0(outcome_label, " per 100 hospitals"), linetype = NULL) +
   theme_bw() +
   theme(
     legend.position = "inside",
@@ -190,7 +169,7 @@ plot.sdid <- ggplot(agg_paths, aes(x = tau)) +
            label = att_body, hjust = 0, vjust = 1,
            size = 3.4, lineheight = 1.05)
 
-ggsave(paste0("results/", o$slug, "-sdid.png"), plot.sdid,
+ggsave(paste0("results/", file_stub, "-sdid.png"), plot.sdid,
        width = 6.5, height = 4.25, dpi = 300, scale = 1.5)
 
 
@@ -201,33 +180,33 @@ max.es <- 5
 
 denom_cs <- state.dat %>% 
   filter(year < state_treat_year,
-         state_treat_year %in% c(1999, 2000, 2001)) %>%
+         state_treat_year %in% cohorts) %>%
   summarise(mean_hosp = mean(hospitals, na.rm = TRUE)) %>%
   pull(mean_hosp)
 
 scale_cs <- 100 / denom_cs
 
-csa.mod1 <- att_gt(yname=o$y_count,
+csa.raw <- att_gt(yname=outcome_var,
                    gname="state_treat_year",
                    idname="state",
                    tname="year",
                    control_group="notyettreated",
                    panel=TRUE,
                    allow_unbalanced_panel=TRUE,
-                   data = state.dat %>% filter(state_treat_year %in% c(0, 1999,2000,2001)),
+                   data = state.dat %>% filter(state_treat_year %in% c(0, cohorts)),
                    base_period="universal",
                    est_method="ipw",
                    clustervars="state",
                    bstrap=TRUE)
-csa.att1 <- aggte(csa.mod1, type="simple", na.rm=TRUE)
-summary(csa.att1)
-csa.es1 <- aggte(csa.mod1, type="dynamic", na.rm=TRUE, min_e=-5, max_e=5)
-summary(csa.es1)
+csa.att <- aggte(csa.raw, type="simple", na.rm=TRUE)
+summary(csa.att)
+csa.es <- aggte(csa.raw, type="dynamic", na.rm=TRUE, min_e=-5, max_e=5)
+summary(csa.es)
 
-est.cs1 <- tibble(
-  event_time = csa.es1$egt,
-  estimate   = scale_cs*csa.es1$att,
-  se         = scale_cs*csa.es1$se
+est.cs <- tibble(
+  event_time = csa.es$egt,
+  estimate   = scale_cs*csa.es$att,
+  se         = scale_cs*csa.es$se
 ) %>%
   mutate(
     conf.low  = if_else(event_time!= -1, estimate - 1.96 * se, 0),
@@ -237,7 +216,7 @@ est.cs1 <- tibble(
   select(-se)
 
 
-plot.cs <- ggplot(est.cs1, aes(x = event_time, y = estimate)) +
+plot.cs <- ggplot(est.cs, aes(x = event_time, y = estimate)) +
   geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
                 position = position_dodge(width = 0.5), 
                 width = 0, linewidth = 0.5, alpha = 0.3, color = "black") +
@@ -245,7 +224,7 @@ plot.cs <- ggplot(est.cs1, aes(x = event_time, y = estimate)) +
              size = 2.5, color = "black", stroke = 0.1, fill="white") +
   geom_hline(yintercept = 0, color = "black", linewidth = 1) + #             
   scale_x_continuous(breaks = seq(-10, 10, by = 1)) +
-  labs(x = "Event time", y = paste0(o$axis_label, " per 100 hospitals"), linetype = NULL) +
+  labs(x = "Event time", y = paste0(outcome_label, " per 100 hospitals"), linetype = NULL) +
   theme_bw() +
   theme(
     legend.position = "none",
@@ -253,5 +232,5 @@ plot.cs <- ggplot(est.cs1, aes(x = event_time, y = estimate)) +
   )
 
 
-ggsave(paste0("results/", o$slug, "-cs.png"), plot.cs,
+ggsave(paste0("results/", file_stub, "-cs.png"), plot.cs,
        width = 6.5, height = 4.25, dpi = 300, scale=1.5)
