@@ -2,7 +2,7 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   1/9/2025
+## Date Edited:   1/28/2026
 ## Description:   Run Analysis Files
 
 
@@ -224,7 +224,7 @@ state.dat <- est.dat %>%
 
 source('analysis/1-sum-stats.R')
 
-# Build stacked datasets once ------------------------------------------------
+## Build stacked datasets once 
 bed.cut   <- 50
 post      <- 5
 state.cut <- 0
@@ -234,7 +234,7 @@ stack.close <- stack_hosp_balance(pre.period=5, post.period=post, state.period=s
   mutate(attrition = if_else(fill_flag=="Graveyard - Other/Attrition", 1, 0))
 stack.state <- stack_state(pre.period=5, post.period=post, state.period=state.cut)
 
-# Unified outcome map ---------------------------------------------------------
+## Unified outcome map 
 outcome_map <- list(
   # Hospital continuous outcomes (cohorts 1999:2001)
   margin        = list(script="analysis/2-hospital-dd.R", label="Operating margin",             stub="margin",       cohorts=1999:2001),
@@ -245,25 +245,26 @@ outcome_map <- list(
   OBBD          = list(script="analysis/2-hospital-dd.R", label="OB beds",                      stub="beds_ob",      cohorts=1999:2001),
   FTERN         = list(script="analysis/2-hospital-dd.R", label="FTE RNs",                      stub="ftern",        cohorts=1999:2001),
   IPDTOT        = list(script="analysis/2-hospital-dd.R", label="Inpatient days per bed",       stub="ipdays",       cohorts=1999:2001),
+  system        = list(script="analysis/2-hospital-dd.R", label="System membership",            stub="system",       cohorts=1999:2001),
 
   # Hospital binary outcomes (cohorts 1999:2000)
-  closed    = list(script="analysis/3-changes-hospital-dd.R", label="Closure",           stub="closed",    cohorts=1999:2000),
-  merged    = list(script="analysis/3-changes-hospital-dd.R", label="Acquisition",       stub="merged",    cohorts=1999:2000),
-  system    = list(script="analysis/3-changes-hospital-dd.R", label="System membership", stub="system",    cohorts=1999:2000),
-  attrition = list(script="analysis/3-changes-hospital-dd.R", label="Leave AHA",         stub="attrition", cohorts=1999:2000),
+#  closed    = list(script="analysis/3-changes-hospital-dd.R", label="Closure",           stub="closed",    cohorts=1999:2000),
+#  merged    = list(script="analysis/3-changes-hospital-dd.R", label="Acquisition",       stub="merged",    cohorts=1999:2000),
+#  attrition = list(script="analysis/3-changes-hospital-dd.R", label="Leave AHA",         stub="attrition", cohorts=1999:2000),
 
   # State-level count outcomes (cohorts 1999:2001)
   closures = list(script="analysis/4-changes-state-dd.r", label="Closures", stub="closure-rate", cohorts=1999:2001),
   mergers  = list(script="analysis/4-changes-state-dd.r", label="Mergers",  stub="merger-rate",  cohorts=1999:2001)
 )
 
-# Loop over outcomes, collect into results table ------------------------------
-results_table <- tibble(
+## Loop over outcomes, collect into results table
+results.table <- tibble(
   outcome = character(), sdid_att = numeric(), sdid_ci_low = numeric(), sdid_ci_high = numeric(),
   cs_att = numeric(), cs_ci_low = numeric(), cs_ci_high = numeric()
 )
 
 for (oname in names(outcome_map)) {
+  print(paste0("Running analysis for outcome: ", oname))  
   o <- outcome_map[[oname]]
   outcome_var   <- oname
   outcome_sym   <- sym(outcome_var)
@@ -281,7 +282,7 @@ for (oname in names(outcome_map)) {
     cs_se_val  <- cs_se_val * scale_cs
   }
 
-  results_table <- bind_rows(results_table, tibble(
+  results.table <- bind_rows(results.table, tibble(
     outcome      = outcome_label,
     sdid_att     = as.numeric(att_w),
     sdid_ci_low  = as.numeric(ci_low),
@@ -292,10 +293,10 @@ for (oname in names(outcome_map)) {
   ))
 }
 
-# LaTeX output (tabular innards only) ----------------------------------------
+## LaTeX output (tabular innards only)
 int <- function(lo, hi) sprintf("[%.2f, %.2f]", lo, hi)
 
-tex_lines <- results_table %>%
+tex.lines <- results.table %>%
   mutate(line = sprintf("%s & %.3f & %s & %.3f & %s \\\\",
     outcome, sdid_att, int(sdid_ci_low, sdid_ci_high),
     cs_att, int(cs_ci_low, cs_ci_high))) %>%
@@ -305,6 +306,6 @@ writeLines(c(
   "\\toprule",
   "Outcome & SDID ATT & SDID 95\\% CI & CS ATT & CS 95\\% CI \\\\",
   "\\midrule",
-  tex_lines,
+  tex.lines,
   "\\bottomrule"
-), "results/sdid_overall.tex")
+), "results/att_overall.tex")
