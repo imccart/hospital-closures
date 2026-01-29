@@ -13,7 +13,7 @@ Academic research project analyzing the effects of Critical Access Hospital (CAH
 This is a pure R project with no formal build system. Execute scripts in R/RStudio:
 
 1. **Data build**: Run `data-code/build-data.R` first (requires external data symlinks)
-2. **Analysis**: Run `analysis/_run-analysis.r` to load/clean data, then individual analysis scripts (0-5)
+2. **Analysis**: Run `analysis/_run-analysis.r` to load/clean data, then individual analysis scripts (0-4)
 
 **Required R packages** (installed via `pacman::p_load()`):
 - Data: tidyverse, lubridate, stringr, modelsummary, janitor, here, fedmatch, zipcodeR
@@ -41,7 +41,6 @@ The core econometric approach uses stacking to handle heterogeneous treatment ti
 ```
 stack_hosp(pre.period, post.period, state.period)  # Hospital-level stacking
 stack_state(pre.period, post.period, state.period) # State-level stacking
-stack_hosp_balance(...)                             # Balanced panel for closure outcomes
 ```
 
 Key design elements:
@@ -78,8 +77,42 @@ Source repositories:
 
 - The manuscript syncs with Overleaf via git. Check for Overleaf merge commits before editing `paper.tex`.
 - `est.dat` is the main analysis dataset created by `_run-analysis.r` and used by all analysis scripts.
-- The `stack_hosp_balance` function handles "zombie" hospital IDs (IDs reused after closure/merger).
 
 ## Workflow for Experimentation
 
 When experimenting with new data management tasks, analysis, or regression specifications, create a temporary script in a scratch folder (e.g., `scratch/analysis_test.R`) instead of modifying the original code files. Only modify original files after explicit user approval.
+
+## Current Status
+
+### Unified Analysis Pipeline (completed)
+The analysis pipeline in `_run-analysis.r` now uses a unified outcome loop with `results.table`:
+
+- **`outcome_map`** defines all outcomes with their script paths, labels, file stubs, and cohort years
+- **Outcome loop** iterates through outcomes, sources the appropriate DD script, and collects ATT estimates
+- **`results.table`** collects SDID and CS estimates with 95% CIs for each outcome
+- **LaTeX output** writes to `results/att_overall.tex` with formatted table rows
+
+### DD Scripts Architecture
+
+| Script | Level | Outcomes | Notes |
+|--------|-------|----------|-------|
+| `2-hospital-dd.R` | Hospital | margin, current_ratio, net_fixed, capex, beds, OB beds, FTE RNs, IP days, system | Continuous outcomes using `stack.hosp` |
+| `3-changes-state-dd.R` | State | closures, mergers | Count outcomes using `stack.state`, normalized to rates per 100 hospitals |
+| `4-changes-hospital-hazard.R` | Hospital | time-to-closure/merger | Survival/hazard models |
+| `dd-other.R` | Mixed | Various | Legacy/exploratory code (TWFE, Sun & Abraham, early implementations) |
+
+### Stacking Functions (`functions.R`)
+
+- **`stack_hosp()`**: Hospital-level stacking for continuous outcomes
+- **`stack_state()`**: State-level stacking, collapses to state-year counts
+
+### Archived Code (`archived/`)
+
+The following were archived (2026-01-29) because hospital-level DD for closures/mergers is not econometrically sound—treatment (CAH designation) is conditional on survival, creating survivorship bias:
+
+- **`archived/3-changes-hospital-dd.R`**: Hospital-level DD for binary closure/merger outcomes
+- **`archived/functions.R`**: Contains `stack_hosp_balance()` function used by the archived script
+
+### Active Outcomes in Current Analysis
+- **Hospital continuous**: margin, current_ratio, net_fixed, capex, BDTOT, OBBD, FTERN, IPDTOT, system (cohorts 1999-2001)
+- **State counts**: closures, mergers (cohorts 1999-2001)

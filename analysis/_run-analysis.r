@@ -230,8 +230,6 @@ post      <- 5
 state.cut <- 0
 
 stack.hosp  <- stack_hosp(pre.period=5, post.period=post, state.period=state.cut)
-stack.close <- stack_hosp_balance(pre.period=5, post.period=post, state.period=state.cut) %>%
-  mutate(attrition = if_else(fill_flag=="Graveyard - Other/Attrition", 1, 0))
 stack.state <- stack_state(pre.period=5, post.period=post, state.period=state.cut)
 
 ## Unified outcome map 
@@ -247,14 +245,9 @@ outcome_map <- list(
   IPDTOT        = list(script="analysis/2-hospital-dd.R", label="Inpatient days per bed",       stub="ipdays",       cohorts=1999:2001),
   system        = list(script="analysis/2-hospital-dd.R", label="System membership",            stub="system",       cohorts=1999:2001),
 
-  # Hospital binary outcomes (cohorts 1999:2000)
-#  closed    = list(script="analysis/3-changes-hospital-dd.R", label="Closure",           stub="closed",    cohorts=1999:2000),
-#  merged    = list(script="analysis/3-changes-hospital-dd.R", label="Acquisition",       stub="merged",    cohorts=1999:2000),
-#  attrition = list(script="analysis/3-changes-hospital-dd.R", label="Leave AHA",         stub="attrition", cohorts=1999:2000),
-
   # State-level count outcomes (cohorts 1999:2001)
-  closures = list(script="analysis/4-changes-state-dd.r", label="Closures", stub="closure-rate", cohorts=1999:2001),
-  mergers  = list(script="analysis/4-changes-state-dd.r", label="Mergers",  stub="merger-rate",  cohorts=1999:2001)
+  closures = list(script="analysis/3-changes-state-dd.R", label="Closures", stub="closure-rate", cohorts=1999:2001),
+  mergers  = list(script="analysis/3-changes-state-dd.R", label="Mergers",  stub="merger-rate",  cohorts=1999:2001)
 )
 
 ## Loop over outcomes, collect into results table
