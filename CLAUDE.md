@@ -32,7 +32,7 @@ This is a pure R project with no formal build system. Execute scripts in R/RStud
 ### Analysis Pipeline (`analysis/`)
 - `_run-analysis.r`: Entry point - loads data, performs cleaning/merging, creates `est.dat`
 - `functions.R`: Stacking functions for difference-in-differences with staggered treatment timing
-- Numbered scripts (0-5) run sequentially after `_run-analysis.r`
+- Numbered scripts (0-4) run sequentially after `_run-analysis.r`
 
 ### Stacked Difference-in-Differences Design
 
@@ -108,10 +108,26 @@ The analysis pipeline in `_run-analysis.r` now uses a unified outcome loop with 
 
 ### Archived Code (`archived/`)
 
-The following were archived (2026-01-29) because hospital-level DD for closures/mergers is not econometrically sound—treatment (CAH designation) is conditional on survival, creating survivorship bias:
+#### Hospital-Level DD for Closures/Mergers (archived 2026-01-29)
 
-- **`archived/3-changes-hospital-dd.R`**: Hospital-level DD for binary closure/merger outcomes
-- **`archived/functions.R`**: Contains `stack_hosp_balance()` function used by the archived script
+**Files**: `archived/3-changes-hospital-dd.R`, `archived/functions.R` (contains `stack_hosp_balance()`)
+
+**Why abandoned**: Hospital-level difference-in-differences for closure/merger outcomes is not econometrically sound due to a fundamental identification problem:
+
+1. **Treatment is conditional on survival**: A hospital must remain open to receive CAH designation. By construction, every treated hospital survived until its treatment year—we cannot observe hospitals that "would have received CAH but closed first."
+
+2. **Survivorship bias in the treated group**: The comparison becomes "hospitals that survived long enough to get CAH" vs. "everyone else (including those who closed before they could be treated)." This is not a valid counterfactual.
+
+3. **Selection on risk**: Hospitals likely select into CAH based on factors correlated with closure risk. The direction is ambiguous:
+   - At-risk hospitals might seek CAH as a lifeline (negative selection)
+   - Only financially stable hospitals can navigate the application (positive selection)
+
+4. **Balanced panel doesn't solve it**: The `stack_hosp_balance()` function created balanced panels by filling forward after closure, but this addresses panel attrition, not the selection-into-treatment problem.
+
+**Credible alternatives**:
+- **State-level analysis** (`3-changes-state-dd.R`): Treatment is "state enacted CAH program"—a policy shock plausibly exogenous to individual hospital outcomes
+- **Hazard models** (`4-changes-hospital-hazard.R`): Explicitly model time-to-event with CAH as time-varying covariate, though still requires careful assumption defense
+- **Intent-to-treat on eligibility**: Define treatment as "eligible for CAH" based on pre-determined characteristics rather than actual adoption (not currently implemented)
 
 ### Active Outcomes in Current Analysis
 - **Hospital continuous**: margin, current_ratio, net_fixed, capex, BDTOT, OBBD, FTERN, IPDTOT, system (cohorts 1999-2001)
