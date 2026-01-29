@@ -327,7 +327,7 @@ non.cah.desc <- est.dat %>% filter(year>=1995 & year<=2010) %>%
   mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%
   rename_with(~paste0(., "_noncah"))
 
-int <- function(lo, hi) sprintf("[%.2f, %.2f]", lo, hi)
+int <- function(lo, hi) sprintf("{}[%.2f, %.2f]", lo, hi)
 
 make_col <- function(x, suf) {
   c(
