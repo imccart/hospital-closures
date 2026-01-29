@@ -245,7 +245,7 @@ Consider a group of $N$ hospitals. Let $\Delta B$ denote the estimated change in
 \Delta \text{Beds}^{net}
 =
 N\left(\frac{-\Delta C}{100}\right)\bar B_{\text{close}}
-\;+\;
++
 N\rho\,\Delta B,
 \label{eq:net_beds}
 \end{equation}
@@ -256,9 +256,9 @@ We implement \eqref{eq:net_beds} using our pooled SDID estimates: $\Delta C=-0.3
 \frac{\Delta \text{Beds}^{net}}{N}
 =
 \left(\frac{0.352}{100}\right)\times 56
-\;+\;
++
 0.30\times(-2.197)
-\;\approx\;
+\approx
 0.197 - 0.659
 =
 -0.462.
@@ -298,9 +298,9 @@ $$
 \frac{\Delta D^{net}}{N}
 =
 \left(\frac{0.352}{100}\right) \times 9{,}184
-\;+\;
++
 0.30 \times (-776)
-\;\approx\;
+\approx
 32.3 - 232.8
 =
 -200.5.
