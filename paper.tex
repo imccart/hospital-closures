@@ -238,7 +238,7 @@ The post-period estimates point to meaningful reductions in closures following C
 \subsection{Net Capacity Effects}
 \label{sec:net_capacity}
 
-Our estimates imply two offsetting margins of adjustment for inpatient capacity. CAH designation reduces hospital closures, preserving capacity that would otherwise disappear, but it also induces within-hospital resizing among converting facilities. We quantify this tradeoff with a simple accounting exercise focused on total staffed beds.
+Our estimates imply two offsetting margins of adjustment for inpatient capacity. CAH designation reduces hospital closures, preserving capacity that would otherwise disappear, but it also induces within-hospital resizing among converting facilities. We quantify this tradeoff with a simple accounting exercise.
 
 Consider a group of $N$ hospitals. Let $\Delta B$ denote the estimated change in total beds \emph{per converting (CAH) hospital}, and let $\Delta C$ denote the estimated change in closures \emph{per 100 hospitals}. Let $\bar B_{\text{close}}$ denote the average number of beds among the marginal hospitals that would otherwise close absent CAH designation. If a share $\rho$ of hospitals convert to CAH status over the relevant post period, then the implied net change in total beds is
 \begin{equation}
@@ -251,19 +251,19 @@ N\rho\,\Delta B,
 \end{equation}
 where the first term captures beds preserved via avoided closures and the second term captures beds lost (or gained) through within-hospital changes among CAH converters.
 
-We implement \eqref{eq:net_beds} using our pooled SDID estimates: $\Delta C=-0.352$ closures per 100 hospitals and $\Delta B=-4.402$ beds per converting hospital. For a back-of-the-envelope conversion intensity we set $\rho=0.30$. To proxy $\bar B_{\text{close}}$, we use the mean pre-CAH bed size from Table~\ref{tab:summary-by-cah}, $\bar B_{\text{close}}\approx 56$. Dividing \eqref{eq:net_beds} by $N$ yields the net effect per hospital:
+We implement \eqref{eq:net_beds} using our pooled SDID estimates: $\Delta C=-0.352$ closures per 100 hospitals and $\Delta B=-2.197$ beds per converting hospital. For a back-of-the-envelope conversion intensity we set $\rho=0.30$. To proxy $\bar B_{\text{close}}$, we use the mean pre-CAH bed size from Table~\ref{tab:summary-by-cah}, $\bar B_{\text{close}}\approx 56$. Dividing \eqref{eq:net_beds} by $N$ yields the net effect per hospital:
 \begin{equation*}
 \frac{\Delta \text{Beds}^{net}}{N}
 =
 \left(\frac{0.352}{100}\right)\times 56
 \;+\;
-0.30\times(-4.402)
+0.30\times(-2.197)
 \;\approx\;
-0.197 - 1.321
+0.197 - 0.659
 =
--1.124.
+-0.462.
 \end{equation*}
-Thus, under these assumptions, the point estimates imply a net reduction of approximately $1.12$ beds per hospital (or $1.12N$ beds for a group of $N$ hospitals). Intuitively, the estimated reduction in closures preserves some capacity, but the within-hospital bed reductions among converting hospitals dominate at the observed conversion rates.
+Thus, under these assumptions, the point estimates imply a net reduction of approximately $0.46$ beds per hospital (or $0.46N$ beds for a group of $N$ hospitals). Intuitively, the estimated reduction in closures preserves some capacity, but the within-hospital bed reductions among converting hospitals dominate at the observed conversion rates.
 
 Because \eqref{eq:net_beds} is linear in $\rho$, it is straightforward to compute the break-even conversion share $\rho^{*}$ at which preserved beds from avoided closures exactly offset resizing among converters. Setting $\Delta \text{Beds}^{net}=0$ and solving for $\rho$ gives
 \begin{equation}
@@ -272,34 +272,45 @@ Because \eqref{eq:net_beds} is linear in $\rho$, it is straightforward to comput
 \frac{\left(\frac{-\Delta C}{100}\right)\bar B_{\text{close}}}{-\Delta B}.
 \label{eq:rho_star_beds}
 \end{equation}
-Using $\Delta C=-0.352$, $\Delta B=-4.402$, and $\bar B_{\text{close}}\approx 56$ implies
+Using $\Delta C=-0.352$, $\Delta B=-2.197$, and $\bar B_{\text{close}}\approx 56$ implies
 $$
 \rho^{*}
 =
-\frac{(0.352/100)\times 56}{4.402}
+\frac{(0.352/100)\times 56}{2.197}
 \approx
-0.045.
+0.090.
 $$
-That is, only about 4.5\% of hospitals would need to convert for the point estimates to imply break-even bed capacity. When $\rho$ exceeds this threshold---as in our setting once the program is broadly available---the implied net effect on total beds is negative, reflecting that CAH designation preserves hospital presence primarily through continued operation at a smaller scale rather than through maintenance of pre-designation capacity.
+That is, about 9\% of hospitals would need to convert for the point estimates to imply break-even bed capacity. When $\rho$ exceeds this threshold---as in our setting once the program is broadly available---the implied net effect on total beds is negative, reflecting that CAH designation preserves hospital presence primarily through continued operation at a smaller scale rather than through maintenance of pre-designation capacity.
+
+\paragraph{\textit{Accounting for utilization.}}
+The bed-based calculation in \eqref{eq:net_beds} captures the extensive margin of capacity but ignores changes in how intensively beds are used. Our estimates indicate that CAH designation also reduces inpatient days per bed by approximately $7.7$ days, suggesting that converting hospitals not only have fewer beds but also operate those beds at lower intensity. To incorporate this margin, we extend the accounting exercise to total inpatient days.
+
+Let $\bar U_0$ denote pre-CAH inpatient days per bed, and let $\Delta U$ denote the estimated change in utilization per bed. Using values from Table~\ref{tab:summary-by-cah}, $\bar U_0 \approx 164$ days per bed. The total change in inpatient days per converting hospital combines bed and utilization effects:
+$$
+\Delta D = \Delta B \cdot \bar U_0 + \bar B_{\text{close}} \cdot \Delta U + \Delta B \cdot \Delta U.
+$$
+Substituting our estimates yields
+$$
+\Delta D = (-2.197)(164) + (56)(-7.722) + (-2.197)(-7.722) \approx -360 - 432 + 17 = -776
+$$
+inpatient days per converting hospital. Avoided closures preserve $\bar B_{\text{close}} \times \bar U_0 = 56 \times 164 = 9{,}184$ inpatient days per marginal hospital. The net effect on inpatient days per hospital is therefore
+$$
+\frac{\Delta D^{net}}{N}
+=
+\left(\frac{0.352}{100}\right) \times 9{,}184
+\;+\;
+0.30 \times (-776)
+\;\approx\;
+32.3 - 232.8
+=
+-200.5.
+$$
+The break-even conversion share under this measure is $\rho^{*} = 32.3 / 776 \approx 0.042$, or about 4\%. Accounting for utilization thus implies a less favorable capacity tradeoff: CAH designation must reduce closures by more, or fewer hospitals must convert, to avoid net reductions in service capacity.
 
 \paragraph{\textit{Sensitivity to conversion and closure effects.}}
-The net-capacity calculation in \eqref{eq:net_beds} depends primarily on two quantities: the share of hospitals that convert to CAH status, $\rho$, and the magnitude of the closure response, $\Delta C$. Because the expression is linear in both parameters, it is straightforward to assess how the implied net effect would change under alternative scenarios. Holding fixed the estimated within-hospital resizing effect $\Delta B<0$, an increase in $\rho$ mechanically amplifies the capacity loss from downsizing, while a larger (more negative) value of $\Delta C$ increases the amount of capacity preserved through avoided closures.
+The net-capacity calculations depend primarily on two quantities: the share of hospitals that convert to CAH status, $\rho$, and the magnitude of the closure response, $\Delta C$. Because the expressions are linear in both parameters, it is straightforward to assess how the implied net effect would change under alternative scenarios. Holding fixed the estimated within-hospital effects, an increase in $\rho$ mechanically amplifies the capacity loss from downsizing, while a larger (more negative) value of $\Delta C$ increases the amount of capacity preserved through avoided closures.
 
-Rewriting \eqref{eq:net_beds} on a per-hospital basis,
-$$
-\frac{\Delta \text{Beds}^{net}}{N}
-=
-\left(\frac{-\Delta C}{100}\right)\bar B_{\text{close}}
-+
-\rho\,\Delta B,
-$$
-highlights this tradeoff directly. The marginal effect of increasing the conversion share is $\partial(\Delta \text{Beds}^{net}/N)/\partial\rho=\Delta B$, implying that a ten–percentage point increase in conversion reduces net capacity by approximately $0.44$ beds per hospital at our point estimate $\Delta B=-4.402$. By contrast, the marginal effect of strengthening the closure response is $\partial(\Delta \text{Beds}^{net}/N)/\partial(-\Delta C)=\bar B_{\text{close}}/100$, which equals about $0.56$ beds per hospital when $\bar B_{\text{close}}\approx 56$. Thus, increases in conversion intensity must be accompanied by disproportionately large reductions in closure risk in order to offset the resulting downsizing.
-
-This logic is summarized by the break-even condition
-$$
-(-\Delta C) \;\ge\; 100\,\rho\,\frac{-\Delta B}{\bar B_{\text{close}}},
-$$
-which characterizes the combinations of conversion and closure effects for which net bed capacity is nonnegative. Using our point estimates, this condition implies that if roughly 30\% of hospitals convert to CAH status, the closure rate would need to fall by more than two hospitals per 100---several times larger than our estimated effect---for preserved capacity to offset within-hospital resizing. Conversely, if conversion were rare, even modest reductions in closure risk could yield nonnegative net effects.
+The marginal effect of increasing the conversion share on net beds is $\partial(\Delta \text{Beds}^{net}/N)/\partial\rho=\Delta B \approx -2.2$ beds per ten-percentage-point increase in conversion. By contrast, the marginal effect of strengthening the closure response is $\partial(\Delta \text{Beds}^{net}/N)/\partial(-\Delta C)=\bar B_{\text{close}}/100 \approx 0.56$ beds per hospital. Thus, increases in conversion intensity must be accompanied by disproportionately large reductions in closure risk in order to offset the resulting downsizing.
 
 We view these calculations as suggestive rather than definitive. They underscore that, unless CAH designation substantially reduces the probability of closure beyond what we estimate, higher rates of conversion will tend to imply larger net reductions in inpatient capacity, even as the program succeeds in preserving hospital presence.
 
@@ -349,7 +360,7 @@ We view these calculations as suggestive rather than definitive. They underscore
 \centering
 \footnotesize
 \begin{minipage}[h]{6in}
-\caption[caption]{\textbf{Summary Statistics by CAH Designation}\footnote{Summary statistics for CAH and non-CAH hospitals, with CAHs further divided into years prior to designation, after designation, and all years. Numbers reflect means or counts, and brackets denote the 10th and 90th percentile ranges. Data are limited to general, acute care, community hospitals over the years 1995 through 2010. Distance reflects miles to the nearest neighboring hospital, as calculated as discussed in Section \ref{sec:data}; bed size is from the AHA variable ``BDTOT''; rural status is based on an indicator for whether the hospital is located in a rural CBSA as per the AHA survey; inpatient days is from the AHA variable ``IPDTOT'' and measured per bed; closures and mergers are identified from the AHA summary of changes files; and margins are measured as operating margin (total revenue less total expenses, divided by total revenue). }}
+\caption[caption]{\textbf{Summary Statistics by CAH Designation}\footnote{Summary statistics for CAH and non-CAH hospitals, with CAHs further divided into years prior to designation, after designation, and all years. Numbers reflect means or counts, and brackets denote the 10th and 90th percentile ranges. Data are limited to general, acute care, community hospitals over the years 1995 through 2010. Distance reflects miles to the nearest neighboring hospital, as calculated as discussed in Section \ref{sec:data}; bed size is from the AHA variable ``BDTOT''; rural status is based on an indicator for whether the hospital is located in a rural CBSA as per the AHA survey; inpatient days is from the AHA variable ``IPDTOT'' and measured per bed; closures and mergers are identified from the AHA summary of changes files; operating margin is total revenue less total expenses, divided by total revenue; current ratio is current assets divided by current liabilities; and system membership indicates whether the hospital belongs to a multi-hospital system. }}
 \centerline{%
     \begin{tabular}[t]{lcccc}
         \input{results/desc_compare.tex}

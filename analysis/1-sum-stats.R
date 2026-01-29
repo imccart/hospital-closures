@@ -197,7 +197,7 @@ merge1 <- est.dat %>% filter(year>=1995 & year<=2010) %>%
 
 
 cah.desc <- est.dat %>% filter(year>=1995 & year<=2010) %>%
-  filter(ever_cah==1) %>% 
+  filter(ever_cah==1) %>%
   summarize(
     bed_mean   = mean(BDTOT, na.rm = TRUE),
     bed_p10    = quantile(BDTOT, 0.10, na.rm = TRUE),
@@ -208,24 +208,29 @@ cah.desc <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     ip_days    = mean(IPDTOT, na.rm = TRUE),
     ip_days_p10= quantile(IPDTOT, 0.10, na.rm = TRUE),
     ip_days_p90= quantile(IPDTOT, 0.90, na.rm = TRUE),
-    rural      = mean(ever_rural, na.rm=TRUE),    
+    rural      = mean(ever_rural, na.rm=TRUE),
     margin_mean=mean(margin, na.rm=TRUE),
     margin_p10 =quantile(margin, 0.10, na.rm=TRUE),
     margin_p90 =quantile(margin, 0.90, na.rm=TRUE),
+    cr_mean    = mean(current_ratio, na.rm=TRUE),
+    cr_p10     = quantile(current_ratio, 0.10, na.rm=TRUE),
+    cr_p90     = quantile(current_ratio, 0.90, na.rm=TRUE),
+    system_mean= mean(system, na.rm=TRUE),
     closures   = sum(closed, na.rm=TRUE),
     mergers    = sum(merged, na.rm=TRUE),
     hospitals  = n_distinct(ID),
     obs        = n()
   ) %>%
-  mutate(rural = rural * 100) %>%
+  mutate(rural = rural * 100,
+         system_mean = system_mean * 100) %>%
   mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%
   mutate(across(-c(closures, mergers, hospitals, obs), ~round(., 2))) %>%
-  mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%  
+  mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%
   rename_with(~paste0(., "_cah"))
 
 
 cah.pre <- est.dat %>% filter(year>=1995 & year<=2010) %>%
-  filter(ever_cah==1, eff_year >= year) %>% 
+  filter(ever_cah==1, eff_year >= year) %>%
   summarize(
     bed_mean   = mean(BDTOT, na.rm = TRUE),
     bed_p10    = quantile(BDTOT, 0.10, na.rm = TRUE),
@@ -236,24 +241,29 @@ cah.pre <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     ip_days    = mean(IPDTOT, na.rm = TRUE),
     ip_days_p10= quantile(IPDTOT, 0.10, na.rm = TRUE),
     ip_days_p90= quantile(IPDTOT, 0.90, na.rm = TRUE),
-    rural      = mean(ever_rural, na.rm=TRUE),    
+    rural      = mean(ever_rural, na.rm=TRUE),
     margin_mean=mean(margin, na.rm=TRUE),
     margin_p10 =quantile(margin, 0.10, na.rm=TRUE),
     margin_p90 =quantile(margin, 0.90, na.rm=TRUE),
+    cr_mean    = mean(current_ratio, na.rm=TRUE),
+    cr_p10     = quantile(current_ratio, 0.10, na.rm=TRUE),
+    cr_p90     = quantile(current_ratio, 0.90, na.rm=TRUE),
+    system_mean= mean(system, na.rm=TRUE),
     closures   = sum(closed, na.rm=TRUE),
     mergers    = sum(merged, na.rm=TRUE),
     hospitals  = n_distinct(ID),
     obs        = n()
   ) %>%
-  mutate(rural = rural * 100) %>%
-  mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%  
+  mutate(rural = rural * 100,
+         system_mean = system_mean * 100) %>%
+  mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%
   mutate(across(-c(closures, mergers, hospitals, obs), ~round(., 2))) %>%
-  mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%  
+  mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%
   rename_with(~paste0(., "_cahpre"))
 
 
 cah.post <- est.dat %>% filter(year>=1995 & year<=2010) %>%
-  filter(ever_cah==1, eff_year < year) %>% 
+  filter(ever_cah==1, eff_year < year) %>%
   summarize(
     bed_mean   = mean(BDTOT, na.rm = TRUE),
     bed_p10    = quantile(BDTOT, 0.10, na.rm = TRUE),
@@ -264,24 +274,29 @@ cah.post <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     ip_days    = mean(IPDTOT, na.rm = TRUE),
     ip_days_p10= quantile(IPDTOT, 0.10, na.rm = TRUE),
     ip_days_p90= quantile(IPDTOT, 0.90, na.rm = TRUE),
-    rural      = mean(ever_rural, na.rm=TRUE),    
+    rural      = mean(ever_rural, na.rm=TRUE),
     margin_mean=mean(margin, na.rm=TRUE),
     margin_p10 =quantile(margin, 0.10, na.rm=TRUE),
     margin_p90 =quantile(margin, 0.90, na.rm=TRUE),
+    cr_mean    = mean(current_ratio, na.rm=TRUE),
+    cr_p10     = quantile(current_ratio, 0.10, na.rm=TRUE),
+    cr_p90     = quantile(current_ratio, 0.90, na.rm=TRUE),
+    system_mean= mean(system, na.rm=TRUE),
     closures   = sum(closed, na.rm=TRUE),
     mergers    = sum(merged, na.rm=TRUE),
     hospitals  = n_distinct(ID),
     obs        = n()
   ) %>%
-  mutate(rural = rural * 100) %>%
-  mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%  
+  mutate(rural = rural * 100,
+         system_mean = system_mean * 100) %>%
+  mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%
   mutate(across(-c(closures, mergers, hospitals, obs), ~round(., 2))) %>%
-  mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%  
+  mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%
   rename_with(~paste0(., "_cahpost"))
 
 
 non.cah.desc <- est.dat %>% filter(year>=1995 & year<=2010) %>%
-  filter(ever_cah==0) %>% 
+  filter(ever_cah==0) %>%
   summarize(
     bed_mean   = mean(BDTOT, na.rm = TRUE),
     bed_p10    = quantile(BDTOT, 0.10, na.rm = TRUE),
@@ -292,17 +307,22 @@ non.cah.desc <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     ip_days    = mean(IPDTOT, na.rm = TRUE),
     ip_days_p10= quantile(IPDTOT, 0.10, na.rm = TRUE),
     ip_days_p90= quantile(IPDTOT, 0.90, na.rm = TRUE),
-    rural      = mean(ever_rural, na.rm=TRUE),    
+    rural      = mean(ever_rural, na.rm=TRUE),
     margin_mean=mean(margin, na.rm=TRUE),
     margin_p10 =quantile(margin, 0.10, na.rm=TRUE),
     margin_p90 =quantile(margin, 0.90, na.rm=TRUE),
+    cr_mean    = mean(current_ratio, na.rm=TRUE),
+    cr_p10     = quantile(current_ratio, 0.10, na.rm=TRUE),
+    cr_p90     = quantile(current_ratio, 0.90, na.rm=TRUE),
+    system_mean= mean(system, na.rm=TRUE),
     closures   = sum(closed, na.rm=TRUE),
     mergers    = sum(merged, na.rm=TRUE),
     hospitals  = n_distinct(ID),
     obs        = n()
   ) %>%
-  mutate(rural = rural * 100) %>%
-  mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%  
+  mutate(rural = rural * 100,
+         system_mean = system_mean * 100) %>%
+  mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%
   mutate(across(-c(closures, mergers, hospitals, obs), ~round(., 2))) %>%
   mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%
   rename_with(~paste0(., "_noncah"))
@@ -311,7 +331,7 @@ int <- function(lo, hi) sprintf("[%.2f, %.2f]", lo, hi)
 
 make_col <- function(x, suf) {
   c(
-    x[[paste0("rural_",       suf)]],    
+    x[[paste0("rural_",       suf)]],
     x[[paste0("bed_mean_",    suf)]],
     int(x[[paste0("bed_p10_", suf)]],    x[[paste0("bed_p90_", suf)]]),
     x[[paste0("dist_mean_",   suf)]],
@@ -320,6 +340,9 @@ make_col <- function(x, suf) {
     int(x[[paste0("ip_days_p10_",suf)]], x[[paste0("ip_days_p90_",suf)]]),
     x[[paste0("margin_mean_", suf)]],
     int(x[[paste0("margin_p10_",suf)]],  x[[paste0("margin_p90_",suf)]]),
+    x[[paste0("cr_mean_",     suf)]],
+    int(x[[paste0("cr_p10_",  suf)]],    x[[paste0("cr_p90_",  suf)]]),
+    x[[paste0("system_mean_", suf)]],
     x[[paste0("closures_",    suf)]],
     x[[paste0("mergers_",     suf)]],
     x[[paste0("hospitals_",   suf)]],
@@ -329,11 +352,13 @@ make_col <- function(x, suf) {
 
 desc_tab <- tibble(
   Variable = c(
-    "Rural (%)",    
+    "Rural (\\%)",
     "Bed size", "",
-    "Distance to nearest neighbor", "",
-    "Inpatient days", "",
-    "Margin", "",
+    "Distance to nearest hospital", "",
+    "Inpatient days per bed", "",
+    "Operating margin", "",
+    "Current ratio", "",
+    "System member (\\%)",
     "Closures",
     "Mergers",
     "Hospitals",
@@ -345,17 +370,22 @@ desc_tab <- tibble(
   `Never CAH` = make_col(non.cah.desc, "noncah")
 )
 
-# LaTeX table
-desc_tab %>%
-  kbl(
-    format    = "latex",
-    booktabs  = TRUE,
-    align     = c("l", "c", "c", "c", "c"),
-    escape    = FALSE,
-    col.names = c("", "Pre", "Post", "Ever CAH", "Never CAH"),
-    caption   = "Hospital characteristics by CAH status"
-  ) %>%
-  add_header_above(c(" " = 1, "CAHs" = 3, " " = 1)) %>%
-  kable_styling(latex_options = "hold_position") %>%
-  save_kable("results/desc_compare.tex")
+# LaTeX table innards only (for \input in paper.tex)
+tex_lines <- c(
+  "\\toprule",
+  "\\multicolumn{1}{c}{ } & \\multicolumn{3}{c}{CAHs} & \\multicolumn{1}{c}{ } \\\\",
+  "\\cmidrule(l{3pt}r{3pt}){2-4}",
+  " & Pre & Post & Ever CAH & Never CAH\\\\",
+  "\\midrule"
+)
+
+for (i in seq_len(nrow(desc_tab))) {
+  row_vals <- c(desc_tab$Variable[i], desc_tab$Pre[i], desc_tab$Post[i],
+                desc_tab$`Ever CAH`[i], desc_tab$`Never CAH`[i])
+  tex_lines <- c(tex_lines, paste(row_vals, collapse = " & ") %>% paste0(" \\\\"))
+}
+
+tex_lines <- c(tex_lines, "\\bottomrule")
+
+writeLines(tex_lines, "results/desc_compare.tex")
 
