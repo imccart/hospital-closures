@@ -5,7 +5,8 @@
 
 cohort.year <- 2000
 synth.year <- stack.hosp %>% group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE)) %>% ungroup() %>%
-            filter(stack_group==cohort.year, !is.na(!!outcome_sym), min_bedsize<=bed.cut) %>%
+            filter(stack_group==cohort.year, !is.na(!!outcome_sym), min_bedsize<=bed.cut,
+                   stacked_event_time >= -pre_period) %>%  # filter to pre_period window
             select(ID, year, outcome=!!outcome_sym, post_treat, min_bedsize, treated)
 
 #fs_dat <- synth.year %>% filter(treated==0)
@@ -75,7 +76,8 @@ run_sdid_cohort <- function(c){
   # Build cohort panel (re-using your style/objects)
   synth.c <- stack.hosp %>% filter (stack_group==c) %>%
     group_by(ID) %>% mutate(min_bedsize = min(BDTOT, na.rm = TRUE)) %>% ungroup() %>%
-    filter(!is.na(!!outcome_sym), min_bedsize <= bed.cut) %>%
+    filter(!is.na(!!outcome_sym), min_bedsize <= bed.cut,
+           stacked_event_time >= -pre_period) %>%  # filter to pre_period window
     select(ID, year, outcome=!!outcome_sym, post_treat, min_bedsize, treated)
 
   #fs_dat <- synth.c %>% filter(treated==0)
@@ -130,10 +132,9 @@ agg_paths <- paths_all %>%
     .groups = "drop"
   )
 
-# Combined ATT and 95% CI (weighted by inverse variance)
-w_iv  <- with(atts_all, 1 / se^2)
-att_w <- sum(w_iv * atts_all$att) / sum(w_iv)
-se_w  <- sqrt(1 / sum(w_iv))
+# Combined ATT and 95% CI (weighted by number of treated units)
+att_w <- with(atts_all, sum(Ntr * att) / sum(Ntr))
+se_w  <- with(atts_all, sqrt(sum(Ntr^2 * se^2)) / sum(Ntr))
 
 ci_low  <- att_w - 1.96 * se_w
 ci_high <- att_w + 1.96 * se_w
@@ -189,7 +190,7 @@ ggsave(
 
 # Callaway and Sant'Anna -----------------------------------------------------
 
-min.es <- -5
+min.es <- -pre_period  # use same pre-period as SDID
 max.es <- 5
 
 cs.dat <- est.dat %>%
