@@ -205,9 +205,9 @@ cah.desc <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     dist_mean  = mean(distance, na.rm = TRUE),
     dist_p10   = quantile(distance, 0.10, na.rm = TRUE),
     dist_p90   = quantile(distance, 0.90, na.rm = TRUE),
-    ip_days    = mean(IPDTOT, na.rm = TRUE),
-    ip_days_p10= quantile(IPDTOT, 0.10, na.rm = TRUE),
-    ip_days_p90= quantile(IPDTOT, 0.90, na.rm = TRUE),
+    ip_days    = mean(ip_per_bed, na.rm = TRUE),
+    ip_days_p10= quantile(ip_per_bed, 0.10, na.rm = TRUE),
+    ip_days_p90= quantile(ip_per_bed, 0.90, na.rm = TRUE),
     rural      = mean(ever_rural, na.rm=TRUE),
     margin_mean=mean(margin, na.rm=TRUE),
     margin_p10 =quantile(margin, 0.10, na.rm=TRUE),
@@ -238,9 +238,9 @@ cah.pre <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     dist_mean  = mean(distance, na.rm = TRUE),
     dist_p10   = quantile(distance, 0.10, na.rm = TRUE),
     dist_p90   = quantile(distance, 0.90, na.rm = TRUE),
-    ip_days    = mean(IPDTOT, na.rm = TRUE),
-    ip_days_p10= quantile(IPDTOT, 0.10, na.rm = TRUE),
-    ip_days_p90= quantile(IPDTOT, 0.90, na.rm = TRUE),
+    ip_days    = mean(ip_per_bed, na.rm = TRUE),
+    ip_days_p10= quantile(ip_per_bed, 0.10, na.rm = TRUE),
+    ip_days_p90= quantile(ip_per_bed, 0.90, na.rm = TRUE),
     rural      = mean(ever_rural, na.rm=TRUE),
     margin_mean=mean(margin, na.rm=TRUE),
     margin_p10 =quantile(margin, 0.10, na.rm=TRUE),
@@ -271,9 +271,9 @@ cah.post <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     dist_mean  = mean(distance, na.rm = TRUE),
     dist_p10   = quantile(distance, 0.10, na.rm = TRUE),
     dist_p90   = quantile(distance, 0.90, na.rm = TRUE),
-    ip_days    = mean(IPDTOT, na.rm = TRUE),
-    ip_days_p10= quantile(IPDTOT, 0.10, na.rm = TRUE),
-    ip_days_p90= quantile(IPDTOT, 0.90, na.rm = TRUE),
+    ip_days    = mean(ip_per_bed, na.rm = TRUE),
+    ip_days_p10= quantile(ip_per_bed, 0.10, na.rm = TRUE),
+    ip_days_p90= quantile(ip_per_bed, 0.90, na.rm = TRUE),
     rural      = mean(ever_rural, na.rm=TRUE),
     margin_mean=mean(margin, na.rm=TRUE),
     margin_p10 =quantile(margin, 0.10, na.rm=TRUE),
@@ -304,9 +304,9 @@ non.cah.desc <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     dist_mean  = mean(distance, na.rm = TRUE),
     dist_p10   = quantile(distance, 0.10, na.rm = TRUE),
     dist_p90   = quantile(distance, 0.90, na.rm = TRUE),
-    ip_days    = mean(IPDTOT, na.rm = TRUE),
-    ip_days_p10= quantile(IPDTOT, 0.10, na.rm = TRUE),
-    ip_days_p90= quantile(IPDTOT, 0.90, na.rm = TRUE),
+    ip_days    = mean(ip_per_bed, na.rm = TRUE),
+    ip_days_p10= quantile(ip_per_bed, 0.10, na.rm = TRUE),
+    ip_days_p90= quantile(ip_per_bed, 0.90, na.rm = TRUE),
     rural      = mean(ever_rural, na.rm=TRUE),
     margin_mean=mean(margin, na.rm=TRUE),
     margin_p10 =quantile(margin, 0.10, na.rm=TRUE),
@@ -372,11 +372,9 @@ desc_tab <- tibble(
 
 # LaTeX table innards only (for \input in paper.tex)
 tex_lines <- c(
-  "\\toprule",
   "\\multicolumn{1}{c}{ } & \\multicolumn{3}{c}{CAHs} & \\multicolumn{1}{c}{ } \\\\",
   "\\cmidrule(l{3pt}r{3pt}){2-4}",
-  " & Pre & Post & Ever CAH & Never CAH\\\\",
-  "\\midrule"
+  " & Pre & Post & Ever CAH & Never CAH\\\\"
 )
 
 for (i in seq_len(nrow(desc_tab))) {
@@ -384,8 +382,6 @@ for (i in seq_len(nrow(desc_tab))) {
                 desc_tab$`Ever CAH`[i], desc_tab$`Never CAH`[i])
   tex_lines <- c(tex_lines, paste(row_vals, collapse = " & ") %>% paste0(" \\\\"))
 }
-
-tex_lines <- c(tex_lines, "\\bottomrule")
 
 writeLines(tex_lines, "results/desc_compare.tex")
 

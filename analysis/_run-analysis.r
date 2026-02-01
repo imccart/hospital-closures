@@ -233,6 +233,7 @@ source('analysis/1-sum-stats.R')
 bed.cut   <- 50
 post      <- 5
 state.cut <- 0
+pre_period <- 5
 
 stack.hosp  <- stack_hosp(pre.period=5, post.period=post, state.period=state.cut)
 stack.state <- stack_state(pre.period=5, post.period=post, state.period=state.cut)
@@ -241,10 +242,10 @@ stack.state <- stack_state(pre.period=5, post.period=post, state.period=state.cu
 outcome_map <- list(
 
   # Hospital continuous outcomes (cohorts 1999:2001)
-  margin        = list(script="analysis/2-hospital-dd.R", label="Operating margin",             stub="margin",       cohorts=1999:2001, pre_period=4),
-  current_ratio = list(script="analysis/2-hospital-dd.R", label="Current ratio",                stub="currentratio", cohorts=1999:2001, pre_period=4),
-  net_fixed     = list(script="analysis/2-hospital-dd.R", label="Net fixed assets",             stub="netfixed",     cohorts=1999:2001, pre_period=4),
-  capex         = list(script="analysis/2-hospital-dd.R", label="Capital expenditures per bed", stub="capex",        cohorts=1999:2001, pre_period=4),
+  margin        = list(script="analysis/2-hospital-dd.R", label="Operating margin",             stub="margin",       cohorts=1999:2001),
+  current_ratio = list(script="analysis/2-hospital-dd.R", label="Current ratio",                stub="currentratio", cohorts=1999:2001),
+  net_fixed     = list(script="analysis/2-hospital-dd.R", label="Net fixed assets",             stub="netfixed",     cohorts=1999:2001),
+  capex         = list(script="analysis/2-hospital-dd.R", label="Capital expenditures per bed", stub="capex",        cohorts=1999:2001),
   BDTOT         = list(script="analysis/2-hospital-dd.R", label="Total beds",                   stub="beds",         cohorts=1999:2001),
   OBBD          = list(script="analysis/2-hospital-dd.R", label="OB beds",                      stub="beds_ob",      cohorts=1999:2001),
   FTERN         = list(script="analysis/2-hospital-dd.R", label="FTE RNs",                      stub="ftern",        cohorts=1999:2001),
@@ -304,7 +305,6 @@ tex.lines <- results.table %>%
 
 writeLines(c(
   "Outcome & SDID ATT & SDID 95\\% CI & CS ATT & CS 95\\% CI \\\\",
-  "\\midrule",
   tex.lines
 ), "results/att_overall.tex")
 
