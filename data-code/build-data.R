@@ -2,30 +2,41 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   12/19/2025
+## Date Edited:   1/29/2026
 ## Description:   Build Analytic Data
+##
+## Note: Run fuzzy matching scripts first:
+##   - data-code/fuzzy990.R
+##   - data-code/fuzzyhcris.R
+##   - data-code/fuzzycah.R
 
 
 # Preliminaries -----------------------------------------------------------
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here,
-               fedmatch, scales, zipcodeR)
+               scales, zipcodeR, purrr)
+
+source('data-code/functions.R')
+source('data-code/api-keys.R')
 
 
 # Read-in data ------------------------------------------------------------
-aha.combine <- read_csv('data/input/aha_data.csv')
-cah.supplement <- read_csv('data/input/cah_data.csv')
-state.zip.xwalk <- read_csv('data/input/zcta-to-county.csv')
-col_names <- names(state.zip.xwalk)
-state.zip.xwalk <- read_csv('data/input/zcta-to-county.csv', col_names=col_names, skip=2) %>%
-  group_by(zcta5, stab) %>% mutate(state_zip=row_number()) %>% filter(state_zip==1) %>% ungroup() %>%
-  group_by(zcta5) %>% mutate(zip_count=n()) %>% filter(zip_count==1) %>% ungroup() %>%
-  select(zcta5, state_xwalk=stab)
+aha.combine <- read_csv('data/input/aha_data.csv', show_col_types = FALSE)
 
-hcris.data <- read_tsv('data/input/hcris_data.txt') %>%
-  rename(MCRNUM=provider_number)
+col_names <- names(read_csv('data/input/zcta-to-county.csv', n_max = 0, show_col_types = FALSE))
+state.zip.xwalk <- read_csv('data/input/zcta-to-county.csv', col_names = col_names, skip = 2, show_col_types = FALSE) %>%
+  group_by(zcta5, stab) %>%
+  slice(1) %>%
+  ungroup() %>%
+  group_by(zcta5) %>%
+  filter(n() == 1) %>%
+  ungroup() %>%
+  select(zcta5, state_xwalk = stab)
 
-form990.data <- read_tsv('data/input/form990_ahaid.txt') %>%
+hcris.data <- read_tsv('data/input/hcris_data.txt', show_col_types = FALSE) %>%
+  rename(MCRNUM = provider_number)
+
+form990.data <- read_tsv('data/input/form990_ahaid.txt', show_col_types = FALSE) %>%
   mutate(total_revenue=abs(total_revenue),
          total_expenses=abs(total_expenses),
          total_assets=abs(total_assets),
@@ -41,233 +52,37 @@ form990.data <- read_tsv('data/input/form990_ahaid.txt') %>%
               NA)) %>%
   filter(margin>-1, margin<1)
 
-source('data-code/functions.R')
-source('data-code/api-keys.R')
+# Read crosswalk files from fuzzy matching scripts ------------------------
+unique.990 <- read_csv('data/output/unique_990.csv', show_col_types = FALSE) %>%
+  mutate(ID = as.character(ID),
+         across(starts_with("ein_"), as.character))
+
+# Ensure form990.data$ein is character for consistent joins
+form990.data <- form990.data %>%
+  mutate(ein = as.character(ein))
+
+aha.crosswalk <- read_csv('data/output/unique_hcris.csv', show_col_types = FALSE) %>%
+  mutate(ID = as.character(ID)) %>%
+  rename(MCRNUM_xw = MCRNUM)
+
+fuzzy.unique.cah <- read_csv('data/output/unique_cah.csv', show_col_types = FALSE) %>%
+  mutate(ID = as.character(ID))
 
 
 # AHA data cleaning (manual) -----------------------------------------------
 
+## Convert ID to character for consistent joins with crosswalks
+aha.combine <- aha.combine %>%
+  mutate(ID = as.character(ID))
+
 ## IDs with incorrect state codes in one year
-aha.combine <- aha.combine %>% 
-  mutate(MSTATE=if_else(ID=="6540810", "MS", MSTATE),
-         MSTATE=if_else(ID=="6710190", "AR", MSTATE),
-         MSTATE=if_else(ID=="6931186", "CA", MSTATE))
+aha.combine <- aha.combine %>%
+  mutate(MSTATE = if_else(ID == "6540810", "MS", MSTATE),
+         MSTATE = if_else(ID == "6710190", "AR", MSTATE),
+         MSTATE = if_else(ID == "6931186", "CA", MSTATE))
 
-
-# AHA ID to MCRNUM Crosswalk ----------------------------------------------
-
-## Fuzzy match of names in AHA and HCRIS
-aha.small <- aha.combine %>%
-  select(ID, SYSID, critical_access, name=MNAME, state=MSTATE, city=MLOCCITY, MLOCZIP, year) %>%
-  left_join(state.zip.xwalk, by=c("MLOCZIP"="zcta5")) %>%
-  mutate(zip=substr(MLOCZIP, 1, 5)) %>% 
-  select(-MLOCZIP) %>%
-  mutate(state=case_when(
-      !is.na(state) ~ state,
-      is.na(state) & !is.na(state_xwalk) ~ state_xwalk
-    )) %>%
-  distinct(ID, name, state, city, zip, year) %>%
-  group_by(ID, name, state, city, zip, year) %>%
-  mutate(aha_id=cur_group_id()) %>%
-  ungroup() %>%
-  mutate_at(vars(name, state, city), str_to_lower)
-  
-
-hcris.small <- hcris.data %>%
-  mutate(zip=substr(zip, 1, 5)) %>%   
-  select(name, city, state, zip, MCRNUM, year) %>%
-  distinct() %>%
-  group_by(name, city, state, zip, MCRNUM, year) %>%
-  mutate(hcris_id=cur_group_id()) %>%
-  ungroup() %>%
-  mutate_at(vars(name, state, city), str_to_lower)
-
-
-fuzzy.merge.hcris <- merge_plus(
-  data1=aha.small,
-  data2=hcris.small,
-  by=c("name","city", "zip"),
-  unique_key_1="aha_id",
-  unique_key_2="hcris_id",
-  match_type="multivar",
-  multivar_settings = build_multivar_settings(
-    compare_type=c("stringdist","stringdist","indicator"),
-    wgts=c(0.4, 0.4, 0.2),
-    blocks=c("state", "year")
-  )
-)
-
-fuzzy.match.hcris <- as_tibble(fuzzy.merge.hcris$matches) %>%
-  select(ID, state, year, name_1, city_1, zip_1, name_2, city_2, zip_2, MCRNUM,
-         name_compare, city_compare, zip_compare, multivar_score) %>%
-  filter(!is.na(multivar_score)) %>%
-  group_by(MCRNUM, year) %>%
-  mutate(max_score=max(multivar_score, na.rm=TRUE),
-         max_name_score=max(name_compare, na.rm=TRUE)) %>%
-  filter(max_score==multivar_score) %>%
-  filter(max_name_score==name_compare) %>%
-  ungroup() %>%
-  group_by(ID, MCRNUM, year) %>%
-  slice(1) %>%
-  ungroup() %>%
-  distinct(ID, MCRNUM, year) %>%
-  arrange(MCRNUM, year, ID)
-
-## Create crosswalk from AHA ID and MCRNUM
-aha.crosswalk1 <- aha.combine %>%
-  select(ID, MCRNUM, year) %>%
-  filter(!is.na(MCRNUM)) %>%
-  group_by(ID, MCRNUM, year) %>%
-  mutate(count_pair=n()) %>%
-  filter(count_pair==1) %>%
-  select(ID, year, MCRNUM_xw1=MCRNUM) %>%
-  ungroup()
-
-aha.crosswalk2 <- aha.combine %>%
-  distinct(ID, year) %>%
-  left_join(fuzzy.match.hcris %>% select(ID, MCRNUM, year), by=c("ID","year")) %>%
-  select(ID, year, MCRNUM_xw2=MCRNUM) %>%
-  ungroup()
-
-aha.crosswalk3 <- aha.combine %>%
-  distinct(ID, year) %>%
-  left_join(aha.crosswalk1, by=c("ID", "year")) %>%
-  left_join(aha.crosswalk2, by=c("ID", "year")) %>%
-  mutate(MCRNUM_xw3=if_else(!is.na(MCRNUM_xw1),MCRNUM_xw1, MCRNUM_xw2)) %>%
-  filter(!is.na(MCRNUM_xw3)) %>%
-  group_by(ID) %>%
-  arrange(year) %>%
-  slice(1) %>%
-  ungroup() %>%
-  select(ID, MCRNUM_xw3)
-
-
-aha.crosswalk <- aha.combine %>%
-  distinct(ID, year) %>%
-  left_join(aha.crosswalk1, by=c("ID", "year")) %>%
-  left_join(aha.crosswalk2, by=c("ID", "year")) %>%
-  left_join(aha.crosswalk3, by="ID") %>%
-  mutate(MCRNUM_xw=case_when(
-    !is.na(MCRNUM_xw1) ~ MCRNUM_xw1,
-    is.na(MCRNUM_xw1) & !is.na(MCRNUM_xw2) ~ MCRNUM_xw2,
-    TRUE ~ MCRNUM_xw3
-  )) %>%
-  filter(!is.na(MCRNUM_xw)) %>%
-  select(ID, MCRNUM_xw, year) %>%
-  arrange(ID, MCRNUM_xw, year)
-
-# Fuzzy match of CAH supplement -------------------------------------------
-
-aha.small <- aha.combine %>%
-  select(ID, SYSID, critical_access, name=MNAME, state=MSTATE, city=MLOCCITY, MLOCZIP, year) %>%
-  left_join(state.zip.xwalk, by=c("MLOCZIP"="zcta5")) %>%
-  mutate(
-    zip = str_pad(substr(as.character(MLOCZIP), 1, 5),
-                  width = 5, side = "left", pad = "0")
-  ) %>%
-  select(-MLOCZIP) %>%
-  mutate(state=case_when(
-      !is.na(state) ~ state,
-      is.na(state) & !is.na(state_xwalk) ~ state_xwalk
-    )) %>%
-  distinct(ID, name, state, city, zip) %>%
-  group_by(ID, name, state, city, zip) %>%
-  mutate(aha_id=cur_group_id()) %>%
-  ungroup() %>%
-  mutate_at(vars(name, state, city), str_to_lower)
-  
-cah.small <- cah.supplement %>%
-  select(name, city, state, zip, eff_date) %>%
-  group_by(name, city, state, zip) %>%
-  mutate(cah_id=cur_group_id()) %>%
-  ungroup() %>%
-  mutate_at(vars(name, state, city), str_to_lower)
-
-fuzzy.merge.cah <- merge_plus(
-  data1=aha.small,
-  data2=cah.small,
-  by=c("name","city"),
-  unique_key_1="aha_id",
-  unique_key_2="cah_id",
-  match_type="multivar",
-  multivar_settings = build_multivar_settings(
-    compare_type=c("stringdist","stringdist"),
-    wgts=c(0.8, 0.2),
-    blocks=c("state","zip")
-  )
-)
-
-fuzzy.match.cah <- as_tibble(fuzzy.merge.cah$matches) %>%
-  select(ID, state, zip, name_1, city_1, name_2, city_2, 
-         name_compare, city_compare, multivar_score, eff_date) %>%
-  filter(!is.na(multivar_score), name_compare>0.8, city_compare>0.8) %>%
-  group_by(ID) %>%
-  mutate(max_score=max(multivar_score, na.rm=TRUE),
-         max_name_score=max(name_compare, na.rm=TRUE)) %>%
-  filter(max_score==multivar_score) %>%
-  filter(max_name_score==name_compare) %>%
-  ungroup()
-
-# Fuzzy match of EINs from Form 990 ---------------------------------------
-
-form990.small <- form990.data %>%
-  filter(is.na(ID_hospital_1)) %>%
-  filter(str_detect(str_to_lower(name), "hospital|medical|health")) %>%
-  select(ein, name, state, zip, year) %>%
-  distinct(ein, name, state, zip) %>%
-  group_by(ein, name, state, zip) %>%
-  mutate(irs_id=cur_group_id()) %>%
-  ungroup() %>%
-  mutate_at(vars(name, state), str_to_lower)
-
-fuzzy.merge.990 <- merge_plus(
-  data1=aha.small,
-  data2=form990.small,
-  by=c("name"),
-  unique_key_1="aha_id",
-  unique_key_2="irs_id",
-  match_type="multivar",
-  multivar_settings = build_multivar_settings(
-    compare_type=c("stringdist"),
-    wgts=1,
-    blocks=c("state","zip")
-  )
-)
-
-fuzzy.match.990 <- as_tibble(fuzzy.merge.990$matches) %>%
-  select(aha_id, ID, ein, irs_id, state, zip, name_1, name_2, name_compare, multivar_score) %>%
-  filter(!is.na(multivar_score), name_compare>0.8) %>%
-  group_by(ID) %>%
-  mutate(max_score=max(multivar_score, na.rm=TRUE),
-         max_name_score=max(name_compare, na.rm=TRUE)) %>%
-  filter(max_score==multivar_score) %>%
-  filter(max_name_score==name_compare) %>%
-  ungroup()
 
 # Final data --------------------------------------------------------------
-
-fuzzy.unique.cah <- fuzzy.match.cah %>% 
-  group_by(ID) %>%
-  summarize(first_date=min(eff_date, na.rm=TRUE)) %>%
-  mutate(cah_sup=1) %>%
-  ungroup()
-
-form990.id <- form990.data %>%
-  filter(!is.na(ID_hospital_1)) %>%
-  select(ID_hospital_1, ID_hospital_2, ID_hospital_3, ein, year) %>%
-  pivot_longer(cols=c(ID_hospital_1, ID_hospital_2, ID_hospital_3), 
-               names_to="rcount", values_to="ID") %>%
-  filter(!is.na(ID), !is.na(ein)) %>%
-  mutate(ID=as.character(ID))  %>%
-  distinct(ID, ein)
-
-fuzzy.unique.990 <- fuzzy.match.990 %>% 
-  distinct(ID, ein, multivar_score, name_compare, aha_name=name_1, ein_name=name_2) %>%
-  group_by(ID) %>% mutate(rcount=row_number()) %>%
-  pivot_wider(values_from=c("ein","multivar_score","name_compare","aha_name","ein_name"), names_from="rcount") %>%
-  ungroup()
-
-unique.990 <- bind_rows(fuzzy.unique.990 %>% anti_join(form990.id %>% distinct(ID), by='ID'), form990.id %>% select(ein_1=ein, ID))
 
 aha.cah.dates <- aha.combine %>%
   filter(critical_access==1) %>%
@@ -334,60 +149,63 @@ merge.close <- aha.final %>%
 
 ## identify each hospital's nearest neighbor and the distance to that neighbor using the haversine formula
 aha.geo <- aha.final %>%
-  mutate(zip=substr(MLOCZIP, 1, 5)) %>%
+  mutate(zip = substr(MLOCZIP, 1, 5)) %>%
   select(ID, LAT, LONG, year, zip) %>%
   distinct(ID, LAT, LONG, year, zip) %>%
-  mutate_at(vars(LAT, LONG), as.numeric) %>%
-  mutate(LAT=ifelse(LAT==0, NA, LAT),
-         LONG=ifelse(LONG==0, NA, LONG))
+  mutate(across(c(LAT, LONG), as.numeric),
+         LAT = na_if(LAT, 0),
+         LONG = na_if(LONG, 0))
 
-unique_years <- unique(aha.geo$year)
-final.neighbors <- tibble()
-for (yr in unique_years) {
+calc_nearest_neighbor <- function(yr, geo_data) {
+  yr_data <- geo_data %>% filter(year == yr)
 
-  aha.pairs <- aha.geo %>%
-    filter(year == yr) %>% # Filter data for the current year
-    full_join(aha.geo %>% select(ID2=ID, LAT2=LAT, LONG2=LONG, zip2=zip, year), by = "year") %>%
+  # Self-join for pairs (both sides filtered to same year)
+  aha.pairs <- yr_data %>%
+    cross_join(yr_data %>% select(ID2 = ID, LAT2 = LAT, LONG2 = LONG, zip2 = zip)) %>%
     filter(ID != ID2)
 
+  # Vectorized haversine (returns miles to match zip_distance)
+  aha.latlongdist <- aha.pairs %>%
+    filter(!is.na(LAT), !is.na(LAT2)) %>%
+    mutate(dist_latlong = haversine_vec(LONG, LAT, LONG2, LAT2, units = "miles")) %>%
+    group_by(ID) %>%
+    summarize(min_dist_latlong = min(dist_latlong, na.rm = TRUE), .groups = "drop")
+
+  # Zip-based distance
   zip.pairs <- aha.pairs %>%
     filter(!is.na(zip), !is.na(zip2)) %>%
     distinct(zip, zip2)
 
-  zip.dist <- zip_distance(zip.pairs$zip, zip.pairs$zip2) %>%
-    rename(zip=zipcode_a, zip2=zipcode_b, dist_zip=distance) %>%
-    filter(!is.na(dist_zip))
+  if (nrow(zip.pairs) > 0) {
+    zip.dist <- zip_distance(zip.pairs$zip, zip.pairs$zip2) %>%
+      rename(zip = zipcode_a, zip2 = zipcode_b, dist_zip = distance) %>%
+      filter(!is.na(dist_zip))
 
-  aha.zipdist <- aha.pairs %>%
-    left_join(zip.dist, by = c("zip", "zip2")) %>%
-    select(ID, ID2, dist_zip, year) %>%
-    filter(!is.na(dist_zip)) %>%
-    group_by(ID, year) %>%
-    summarize(min_dist_zip=min(dist_zip, na.rm=TRUE))
+    aha.zipdist <- aha.pairs %>%
+      inner_join(zip.dist, by = c("zip", "zip2")) %>%
+      group_by(ID) %>%
+      summarize(min_dist_zip = min(dist_zip, na.rm = TRUE), .groups = "drop")
+  } else {
+    aha.zipdist <- tibble(ID = character(), min_dist_zip = numeric())
+  }
 
-  aha.latlongdist <- aha.pairs %>%
-    filter(!is.na(LAT), !is.na(LAT2)) %>%
-    rowwise() %>%
-    mutate(dist_latlong=haversine(c(LONG2, LAT2), c(LONG, LAT))) %>% ungroup() %>%
-    group_by(ID, year) %>%
-    summarize(min_dist_latlong=min(dist_latlong, na.rm=TRUE))
-
-  aha.neighbors <- aha.geo %>% filter(year==yr) %>%
-    left_join(aha.zipdist, by=c("ID", "year")) %>%
-    left_join(aha.latlongdist, by=c("ID", "year")) %>%
-    select(ID, min_dist_zip, min_dist_latlong, year) %>%
-    mutate(distance=
-      case_when(
-        !is.na(min_dist_latlong) & !is.na(min_dist_zip) ~ pmin(min_dist_latlong, min_dist_zip),
-        !is.na(min_dist_latlong) & is.na(min_dist_zip) ~ min_dist_latlong,
-        is.na(min_dist_latlong) & !is.na(min_dist_zip) ~ min_dist_zip,
-        TRUE ~ NA_real_))
-  
-  # Add results for the current year to the list
-  final.neighbors <- bind_rows(final.neighbors, aha.neighbors)
+  # Combine results
+  yr_data %>%
+    select(ID) %>%
+    distinct() %>%
+    left_join(aha.zipdist, by = "ID") %>%
+    left_join(aha.latlongdist, by = "ID") %>%
+    mutate(
+      year = yr,
+      distance = coalesce(pmin(min_dist_latlong, min_dist_zip, na.rm = TRUE),
+                          min_dist_latlong, min_dist_zip)
+    )
 }
 
-nearest.neighbor <- final.neighbors %>%
-    write_csv('data/output/aha_neighbors.csv')
+# Process all years (collect results in list, bind once)
+nearest.neighbor <- unique(aha.geo$year) %>%
+  map(\(yr) calc_nearest_neighbor(yr, aha.geo), .progress = TRUE) %>%
+  list_rbind() %>%
+  write_csv('data/output/aha_neighbors.csv')
 
 

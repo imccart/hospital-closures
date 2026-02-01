@@ -120,10 +120,9 @@ agg_paths <- paths_all %>%
     .groups = "drop"
   )
 
-# Pooled ATT using inverse-variance weights (approximate independence across cohorts)
-atts_all <- atts_all %>% mutate(var = se^2, w = 1/var)
-att_w  <- with(atts_all, sum(w * att) / sum(w))
-se_w   <- sqrt(1 / sum(atts_all$w))
+# Pooled ATT weighted by number of treated units
+att_w  <- with(atts_all, sum(Ntr * att) / sum(Ntr))
+se_w   <- with(atts_all, sqrt(sum(Ntr^2 * se^2)) / sum(Ntr))
 ci_low <- att_w - 1.96 * se_w
 ci_high<- att_w + 1.96 * se_w
 

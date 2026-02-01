@@ -96,7 +96,7 @@ final.dat <- data.merge %>%
            state_treat_year=state_first_obs)
 
 hosp.beds <- final.dat %>%
-  filter(year < eff_year | is.na(eff_year)) %>%
+  filter(year < eff_year | is.na(eff_year), year>1995) %>%
   group_by(ID) %>%
   summarize(beds_base=mean(BDTOT, na.rm=TRUE))
 
@@ -127,6 +127,7 @@ est.dat <- final.dat %>%
             is.na(current_ratio_1) & is.na(current_ratio_2) & !is.na(current_ratio_3) ~ current_ratio_3)
           ) %>%
   mutate(
+    ip_per_bed=IPDTOT/beds_base,
     gross_fixed_hcris = fixed_assets + accum_dep,
     current_ratio_hcris=current_assets/current_liabilities,
     margin_hcris=(net_pat_rev - tot_operating_exp)/net_pat_rev,
@@ -149,8 +150,8 @@ est.dat <- final.dat %>%
          capex_hcris=gross_fixed_hcris - lag(gross_fixed_hcris)) %>%
   ungroup() %>%
   mutate(capex=ifelse(!is.na(capex_hcris), capex_hcris, capex_990)) %>%
-  group_by(year) %>%
- mutate(
+  group_by(year, ever_cah) %>%
+  mutate(
     margin        = winsor_by_year(margin),
     net_fixed     = winsor_by_year(net_fixed),
     current_ratio = winsor_by_year(current_ratio),
@@ -158,7 +159,8 @@ est.dat <- final.dat %>%
     BDTOT         = winsor_by_year(BDTOT),
     OBBD          = winsor_by_year(OBBD),
     FTERN         = winsor_by_year(FTERN),
-    IPDTOT        = winsor_by_year(IPDTOT)
+    IPDTOT        = winsor_by_year(IPDTOT),
+    ip_per_bed    = if_else(ip_per_bed > (365*.85), 365*.85, ip_per_bed)
   ) %>%
   ungroup() %>%
   mutate(
@@ -175,7 +177,8 @@ est.dat <- final.dat %>%
          BDTOT = na.approx(BDTOT, x=year, na.rm=FALSE),
          OBBD = na.approx(OBBD, x=year, na.rm=FALSE),
          FTERN = na.approx(FTERN, x=year, na.rm=FALSE),
-         IPDTOT = na.approx(IPDTOT, x=year, na.rm=FALSE)/BDTOT) %>%
+         IPDTOT = na.approx(IPDTOT, x=year, na.rm=FALSE),
+         ip_per_bed = na.approx(ip_per_bed, x=year, na.rm=FALSE)) %>%
   ungroup()
 
 
@@ -221,6 +224,8 @@ state.dat <- est.dat %>%
 
 
 # Source analysis code files -----------------------------------------------
+write_csv(est.dat, 'data/output/estimation_data.csv')
+write_csv(state.dat, 'data/output/state_estimation_data.csv')
 
 source('analysis/1-sum-stats.R')
 
@@ -232,17 +237,18 @@ state.cut <- 0
 stack.hosp  <- stack_hosp(pre.period=5, post.period=post, state.period=state.cut)
 stack.state <- stack_state(pre.period=5, post.period=post, state.period=state.cut)
 
-## Unified outcome map 
+## Unified outcome map
 outcome_map <- list(
+
   # Hospital continuous outcomes (cohorts 1999:2001)
-  margin        = list(script="analysis/2-hospital-dd.R", label="Operating margin",             stub="margin",       cohorts=1999:2001),
-  current_ratio = list(script="analysis/2-hospital-dd.R", label="Current ratio",                stub="currentratio", cohorts=1999:2001),
-  net_fixed     = list(script="analysis/2-hospital-dd.R", label="Net fixed assets",             stub="netfixed",     cohorts=1999:2001),
-  capex         = list(script="analysis/2-hospital-dd.R", label="Capital expenditures per bed", stub="capex",        cohorts=1999:2001),
+  margin        = list(script="analysis/2-hospital-dd.R", label="Operating margin",             stub="margin",       cohorts=1999:2001, pre_period=4),
+  current_ratio = list(script="analysis/2-hospital-dd.R", label="Current ratio",                stub="currentratio", cohorts=1999:2001, pre_period=4),
+  net_fixed     = list(script="analysis/2-hospital-dd.R", label="Net fixed assets",             stub="netfixed",     cohorts=1999:2001, pre_period=4),
+  capex         = list(script="analysis/2-hospital-dd.R", label="Capital expenditures per bed", stub="capex",        cohorts=1999:2001, pre_period=4),
   BDTOT         = list(script="analysis/2-hospital-dd.R", label="Total beds",                   stub="beds",         cohorts=1999:2001),
   OBBD          = list(script="analysis/2-hospital-dd.R", label="OB beds",                      stub="beds_ob",      cohorts=1999:2001),
   FTERN         = list(script="analysis/2-hospital-dd.R", label="FTE RNs",                      stub="ftern",        cohorts=1999:2001),
-  IPDTOT        = list(script="analysis/2-hospital-dd.R", label="Inpatient days per bed",       stub="ipdays",       cohorts=1999:2001),
+  ip_per_bed    = list(script="analysis/2-hospital-dd.R", label="Inpatient days per bed",       stub="ipdays",       cohorts=1999:2001),
   system        = list(script="analysis/2-hospital-dd.R", label="System membership",            stub="system",       cohorts=1999:2001),
 
   # State-level count outcomes (cohorts 1999:2001)
@@ -257,13 +263,14 @@ results.table <- tibble(
 )
 
 for (oname in names(outcome_map)) {
-  print(paste0("Running analysis for outcome: ", oname))  
+  print(paste0("Running analysis for outcome: ", oname))
   o <- outcome_map[[oname]]
   outcome_var   <- oname
   outcome_sym   <- sym(outcome_var)
   outcome_label <- o$label
   file_stub     <- o$stub
   cohorts       <- o$cohorts
+  pre_period    <- if (!is.null(o$pre_period)) o$pre_period else 5  # default 5, margin uses 3
 
   source(o$script)
 
@@ -296,9 +303,8 @@ tex.lines <- results.table %>%
   pull(line)
 
 writeLines(c(
-  "\\toprule",
   "Outcome & SDID ATT & SDID 95\\% CI & CS ATT & CS 95\\% CI \\\\",
   "\\midrule",
-  tex.lines,
-  "\\bottomrule"
+  tex.lines
 ), "results/att_overall.tex")
+
