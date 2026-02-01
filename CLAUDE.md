@@ -12,8 +12,9 @@ Academic research project analyzing the effects of Critical Access Hospital (CAH
 
 This is a pure R project with no formal build system. Execute scripts in R/RStudio:
 
-1. **Data build**: Run `data-code/build-data.R` first (requires external data symlinks)
-2. **Analysis**: Run `analysis/_run-analysis.r` to load/clean data, then individual analysis scripts (0-4)
+1. **Fuzzy matching**: Run `data-code/fuzzy-match.R` first (links Form 990, HCRIS, CAH to AHA IDs)
+2. **Data build**: Run `data-code/build-data.R` (requires external data symlinks and fuzzy match outputs)
+3. **Analysis**: Run `analysis/_run-analysis.r` to load/clean data, then individual analysis scripts (2-4)
 
 **Required R packages** (installed via `pacman::p_load()`):
 - Data: tidyverse, purrr, lubridate, stringr, modelsummary, janitor, here, fedmatch, zipcodeR
@@ -25,6 +26,7 @@ This is a pure R project with no formal build system. Execute scripts in R/RStud
 ## Code Architecture
 
 ### Data Pipeline (`data-code/`)
+- `fuzzy-match.R`: Wrapper that runs fuzzy matching scripts (fuzzy990.R, fuzzyhcris.R, fuzzycah.R)
 - `build-data.R`: Main script merging external data sources (AHA, HCRIS, CAH, Form 990, COPA)
 - External data are symlinked into `data/input/` from separate GitHub repos
 - Outputs cleaned datasets to `data/output/`
@@ -137,6 +139,14 @@ The analysis pipeline in `_run-analysis.r` now uses a unified outcome loop with 
 ### Active Outcomes in Current Analysis
 - **Hospital continuous**: margin, current_ratio, net_fixed, capex, BDTOT, OBBD, FTERN, IPDTOT, system (cohorts 1999-2001)
 - **State counts**: closures, mergers (cohorts 1999-2001)
+
+### Data Cleaning Notes
+
+**IPDTOT (inpatient days per bed)**: Winsorized at 365 days per bed maximum. Raw IPDTOT values above 365 indicate data errors (impossible utilization) or bed count misreporting, particularly for small hospitals. Four hospitals had extreme values (430-843 days/bed) that were causing unstable SDID estimates with large cohort heterogeneity.
+
+### Diagnostics Script (`app-dd-diagnostics.R`)
+
+**Critical**: When building data for `panel.matrices()` in synthdid, use `post_treat` (time-varying 0/1) not `treated` (ever-treated indicator). The `panel.matrices` function infers treatment timing from the data and requires a time-varying treatment indicator. Using the ever-treated indicator causes "Treatment adoption is not simultaneous" errors.
 
 ### Fuzzy Matching Pipeline (`data-code/fuzzy*.R`)
 
