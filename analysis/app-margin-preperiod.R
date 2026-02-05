@@ -1,0 +1,158 @@
+# app-margin-preperiod.R
+# Pre-period sensitivity analysis for financial outcomes
+# Runs SDID across pre-period lengths 2-5 for margin, current_ratio, net_fixed, capex
+# Requires: stack.hosp, bed.cut, est.dat from _run-analysis.r
+# Output: results/app-preperiod-financial.tex (LaTeX tabular innards)
+
+financial_outcomes <- list(
+  margin        = list(label = "Operating margin",             stub = "margin"),
+  current_ratio = list(label = "Current ratio",                stub = "currentratio"),
+  net_fixed     = list(label = "Net fixed assets",             stub = "netfixed"),
+  capex         = list(label = "Capital expenditures per bed", stub = "capex")
+)
+
+pre_periods <- c(5, 4, 3, 2)
+cohorts_fin <- 1999:2001
+
+## SDID estimation for a single cohort × outcome × pre-period
+run_sdid_cohort_pp <- function(c, outcome_sym, pp) {
+  synth.c <- stack.hosp %>%
+    filter(stack_group == c) %>%
+    group_by(ID) %>%
+    mutate(min_bedsize = min(BDTOT, na.rm = TRUE)) %>%
+    ungroup() %>%
+    filter(!is.na(!!outcome_sym),
+           min_bedsize <= bed.cut,
+           stacked_event_time >= -pp) %>%
+    select(ID, year, outcome = !!outcome_sym, post_treat)
+
+  n_before <- n_distinct(synth.c$ID)
+  bal.c <- as_tibble(makeBalancedPanel(synth.c, idname = "ID", tname = "year"))
+  n_after <- n_distinct(bal.c$ID)
+  setup <- panel.matrices(as.data.frame(bal.c))
+  Ntr   <- nrow(setup$Y) - setup$N0
+
+  cat(sprintf("[cohort %d: %d→%d units (%d treated)] ",
+              c, n_before, n_after, Ntr))
+
+  # Need at least 2 pre-periods and 1 treated unit
+  if (setup$T0 < 2 || Ntr < 1) {
+    return(NULL)
+  }
+
+  est  <- synthdid_estimate(setup$Y, setup$N0, setup$T0)
+  se_c <- synthdid_se(est, method = "jackknife")
+
+  tibble(
+    cohort  = c,
+    att     = as.numeric(est),
+    se      = as.numeric(se_c),
+    Ntr     = Ntr,
+    N_total = n_after
+  )
+}
+
+## Collect results: outcome × pre-period
+results <- tibble(
+  outcome = character(), label = character(),
+  pre_period = integer(),
+  att = numeric(), se = numeric(),
+  ci_low = numeric(), ci_high = numeric(),
+  N_total = integer(), N_treated = integer()
+)
+
+for (oname in names(financial_outcomes)) {
+  o <- financial_outcomes[[oname]]
+  osym <- sym(oname)
+  cat("Outcome:", oname, "\n")
+
+  for (pp in pre_periods) {
+    cat("  pre_period =", pp, "... ")
+
+    atts_all <- bind_rows(map(cohorts_fin, function(c) {
+      tryCatch(
+        run_sdid_cohort_pp(c, osym, pp),
+        error = function(e) {
+          cat(sprintf("[cohort %d failed: %s] ", c, conditionMessage(e)))
+          NULL
+        }
+      )
+    }))
+
+    if (nrow(atts_all) == 0) {
+      cat("no valid cohorts\n")
+      results <- bind_rows(results, tibble(
+        outcome = oname, label = o$label, pre_period = as.integer(pp),
+        att = NA_real_, se = NA_real_, ci_low = NA_real_, ci_high = NA_real_,
+        N_total = NA_integer_, N_treated = NA_integer_
+      ))
+      next
+    }
+
+    att_w   <- with(atts_all, sum(Ntr * att) / sum(Ntr))
+    se_w    <- with(atts_all, sqrt(sum(Ntr^2 * se^2)) / sum(Ntr))
+    ci_low  <- att_w - 1.96 * se_w
+    ci_high <- att_w + 1.96 * se_w
+    n_tot   <- sum(atts_all$N_total)
+    n_tr    <- sum(atts_all$Ntr)
+
+    cat(sprintf("ATT = %.3f [%.3f, %.3f]  N = %d (%d treated)\n",
+                att_w, ci_low, ci_high, n_tot, n_tr))
+
+    results <- bind_rows(results, tibble(
+      outcome = oname, label = o$label, pre_period = as.integer(pp),
+      att = att_w, se = se_w, ci_low = ci_low, ci_high = ci_high,
+      N_total = as.integer(n_tot), N_treated = as.integer(n_tr)
+    ))
+  }
+}
+
+## Format and write LaTeX tabular innards
+# Columns: Outcome | Pre=5 ATT [CI] | Pre=4 | Pre=3 | Pre=2
+
+format_cell <- function(att, ci_low, ci_high) {
+  if (is.na(att)) return("---")
+  sprintf("%.3f & [%.2f, %.2f]", att, ci_low, ci_high)
+}
+
+tex_lines <- character()
+for (oname in names(financial_outcomes)) {
+  o <- financial_outcomes[[oname]]
+  row_data <- results %>% filter(outcome == oname)
+
+  cells <- sapply(pre_periods, function(pp) {
+    r <- row_data %>% filter(pre_period == pp)
+    if (nrow(r) == 0 || is.na(r$att)) return("--- & ---")
+    format_cell(r$att, r$ci_low, r$ci_high)
+  })
+
+  tex_lines <- c(tex_lines,
+    paste0(o$label, " & ", paste(cells, collapse = " & "), " \\\\"))
+}
+
+# Add observation counts at the bottom (margin only, as representative)
+tex_lines <- c(tex_lines, "\\midrule")
+margin_data <- results %>% filter(outcome == "margin")
+
+ctrl_cells <- sapply(pre_periods, function(pp) {
+  r <- margin_data %>% filter(pre_period == pp)
+  if (nrow(r) == 0 || is.na(r$N_total)) return("\\multicolumn{2}{c}{---}")
+  sprintf("\\multicolumn{2}{c}{%d}", r$N_total - r$N_treated)
+})
+tex_lines <- c(tex_lines,
+  paste0("Control obs. & ", paste(ctrl_cells, collapse = " & "), " \\\\"))
+
+treat_cells <- sapply(pre_periods, function(pp) {
+  r <- margin_data %>% filter(pre_period == pp)
+  if (nrow(r) == 0 || is.na(r$N_treated)) return("\\multicolumn{2}{c}{---}")
+  sprintf("\\multicolumn{2}{c}{%d}", r$N_treated)
+})
+tex_lines <- c(tex_lines,
+  paste0("Treated obs. & ", paste(treat_cells, collapse = " & "), " \\\\"))
+
+writeLines(tex_lines, "results/app-preperiod-financial.tex")
+cat("\nLaTeX table written to results/app-preperiod-financial.tex\n")
+
+## Also save CSV for reference
+write_csv(results, "results/diagnostics/app-preperiod-financial.csv")
+cat("CSV written to results/diagnostics/app-preperiod-financial.csv\n")

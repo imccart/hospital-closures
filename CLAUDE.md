@@ -75,10 +75,11 @@ Source repositories:
 ## Output
 
 - `results/`: PNG figures and LaTeX tables for the manuscript
-- `results/diagnostics/`: Pre-trend plots and SDID/CS diagnostic tables (from `app-dd-diagnostics.R`)
+- `results/diagnostics/`: Pre-trend plots, CSVs, and LaTeX tabular innards (from `app-dd-diagnostics.R`)
 - `data/output/`: Main analysis datasets (`aha_final.csv`, `aha_neighbors.csv`, crosswalk files)
 - `data/output/fuzzy/`: QA diagnostics from fuzzy matching scripts
 - `paper.tex`: Main LaTeX manuscript (synced with Overleaf)
+- `appendix.tex`: Standalone supplemental appendix (financial measure construction, robustness, SDID diagnostics)
 
 ## Important Notes
 
@@ -146,7 +147,11 @@ The analysis pipeline in `_run-analysis.r` now uses a unified outcome loop with 
 
 ### Diagnostics Script (`app-dd-diagnostics.R`)
 
+Covers both hospital-level (9 outcomes via `stack.hosp`) and state-level (closures, mergers via `stack.state`) diagnostics. Outputs CSVs, pre-trend PNGs, and three `.tex` tabular-innards files to `results/diagnostics/`. These `.tex` files are `\input`'d by `appendix.tex`.
+
 **Critical**: When building data for `panel.matrices()` in synthdid, use `post_treat` (time-varying 0/1) not `treated` (ever-treated indicator). The `panel.matrices` function infers treatment timing from the data and requires a time-varying treatment indicator. Using the ever-treated indicator causes "Treatment adoption is not simultaneous" errors.
+
+**CS control counts**: Must match the `control_group="notyettreated"` specification in the DD scripts. For cohort `c`, CS controls = never-treated (`treat_group == 0`) + not-yet-treated (`treat_group > c`). Hospital-level `treat_group` construction must use `state.cut` to match `2-hospital-dd.R`.
 
 ### Fuzzy Matching Pipeline (`data-code/fuzzy*.R`)
 
@@ -251,3 +256,30 @@ Only Form 990 records matching hospital keywords are considered (reduces noise f
 - *Development/endowment funds*: Fundraising and investment management
 
 Matching a hospital to any of these entities would produce invalid financial metrics. ~1,282 non-hospital entities excluded from matching pool (2026-01-31).
+
+### Financial Outcome Missing Data (2026-02-04)
+
+**Problem**: SDID requires balanced panels, but financial outcomes (margin, current_ratio, net_fixed, capex) suffer massive attrition in early cohorts. For the 1999 cohort on margin, only 3 of 84 treated hospitals survive balancing with 5 pre-periods. AHA outcomes (beds, FTEs) lose only ~27% because AHA survey coverage is near-complete.
+
+**Root cause — ownership composition, not matching quality**: Financial data comes from HCRIS (primary, from ~1998) and Form 990 (fallback, for nonprofits only). Diagnostic analysis of the 84 treated hospitals in the 1999 cohort (after `bed.cut <= 50`) revealed:
+- **47 (56%) are government-owned** (county, city, state). Government hospitals do not file Form 990 — this is structural and unfixable.
+- **36 are nonprofit** (should file 990), but only 25 have any 990 match, and only 4 have pre-1999 990 data. Most 990 data appears in 2009+ (IRS e-filing mandate).
+- **1 is for-profit** (no 990 filing).
+
+For these hospitals, the only pre-treatment financial data source is HCRIS, which ramps up slowly: 7 hospitals in 1998, 27 in 1999, near-complete (~77) from 2000. The 3 hospitals surviving the balanced panel at `pre_period=5` are the rare nonprofits with Form 990 matches reaching back to 1994.
+
+**Pre-period sensitivity** (`analysis/app-margin-preperiod.R`): Tests financial outcomes across pre-period lengths 2-5. Key finding: margin ATT is +0.035 at pre=5 (main spec) and +0.041 at pre=4, but collapses to ~0 at pre=3 and pre=2. Net fixed assets is stable (~-0.08) across all pre-periods. Current ratio and capex are too imprecise to be informative at any pre-period length. The margin instability reflects sensitivity to sample composition — which hospitals survive the balanced panel requirement — rather than precision differences.
+
+**Decided approach**: No imputation. Report financial results with appropriate caveats about small treated samples in early cohorts. Pre-period sensitivity analysis in appendix.
+
+**Imputation explored and abandoned** (archived in `archived/0-impute-financials.R`):
+Tested two-step elastic net imputation using AHA predictors + hospital-specific residual correction. Abandoned on methodological grounds: AHA operational variables are poor predictors of financial outcomes (cross-sectional R² ranged from 0.01 for current ratio to 0.39 for net fixed assets). Even with hospital FE correction, the imputed values for hospitals lacking any observed financial data were essentially conditional means with little hospital-specific information.
+
+**Other alternatives considered**:
+- Improving fuzzy matching: Not a matching quality issue — coverage ceiling is structural (ownership composition)
+- Back-filling interpolation: Already interpolate internal gaps; back-filling extrapolates beyond observed data
+- `gsynth`/`fect` (interactive fixed effects / matrix completion): Handles unbalanced panels natively under different identification (factor model rather than parallel trends). Potential future appendix analysis.
+
+**Data additions retained**: EXPTOT and PAYTOT added to `_aha-data.R` (all four data blocks). Available for future use.
+
+**Manual 990 collection (in progress)**: For the ~32 nonprofit hospitals in the 1999 cohort missing pre-1998 Form 990 data, manual collection from Guidestar/Candid or IRS TEOS is feasible. Script `data-code/extract-manual-990.R` generates the lookup list (`data/output/manual-990-ids.csv`) with hospital names, locations, and flags for which years (1994-1998) need collection. Total data points: ~150 (hospitals × missing years). Variables needed from 990 Part I: total revenue (line 12), total expenses (line 17) to compute margin.

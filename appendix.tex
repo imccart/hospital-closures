@@ -1,0 +1,240 @@
+\documentclass[a4paper, 12pt]{article}
+\usepackage{amsmath, amsfonts, amssymb}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage[figurename=Figure]{caption}
+\usepackage{float}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage[utf8]{inputenc}
+\usepackage{multirow}
+\usepackage{setspace}
+\usepackage{subcaption}
+\usepackage{pdflscape}
+
+\hypersetup{
+  colorlinks=false,
+  linkcolor=black,
+  filecolor=black,
+  urlcolor=black,
+  citecolor=black,
+}
+
+\setlength{\tabcolsep}{3pt}
+
+\newcolumntype{L}[1]{>{\raggedright\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{C}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+
+\raggedbottom
+
+\begin{document}
+\onehalfspacing
+
+\begin{center}
+{\LARGE Supplemental Appendix} \\[0.5cm]
+{\large Survival versus Scale: The Effects of Critical Access Hospital Designation}
+\end{center}
+
+\vspace{1cm}
+
+This appendix provides supplementary material for the main text. Section~\ref{sec:app-financial} details the construction of our hospital-level financial measures. Section~\ref{sec:app-robustness} presents robustness checks varying the lag structure for state-level CAH adoption in the control group definition. Section~\ref{sec:app-diagnostics} reports diagnostics for the synthetic difference-in-differences (SDID) estimator, including sample attrition from balanced-panel requirements, pre-trend tests, and synthetic control weight concentration.
+
+
+%%% ===================================================================
+%%% SECTION A: Financial Measure Construction
+%%% ===================================================================
+
+\section{Financial Measure Construction}
+\label{sec:app-financial}
+
+We construct four financial measures---operating margin, current ratio, net fixed assets per bed, and capital expenditures per bed---by combining data from the Healthcare Cost Report Information System (HCRIS) and IRS Form 990 filings. HCRIS is the primary source for all four measures; Form 990 serves as a secondary source when HCRIS data are unavailable for a given hospital-year. This section describes the construction of each measure, the source hierarchy, and the post-processing steps applied to the combined series.
+
+\subsection{Data Sources}
+
+\paragraph{\textit{HCRIS.}} Medicare-certified hospitals file annual cost reports, from which we extract net patient revenue, total operating expenses, current assets, current liabilities, net fixed assets (land, buildings, and equipment net of accumulated depreciation), and the components of accumulated depreciation. These fields are drawn from Worksheet G (balance sheet) and Worksheet G-3 (income statement) of the cost report. When a hospital files multiple reports in a single fiscal year, we sum the relevant fields across reports.
+
+\paragraph{\textit{Form 990.}} Nonprofit hospitals file IRS Form 990, from which we extract total revenue, total expenses, total assets, total liabilities, net fixed assets, and depreciation expense. Each AHA hospital identifier may link to up to three Employer Identification Numbers (EINs) through our fuzzy matching procedure (see the data documentation). When multiple EINs are available, we use the first non-missing value in EIN priority order.
+
+\subsection{Measure Definitions}
+
+\paragraph{\textit{Operating margin.}} From HCRIS, operating margin is defined as
+$$
+\text{margin}_{\text{HCRIS}} = \frac{\text{net patient revenue} - \text{total operating expenses}}{\text{net patient revenue}}.
+$$
+When HCRIS data are unavailable, we substitute the Form 990 analogue,
+$$
+\text{margin}_{990} = \frac{\text{total revenue} - \text{total expenses}}{\text{total revenue}},
+$$
+restricted to observations with $\text{margin}_{990} \in (-1, 1)$. The two definitions differ in scope: the HCRIS measure reflects patient-care operations, while the Form 990 measure includes all organizational revenue and expenses.
+
+\paragraph{\textit{Current ratio.}} From HCRIS, the current ratio is defined as
+$$
+\text{current ratio}_{\text{HCRIS}} = \frac{\text{current assets}}{\text{current liabilities}},
+$$
+where both fields are drawn from the balance sheet (Worksheet G). When HCRIS data are unavailable, we substitute the Form 990 analogue, which uses total assets divided by total liabilities. Because the Form 990 version includes long-term items, it will tend to exceed the HCRIS current ratio for the same hospital; the HCRIS measure is therefore preferred when available.
+
+\paragraph{\textit{Net fixed assets per bed.}} Net fixed assets are taken directly from the HCRIS balance sheet when available, with Form 990 net fixed assets as a fallback. We normalize by each hospital's pre-period mean bed count, computed as the average of total staffed beds (AHA variable \texttt{BDTOT}) across all years after 1995 and prior to CAH designation (or across all post-1995 years for hospitals that never receive designation). We deflate to constant 2010 dollars using the annual CPI-U and express the result in millions of dollars per bed:
+$$
+\text{net fixed assets per bed} = \frac{\text{net fixed assets}}{10^6 \times \bar{B}_{\text{pre}} \times \text{CPI deflator}},
+$$
+where $\bar{B}_{\text{pre}}$ is the pre-period mean bed count and the CPI deflator is the ratio of the current-year CPI-U index to the 2010 index.
+
+\paragraph{\textit{Capital expenditures per bed.}} We approximate capital expenditures as the year-to-year change in gross fixed assets. From HCRIS, gross fixed assets are computed as net fixed assets plus accumulated depreciation; capital expenditure is then the first difference of this series within each hospital. When HCRIS data are unavailable, we use the Form 990 analogue: the change in net fixed assets plus depreciation expense. As with net fixed assets, we normalize by the pre-period mean bed count and deflate to constant 2010 dollars, expressed in units of \$10,000 per bed:
+$$
+\text{capex per bed} = \frac{\Delta\text{gross fixed assets}}{10^4 \times \bar{B}_{\text{pre}} \times \text{CPI deflator}}.
+$$
+
+\subsection{Post-Processing}
+
+\paragraph{\textit{Winsorization.}} We winsorize operating margin, current ratio, net fixed assets, and capital expenditures at the 5th and 95th percentiles within each year-by-ever-CAH cell. Winsorization is applied after combining HCRIS and Form 990 sources but before CPI deflation and per-bed normalization of the capital measures. This reduces the influence of extreme values driven by reporting anomalies while preserving cross-sectional and temporal variation within plausible ranges.
+
+\paragraph{\textit{Interpolation.}} After winsorization, we linearly interpolate missing values within each hospital's time series using observed year as the time index. Interpolation fills isolated gaps (e.g., a single missing cost report year) while leaving leading and trailing missingness unchanged. The same interpolation procedure is applied to the capacity and staffing variables (total beds, OB beds, FTE RNs, and inpatient days per bed).
+
+
+%%% ===================================================================
+%%% SECTION B: Robustness to Control Group Lag
+%%% ===================================================================
+
+\section{Robustness to Varying State-Level CAH Adoption Lags}
+\label{sec:app-robustness}
+
+\textit{[To be completed.]}
+
+
+%%% ===================================================================
+%%% SECTION C: SDID Diagnostics
+%%% ===================================================================
+
+\section{SDID Diagnostics}
+\label{sec:app-diagnostics}
+
+Our primary estimates use the synthetic difference-in-differences (SDID) estimator, which requires a balanced panel of units observed in every period of the event window. This requirement can reduce sample sizes relative to estimators that accommodate unbalanced panels, such as Callaway and Sant'Anna (CS). Similarly, the SDID estimator assigns nonnegative weights to control units to match the treated group's pre-period trajectory; if these weights are highly concentrated on a small number of controls, the resulting estimates may be sensitive to idiosyncratic variation in those units. We present three diagnostics below to assess these concerns.
+
+%%% TABLE 1: Sample Comparison
+\begin{landscape}
+\begin{table}[H]
+\centering
+\caption{Sample Comparison: SDID Balanced Panel vs.\ Callaway--Sant'Anna}
+\label{tab:diag-sample}
+\small
+\begin{tabular}{l c cc cc c}
+\toprule
+ & & \multicolumn{2}{c}{SDID} & \multicolumn{2}{c}{CS} & \\
+\cmidrule(lr){3-4} \cmidrule(lr){5-6}
+Outcome & Cohort & Treated & Control & Treated & Control & \% Lost \\
+\input{results/diagnostics/diag-sample-comparison.tex}
+\end{tabular}
+\begin{minipage}{0.95\linewidth}
+\vspace{0.3cm}
+\footnotesize
+\textit{Notes:} ``Treated'' and ``Control'' report the number of units (hospitals for Panels A--B; states for Panel C closures and mergers) in each estimator's sample. ``\% Lost'' is the percentage of units dropped from the SDID sample when balancing the panel. Hospital-level outcomes filter to hospitals with at most 50 beds in all observed years.
+\end{minipage}
+\end{table}
+\end{landscape}
+
+%%% TABLE 2: Pre-Trend Tests
+\begin{table}[H]
+\centering
+\caption{Pre-Trend Tests: Interaction of Event Time and Treatment in Pre-Periods}
+\label{tab:diag-pretrend}
+\small
+\begin{tabular}{l c r r r}
+\toprule
+Outcome & Cohort & Coefficient & Std.\ Error & $p$-value \\
+\input{results/diagnostics/diag-pretrend.tex}
+\end{tabular}
+\begin{minipage}{0.85\linewidth}
+\vspace{0.3cm}
+\footnotesize
+\textit{Notes:} Each row reports the coefficient on the interaction of event time and treatment status, estimated on pre-treatment observations only. Standard errors are clustered at the hospital level for hospital-level outcomes and at the state level for state-level outcomes. $^{*}$~$p<0.10$, $^{**}$~$p<0.05$, $^{***}$~$p<0.01$.
+\end{minipage}
+\end{table}
+
+The FTE RN outcome shows evidence of differential pre-trends in some cohorts. This is consistent with treated hospitals---small, rural facilities pursuing CAH designation---already experiencing staffing declines before the policy change. Estimates for FTE RNs should be interpreted with this caveat in mind.
+
+%%% PRE-TREND FIGURES
+\clearpage
+
+Figures~\ref{fig:pretrend-financial}--\ref{fig:pretrend-org} plot mean outcomes for treated and control groups by event time, averaged across cohorts. The vertical dashed line marks the last pre-treatment period.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/diagnostics/diag-pretrend-margin.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/diagnostics/diag-pretrend-current_ratio.png}
+\end{subfigure}
+\\[0.5cm]
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/diagnostics/diag-pretrend-net_fixed.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/diagnostics/diag-pretrend-capex.png}
+\end{subfigure}
+\caption{Pre/post trends: Financial performance outcomes}
+\label{fig:pretrend-financial}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/diagnostics/diag-pretrend-bdtot.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/diagnostics/diag-pretrend-obbd.png}
+\end{subfigure}
+\\[0.5cm]
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/diagnostics/diag-pretrend-ftern.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/diagnostics/diag-pretrend-ip_per_bed.png}
+\end{subfigure}
+\caption{Pre/post trends: Capacity and staffing outcomes}
+\label{fig:pretrend-capacity}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/diagnostics/diag-pretrend-system.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/diagnostics/diag-pretrend-closures.png}
+\end{subfigure}
+\\[0.5cm]
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/diagnostics/diag-pretrend-mergers.png}
+\end{subfigure}
+\caption{Pre/post trends: Organizational change outcomes}
+\label{fig:pretrend-org}
+\end{figure}
+
+%%% TABLE 3: Weight Concentration
+\clearpage
+
+\begin{table}[H]
+\centering
+\caption{SDID Synthetic Control Weight Concentration}
+\label{tab:diag-weights}
+\small
+\begin{tabular}{l c r r r r}
+\toprule
+Outcome & Cohort & $N$ Controls & Max Weight & Top 5 Share & HHI \\
+\input{results/diagnostics/diag-weights.tex}
+\end{tabular}
+\begin{minipage}{0.85\linewidth}
+\vspace{0.3cm}
+\footnotesize
+\textit{Notes:} ``$N$ Controls'' is the number of control units in the balanced panel. ``Max Weight'' is the largest single omega weight assigned by the SDID estimator. ``Top 5 Share'' is the sum of the five largest weights. ``HHI'' is the Herfindahl--Hirschman Index of the omega weights ($\sum \omega_i^2$), where values closer to zero indicate more dispersed weighting. Hospital-level outcomes use individual hospitals as units; state-level outcomes (closures, mergers) use states.
+\end{minipage}
+\end{table}
+
+\end{document}

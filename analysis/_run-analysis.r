@@ -2,7 +2,7 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  5/17/2023
-## Date Edited:   1/28/2026
+## Date Edited:   2/24/2026
 ## Description:   Run Analysis Files
 
 
@@ -13,6 +13,18 @@ pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, jani
                haven, sf, igraph, plotly, synthdid, BMisc, nnet, glmnet, zoo, purrr, grid, rlang, survival)
 
 source('analysis/functions.R')
+
+## Global parameters for estimation and stacking
+bed.cut   <- 50
+post      <- 5
+state.cut <- 0
+pre_period <- 5
+
+## Winsorization function
+winsor_by_year <- function(x, probs = c(0.05, 0.95)) {
+  qs <- quantile(x, probs = probs, na.rm = TRUE)
+  pmin(pmax(x, qs[1]), qs[2])
+}
 
 # Read-in data ------------------------------------------------------------
 aha.data <- read_csv('data/output/aha_final.csv')
@@ -76,7 +88,7 @@ data.merge <- aha.data %>%
     filter(hosp_count==1) %>% ungroup () %>%
     select(-hosp_count)
 
-# construct new variables
+## construct new variables
 final.dat <- data.merge %>%
   mutate(closed=case_when(
                 !is.na(change_type) & change_type=="Closure" ~ 1,
@@ -95,16 +107,11 @@ final.dat <- data.merge %>%
            state_first_law=ifelse(is.infinite(state_first_law), 0, state_first_law),
            state_treat_year=state_first_obs)
 
+## mean hospital beds pre-treatment
 hosp.beds <- final.dat %>%
   filter(year < eff_year | is.na(eff_year), year>1995) %>%
   group_by(ID) %>%
   summarize(beds_base=mean(BDTOT, na.rm=TRUE))
-
-
-winsor_by_year <- function(x, probs = c(0.05, 0.95)) {
-  qs <- quantile(x, probs = probs, na.rm = TRUE)
-  pmin(pmax(x, qs[1]), qs[2])
-}
 
 est.dat <- final.dat %>%
   left_join(hosp.beds, by="ID") %>%
@@ -222,18 +229,13 @@ state.dat <- est.dat %>%
     rate_merged=mergers/hospitals_lag,
     rate_changes=changes/hospitals_lag)
 
+source('analysis/supp-extract-manual.R')
 
 # Source analysis code files -----------------------------------------------
 write_csv(est.dat, 'data/output/estimation_data.csv')
 write_csv(state.dat, 'data/output/state_estimation_data.csv')
 
 source('analysis/1-sum-stats.R')
-
-## Build stacked datasets once 
-bed.cut   <- 50
-post      <- 5
-state.cut <- 0
-pre_period <- 5
 
 stack.hosp  <- stack_hosp(pre.period=5, post.period=post, state.period=state.cut)
 stack.state <- stack_state(pre.period=5, post.period=post, state.period=state.cut)
@@ -308,3 +310,5 @@ writeLines(c(
   tex.lines
 ), "results/att_overall.tex")
 
+## Diagnostics ------------------------------------------------------------
+source('analysis/app-dd-diagnostics.R')

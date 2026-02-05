@@ -40,6 +40,8 @@ form990.data <- read_tsv('data/input/form990_ahaid.txt', show_col_types = FALSE)
   mutate(total_revenue=abs(total_revenue),
          total_expenses=abs(total_expenses),
          total_assets=abs(total_assets),
+         current_assets=abs(current_assets),
+         current_liabilities=abs(current_liabilities),
          total_liabilities=abs(total_liabilities),
          depreciation=abs(depreciation),
          margin=if_else(
@@ -47,8 +49,8 @@ form990.data <- read_tsv('data/input/form990_ahaid.txt', show_col_types = FALSE)
               (total_revenue-total_expenses)/total_revenue,
               NA),
          current_ratio=if_else(
-              !is.na(total_assets) & total_assets>0 & !is.na(total_liabilities) & total_liabilities>0,
-              total_assets/total_liabilities,
+              !is.na(current_assets) & current_assets>0 & !is.na(current_liabilities) & current_liabilities>0,
+              current_assets/current_liabilities,
               NA)) %>%
   filter(margin>-1, margin<1)
 

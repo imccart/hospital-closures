@@ -3,5 +3,6 @@ data/*
 background/*
 supplemental/*
 archived/*
+scratch/*
 data-code/api-keys.R
 results/diagnostics/*
