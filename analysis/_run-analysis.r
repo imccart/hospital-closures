@@ -229,7 +229,7 @@ state.dat <- est.dat %>%
     rate_merged=mergers/hospitals_lag,
     rate_changes=changes/hospitals_lag)
 
-source('analysis/supp-extract-manual.R')
+# source('analysis/supp-extract-manual.R')
 
 # Source analysis code files -----------------------------------------------
 write_csv(est.dat, 'data/output/estimation_data.csv')
@@ -239,6 +239,9 @@ source('analysis/1-sum-stats.R')
 
 stack.hosp  <- stack_hosp(pre.period=5, post.period=post, state.period=state.cut)
 stack.state <- stack_state(pre.period=5, post.period=post, state.period=state.cut)
+
+## impute missing margin values for very early years
+source('analysis/supp-impute-margin.R')
 
 ## Unified outcome map
 outcome_map <- list(

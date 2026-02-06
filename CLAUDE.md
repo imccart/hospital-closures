@@ -107,7 +107,7 @@ The analysis pipeline in `_run-analysis.r` now uses a unified outcome loop with 
 | `2-hospital-dd.R` | Hospital | margin, current_ratio, net_fixed, capex, beds, OB beds, FTE RNs, IP days, system | Continuous outcomes using `stack.hosp` |
 | `3-changes-state-dd.R` | State | closures, mergers | Count outcomes using `stack.state`, normalized to rates per 100 hospitals |
 | `4-changes-hospital-hazard.R` | Hospital | time-to-closure/merger | Survival/hazard models |
-| `dd-other.R` | Mixed | Various | Legacy/exploratory code (TWFE, Sun & Abraham, early implementations) |
+| `dd-other.R` | Mixed | Various | Deleted — legacy/exploratory code (TWFE, Sun & Abraham, early implementations), superseded by stacked SDID + CS approach |
 
 ### Stacking Functions (`functions.R`)
 
@@ -270,16 +270,65 @@ For these hospitals, the only pre-treatment financial data source is HCRIS, whic
 
 **Pre-period sensitivity** (`analysis/app-margin-preperiod.R`): Tests financial outcomes across pre-period lengths 2-5. Key finding: margin ATT is +0.035 at pre=5 (main spec) and +0.041 at pre=4, but collapses to ~0 at pre=3 and pre=2. Net fixed assets is stable (~-0.08) across all pre-periods. Current ratio and capex are too imprecise to be informative at any pre-period length. The margin instability reflects sensitivity to sample composition — which hospitals survive the balanced panel requirement — rather than precision differences.
 
-**Decided approach**: No imputation. Report financial results with appropriate caveats about small treated samples in early cohorts. Pre-period sensitivity analysis in appendix.
+**Decided approach**: Ridge regression imputation for margin in 1994-1996 using HCRIS PPS data (see "Margin Imputation" below). Pre-period sensitivity analysis in appendix. Other financial outcomes (current_ratio, net_fixed, capex) remain unimputed — report with caveats about small treated samples.
 
-**Imputation explored and abandoned** (archived in `archived/0-impute-financials.R`):
-Tested two-step elastic net imputation using AHA predictors + hospital-specific residual correction. Abandoned on methodological grounds: AHA operational variables are poor predictors of financial outcomes (cross-sectional R² ranged from 0.01 for current ratio to 0.39 for net fixed assets). Even with hospital FE correction, the imputed values for hospitals lacking any observed financial data were essentially conditional means with little hospital-specific information.
-
-**Other alternatives considered**:
-- Improving fuzzy matching: Not a matching quality issue — coverage ceiling is structural (ownership composition)
-- Back-filling interpolation: Already interpolate internal gaps; back-filling extrapolates beyond observed data
-- `gsynth`/`fect` (interactive fixed effects / matrix completion): Handles unbalanced panels natively under different identification (factor model rather than parallel trends). Potential future appendix analysis.
+**Prior approaches explored and abandoned**:
+- *AHA-based imputation* (archived in `archived/0-impute-financials.R`): Elastic net using AHA predictors + hospital-specific residual correction. Abandoned — AHA operational variables are poor predictors of financial outcomes (cross-sectional R² 0.01-0.39).
+- *Manual 990 collection*: Feasible for ~32 nonprofits missing pre-1998 data, but superseded by HCRIS PPS imputation which covers all ownership types.
+- *Improving fuzzy matching*: Not a matching quality issue — coverage ceiling is structural (ownership composition).
+- *`gsynth`/`fect`*: Handles unbalanced panels natively under factor model identification. Potential future appendix analysis.
 
 **Data additions retained**: EXPTOT and PAYTOT added to `_aha-data.R` (all four data blocks). Available for future use.
 
-**Manual 990 collection (in progress)**: For the ~32 nonprofit hospitals in the 1999 cohort missing pre-1998 Form 990 data, manual collection from Guidestar/Candid or IRS TEOS is feasible. Script `data-code/extract-manual-990.R` generates the lookup list (`data/output/manual-990-ids.csv`) with hospital names, locations, and flags for which years (1994-1998) need collection. Total data points: ~150 (hospitals × missing years). Variables needed from 990 Part I: total revenue (line 12), total expenses (line 17) to compute margin.
+### HCRIS PPS Data Extension (2026-02-06)
+
+**New data**: The HCRIS data repo (`imccart/HCRIS`) now includes PPS minimum dataset (1985-1999) from NBER, merged with HCRIS v1996 (1998-2011) and v2010 (2010-2020). Symlink updated.
+
+**Variable availability by year** (key for financial outcomes):
+- **1994-1995**: `tot_charges` and `tot_operating_exp` near-complete (~6,200 records), BUT `tot_operating_exp` = Medicare-specific operating costs (not total) and `tot_charges` = cost allocation charges (not revenue statement). `net_pat_rev` only available for ~120-150 records. No balance sheet.
+- **1996**: Split — 3,326 records (~57%) have `net_pat_rev` from Form 2552-96 crosswalk; rest are PPS-only.
+- **1997+**: Near-complete for all financial variables including `net_pat_rev`, `tot_operating_exp` (total), balance sheet. ~6,000 records/year.
+
+**Key data facts**:
+- `tot_operating_exp` jumps ~16% at 1996/1997 boundary (Medicare-specific to total definition change)
+- Charge-to-revenue ratio (`tot_charges / net_pat_rev`) is stable within hospitals: correlation 0.85 between 1997 and 1998, mean ~1.72
+- Medicare-specific operating costs are NOT separately available in HCRIS for 1997+ (only PPS minimum dataset has `opertots`)
+
+### Margin Imputation (`analysis/supp-impute-margin.R`)
+
+Extends margin coverage to 1994-1996 using HCRIS PPS variables. Sourced after `stack_hosp` in `_run-analysis.r` (line 244). Creates `margin_imp` column in `stack.hosp`: observed margin where available, ridge-imputed where missing.
+
+**Note**: `margin_imp` is currently not wired into the outcome loop — `2-hospital-dd.R` still uses `margin`. Integration pending.
+
+**Calibration approaches explored** (details in `scratch/diag-margin-decomposed.R`):
+1. *Decomposed* (discharge-ratio scaling + charge-to-rev projection): RMSE 0.168 on 1998 holdout. Pre-1996 estimates implausibly high (mean +0.22 to +0.28 vs observed -0.03 to -0.05), indicating PPS "charges" and revenue-statement charges are not comparable.
+2. *Simple additive* (hospital-specific `margin_true - margin_charges` from 1997): RMSE 0.115, correlation 0.76. Better than decomposed but cannot be applied to 1994-1995 where `tot_operating_exp` has a different definition.
+3. *Ridge regression* (chosen): Predicts `margin_true` from `margin_charges`, `mcare_share`, and `charge_to_rev`. Trained on 1997, validated on 1998.
+
+**Production model** (in `supp-impute-margin.R`):
+- Ridge regression trained on 1997 within `stack.hosp` (non-CAH, bed-cut sample)
+- For 1994-1996: constructs `est_total_opex = tot_operating_exp / mcare_share`, then `margin_charges = (tot_charges - est_total_opex) / tot_charges`, and uses hospital-specific `charge_to_rev_avg` from 1997-1998
+- Training-support bounds enforced on all predictors
+- Imputed margins recentered by year to match 1997-1998 observed mean (-0.019)
+
+**Validation** (1998 holdout, bed-cut non-CAH sample): RMSE 0.074, MAE 0.048, correlation 0.87, bias 0.009 (n=484)
+
+**Coverage**: Fills ~30% (1994), ~28% (1995), ~16% (1996) of missing margins in the bed-cut sample. Coverage limited by hospitals lacking charge-to-rev ratios in 1997-1998 or having predictor values outside training support.
+
+**Exploratory diagnostics**: `scratch/diag-hcris-coverage.R` (variable availability), `scratch/diag-margin-decomposed.R` (full calibration exploration)
+
+### Next Steps (as of 2026-02-06)
+
+**Finalize margin imputation** — two parts:
+
+1. **Review imputation methodology**: Revisit `supp-impute-margin.R` decisions before committing to production use. Key questions to resolve:
+   - Is ridge the right model, or should we consider alternatives (e.g., OLS performed slightly better on 1998 holdout)?
+   - Is recentering to the 1997-1998 mean the right normalization, or does it impose too strong an assumption?
+   - Are the training-support bounds too restrictive (they limit coverage to ~30% of missing observations)?
+   - How sensitive are results to the choice of training year (1997 only vs pooling 1997-1998)?
+   - Should the imputation apply only to margin, or also extend to other financial outcomes?
+
+2. **Wire `margin_imp` into the analysis pipeline**: Once the methodology is finalized, integrate imputed margins into the SDID and CS estimators. Options:
+   - Add `margin_imp` as a separate outcome in `outcome_map` (run both imputed and non-imputed as robustness)
+   - Replace `margin` with `margin_imp` in `stack.hosp` (simpler but less transparent)
+   - The CS estimator runs on `est.dat` (not `stack.hosp`), so it would need its own imputation path or a pre-stacking imputation step
