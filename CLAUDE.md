@@ -306,29 +306,41 @@ Extends margin coverage to 1994-1996 using HCRIS PPS variables. Sourced after `s
 3. *Ridge regression* (chosen): Predicts `margin_true` from `margin_charges`, `mcare_share`, and `charge_to_rev`. Trained on 1997, validated on 1998.
 
 **Production model** (in `supp-impute-margin.R`):
-- Ridge regression trained on 1997 within `stack.hosp` (non-CAH, bed-cut sample)
+- OLS regression trained on 1997 within `stack.hosp` (non-CAH, bed-cut sample)
 - For 1994-1996: constructs `est_total_opex = tot_operating_exp / mcare_share`, then `margin_charges = (tot_charges - est_total_opex) / tot_charges`, and uses hospital-specific `charge_to_rev_avg` from 1997-1998
 - Training-support bounds enforced on all predictors
-- Imputed margins recentered by year to match 1997-1998 observed mean (-0.019)
+- No recentering (removed — see "Covariate Shift Problem" below)
 
-**Validation** (1998 holdout, bed-cut non-CAH sample): RMSE 0.074, MAE 0.048, correlation 0.87, bias 0.009 (n=484)
+**Validation** (1998 holdout, bed-cut non-CAH sample): RMSE 0.070, MAE 0.043, correlation 0.87, bias 0.007 (n=484)
 
 **Coverage**: Fills ~30% (1994), ~28% (1995), ~16% (1996) of missing margins in the bed-cut sample. Coverage limited by hospitals lacking charge-to-rev ratios in 1997-1998 or having predictor values outside training support.
 
 **Exploratory diagnostics**: `scratch/diag-hcris-coverage.R` (variable availability), `scratch/diag-margin-decomposed.R` (full calibration exploration)
 
-### Next Steps (as of 2026-02-06)
+### Covariate Shift Problem (2026-02-07)
 
-**Finalize margin imputation** — two parts:
+The OLS model performs well when predictors are measured correctly (1998 holdout RMSE 0.070, corr 0.87). But when applied to 1994-1996 PPS data, imputed margins are systematically too high:
 
-1. **Review imputation methodology**: Revisit `supp-impute-margin.R` decisions before committing to production use. Key questions to resolve:
-   - Is ridge the right model, or should we consider alternatives (e.g., OLS performed slightly better on 1998 holdout)?
-   - Is recentering to the 1997-1998 mean the right normalization, or does it impose too strong an assumption?
-   - Are the training-support bounds too restrictive (they limit coverage to ~30% of missing observations)?
-   - How sensitive are results to the choice of training year (1997 only vs pooling 1997-1998)?
-   - Should the imputation apply only to margin, or also extend to other financial outcomes?
+| Year | Imputed mean | Observed 1997-1998 mean | Gap |
+|------|-------------|------------------------|-----|
+| 1994 | +0.196 | -0.019 | +0.215 |
+| 1995 | +0.228 | -0.019 | +0.247 |
+| 1996 | +0.257 | -0.019 | +0.276 |
 
-2. **Wire `margin_imp` into the analysis pipeline**: Once the methodology is finalized, integrate imputed margins into the SDID and CS estimators. Options:
-   - Add `margin_imp` as a separate outcome in `outcome_map` (run both imputed and non-imputed as robustness)
-   - Replace `margin` with `margin_imp` in `stack.hosp` (simpler but less transparent)
-   - The CS estimator runs on `est.dat` (not `stack.hosp`), so it would need its own imputation path or a pre-stacking imputation step
+**Root cause**: The model is trained on 1997 HCRIS variables (true definitions) but applied to 1994-1996 PPS variables (different definitions). The PPS-to-HCRIS approximations (`est_total_opex = tot_operating_exp / mcare_share`, `charge_to_rev` projected from 1997-1998) introduce systematic upward bias. The growing gap over time likely reflects trending charge-to-revenue ratios — the 1997-1998 average overstates earlier years, and the OLS coefficient on `charge_to_rev` is -0.39.
+
+**Recentering (removed)**: Previously applied a year-specific shift to match 1997-1998 observed mean. Removed because: (1) it imposes a stationarity assumption that may not hold; (2) DD/SDID differences out uniform level shifts, so the bias should cancel in treatment effect estimates. However, the +0.2 gap is large enough that heterogeneity in the bias across hospitals could matter.
+
+**Solution — train on PPS-measured predictors**: The HCRIS data repo has PPS and HCRIS v1996 data overlapping in 1998-1999. If PPS-specific variables (`opertots`, `totalg`) are retained alongside HCRIS variables for these overlap years, the imputation model can be trained on PPS-measured predictors with HCRIS-measured outcomes. This directly addresses the covariate shift rather than correcting it post hoc. Change requested in the HCRIS project (`imccart/HCRIS` CLAUDE.md updated 2026-02-07).
+
+### Next Steps (as of 2026-02-07)
+
+**Blocked on HCRIS data update**: The margin imputation needs PPS-specific variables (`opertots`, `totalg`) retained as separate columns in the 1998-1999 overlap period. This change is documented in the HCRIS project CLAUDE.md and needs to be implemented there first.
+
+**Once HCRIS data is updated**:
+1. Retrain imputation model using PPS-measured predictors in 1998-1999 (where true margin is also observed)
+2. Validate that covariate shift bias is eliminated (imputed pre-period means should be plausible)
+3. Decide on recentering — may no longer be necessary if the model is trained on the correct measurement space
+4. Wire `margin_imp` into the analysis pipeline (currently created but unused by `2-hospital-dd.R`)
+   - Options: add as separate outcome in `outcome_map`, or replace `margin` in `stack.hosp`
+   - CS estimator runs on `est.dat` (not `stack.hosp`) — needs its own imputation path
