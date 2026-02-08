@@ -296,51 +296,41 @@ For these hospitals, the only pre-treatment financial data source is HCRIS, whic
 
 ### Margin Imputation (`analysis/supp-impute-margin.R`)
 
-Extends margin coverage to 1994-1996 using HCRIS PPS variables. Sourced after `stack_hosp` in `_run-analysis.r` (line 244). Creates `margin_imp` column in `stack.hosp`: observed margin where available, ridge-imputed where missing.
+Extends margin coverage to 1994-1996 using a two-stage OLS approach. Sourced after `stack_hosp` in `_run-analysis.r` (line 244). Creates `margin_imp` column in `stack.hosp`: observed margin where available, imputed where missing.
 
-**Note**: `margin_imp` is currently not wired into the outcome loop — `2-hospital-dd.R` still uses `margin`. Integration pending.
+**Note**: `margin_imp` is currently not wired into the outcome loop — `2-hospital-dd.R` still uses `margin`. Integration is the next step.
 
-**Calibration approaches explored** (details in `scratch/diag-margin-decomposed.R`):
-1. *Decomposed* (discharge-ratio scaling + charge-to-rev projection): RMSE 0.168 on 1998 holdout. Pre-1996 estimates implausibly high (mean +0.22 to +0.28 vs observed -0.03 to -0.05), indicating PPS "charges" and revenue-statement charges are not comparable.
-2. *Simple additive* (hospital-specific `margin_true - margin_charges` from 1997): RMSE 0.115, correlation 0.76. Better than decomposed but cannot be applied to 1994-1995 where `tot_operating_exp` has a different definition.
-3. *Ridge regression* (chosen): Predicts `margin_true` from `margin_charges`, `mcare_share`, and `charge_to_rev`. Trained on 1997, validated on 1998.
+**Two-stage hybrid approach** (current production model):
+- **Stage 1 (shift model)**: Translates PPS-measured `margin_charges` to HCRIS-equivalent using 1998 v1996 data where both measurement systems are observed. Predictors: `margin_charges_pps`, `pgm_cost_ratio`, `mcare_share`. This bridges the PPS/HCRIS measurement gap.
+- **Stage 2 (margin model)**: Predicts true margin from HCRIS-measured predictors (`margin_charges`, `mcare_share`, `charge_to_rev`). Trained on 1997 HCRIS data. Same proven model from earlier iterations.
+- **Application**: For 1994-1996, construct PPS predictors → Stage 1 translates to HCRIS-equivalent → add hospital-specific `charge_to_rev` from 1997-1998 → Stage 2 predicts true margin.
 
-**Production model** (in `supp-impute-margin.R`):
-- OLS regression trained on 1997 within `stack.hosp` (non-CAH, bed-cut sample)
-- For 1994-1996: constructs `est_total_opex = tot_operating_exp / mcare_share`, then `margin_charges = (tot_charges - est_total_opex) / tot_charges`, and uses hospital-specific `charge_to_rev_avg` from 1997-1998
-- Training-support bounds enforced on all predictors
-- No recentering (removed — see "Covariate Shift Problem" below)
+**PPS-equivalent variables**: `pps_mcare_cost`, `pps_pgm_cost`, `pps_ip_charges`, `pps_op_charges` extracted from HCRIS v1996 cost-allocation worksheets. Available for v1996 rows (1998+), NA for PPS and v2010 rows. See HCRIS project CLAUDE.md for extraction details. Mapping ambiguity: `opertots` (PPS) could correspond to either `pps_mcare_cost` (Wkst D Line 49) or `pps_pgm_cost` (Wkst D Line 53) — both included as predictors, letting the model sort out the weighting.
 
-**Validation** (1998 holdout, bed-cut non-CAH sample): RMSE 0.070, MAE 0.043, correlation 0.87, bias 0.007 (n=484)
+**Validation** (1999 holdout, full pipeline): RMSE 0.214, MAE 0.148, correlation 0.24, bias -0.014 (n=475). Stage 1 alone: RMSE 0.151, correlation 0.38.
 
-**Coverage**: Fills ~30% (1994), ~28% (1995), ~16% (1996) of missing margins in the bed-cut sample. Coverage limited by hospitals lacking charge-to-rev ratios in 1997-1998 or having predictor values outside training support.
+**Imputed margin distributions** (bed-cut sample, no recentering):
+
+| Year | n | Mean | SD | Gap vs observed 1997-1998 |
+|------|---|------|----|--------------------------|
+| 1994 | 1726 | -0.094 | 0.162 | -0.075 |
+| 1995 | 1762 | -0.071 | 0.159 | -0.052 |
+| 1996 | 815 | -0.062 | 0.159 | -0.043 |
+
+**Coverage**: Fills ~37% (1994), ~38% (1995), ~22% (1996) of missing margins in bed-cut sample.
+
+**Approaches explored and abandoned**:
+1. *Single-stage OLS on HCRIS predictors*: Good cross-sectional prediction (holdout RMSE 0.070, corr 0.87) but +0.22 to +0.28 level bias from covariate shift — PPS variable definitions differ from HCRIS definitions used in training.
+2. *Single-stage OLS on PPS-equivalent predictors*: Correct level but no cross-sectional variation (holdout corr 0.20, SD 0.016) — cost-allocation ratios don't predict operating profitability.
+3. *Decomposed calibration*: RMSE 0.168, implausibly high pre-1996 estimates.
+4. *Simple additive correction*: RMSE 0.115, but cannot apply to 1994-1995 where `tot_operating_exp` has different definition.
+5. *Ridge regression*: No benefit over OLS with 3 predictors.
+6. *Recentering*: Imposes stationarity assumption; DD/SDID should difference out level shifts.
 
 **Exploratory diagnostics**: `scratch/diag-hcris-coverage.R` (variable availability), `scratch/diag-margin-decomposed.R` (full calibration exploration)
 
-### Covariate Shift Problem (2026-02-07)
+### Next Steps (as of 2026-02-08)
 
-The OLS model performs well when predictors are measured correctly (1998 holdout RMSE 0.070, corr 0.87). But when applied to 1994-1996 PPS data, imputed margins are systematically too high:
-
-| Year | Imputed mean | Observed 1997-1998 mean | Gap |
-|------|-------------|------------------------|-----|
-| 1994 | +0.196 | -0.019 | +0.215 |
-| 1995 | +0.228 | -0.019 | +0.247 |
-| 1996 | +0.257 | -0.019 | +0.276 |
-
-**Root cause**: The model is trained on 1997 HCRIS variables (true definitions) but applied to 1994-1996 PPS variables (different definitions). The PPS-to-HCRIS approximations (`est_total_opex = tot_operating_exp / mcare_share`, `charge_to_rev` projected from 1997-1998) introduce systematic upward bias. The growing gap over time likely reflects trending charge-to-revenue ratios — the 1997-1998 average overstates earlier years, and the OLS coefficient on `charge_to_rev` is -0.39.
-
-**Recentering (removed)**: Previously applied a year-specific shift to match 1997-1998 observed mean. Removed because: (1) it imposes a stationarity assumption that may not hold; (2) DD/SDID differences out uniform level shifts, so the bias should cancel in treatment effect estimates. However, the +0.2 gap is large enough that heterogeneity in the bias across hospitals could matter.
-
-**Solution — train on PPS-measured predictors**: The HCRIS data repo has PPS and HCRIS v1996 data overlapping in 1998-1999. If PPS-specific variables (`opertots`, `totalg`) are retained alongside HCRIS variables for these overlap years, the imputation model can be trained on PPS-measured predictors with HCRIS-measured outcomes. This directly addresses the covariate shift rather than correcting it post hoc. Change requested in the HCRIS project (`imccart/HCRIS` CLAUDE.md updated 2026-02-07).
-
-### Next Steps (as of 2026-02-07)
-
-**Blocked on HCRIS data update**: The margin imputation needs PPS-specific variables (`opertots`, `totalg`) retained as separate columns in the 1998-1999 overlap period. This change is documented in the HCRIS project CLAUDE.md and needs to be implemented there first.
-
-**Once HCRIS data is updated**:
-1. Retrain imputation model using PPS-measured predictors in 1998-1999 (where true margin is also observed)
-2. Validate that covariate shift bias is eliminated (imputed pre-period means should be plausible)
-3. Decide on recentering — may no longer be necessary if the model is trained on the correct measurement space
-4. Wire `margin_imp` into the analysis pipeline (currently created but unused by `2-hospital-dd.R`)
-   - Options: add as separate outcome in `outcome_map`, or replace `margin` in `stack.hosp`
-   - CS estimator runs on `est.dat` (not `stack.hosp`) — needs its own imputation path
+**Wire `margin_imp` into the analysis pipeline** (currently created but unused by `2-hospital-dd.R`):
+- Options: add `margin_imp` as separate outcome in `outcome_map`, or replace `margin` in `stack.hosp`
+- CS estimator runs on `est.dat` (not `stack.hosp`) — needs its own imputation path or a pre-stacking step
