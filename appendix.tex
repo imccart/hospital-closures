@@ -38,7 +38,7 @@
 
 \vspace{1cm}
 
-This appendix provides supplementary material for the main text. Section~\ref{sec:app-financial} details the construction of our hospital-level financial measures. Section~\ref{sec:app-robustness} presents robustness checks varying the lag structure for state-level CAH adoption in the control group definition. Section~\ref{sec:app-diagnostics} reports diagnostics for the synthetic difference-in-differences (SDID) estimator, including sample attrition from balanced-panel requirements, pre-trend tests, and synthetic control weight concentration.
+This appendix provides supplementary material for the main text. Section~\ref{sec:app-financial} details the construction of our hospital-level financial measures. Section~\ref{sec:app-robustness} presents robustness checks varying the lag structure for state-level CAH adoption in the control group definition. Section~\ref{sec:app-diagnostics} reports diagnostics for the synthetic difference-in-differences (SDID) estimator, including sample attrition from balanced-panel requirements, pre-trend tests, and synthetic control weight concentration. Section~\ref{sec:app-preperiod} examines the sensitivity of financial outcome estimates to the choice of pre-period length.
 
 
 %%% ===================================================================
@@ -48,7 +48,7 @@ This appendix provides supplementary material for the main text. Section~\ref{se
 \section{Financial Measure Construction}
 \label{sec:app-financial}
 
-We construct four financial measures---operating margin, current ratio, net fixed assets per bed, and capital expenditures per bed---by combining data from the Healthcare Cost Report Information System (HCRIS) and IRS Form 990 filings. HCRIS is the primary source for all four measures; Form 990 serves as a secondary source when HCRIS data are unavailable for a given hospital-year. This section describes the construction of each measure, the source hierarchy, and the post-processing steps applied to the combined series.
+We construct six financial measures---operating margin, current ratio, net patient revenue per bed, total operating expenses per bed, net fixed assets per bed, and capital expenditures per bed---by combining data from the Healthcare Cost Report Information System (HCRIS) and IRS Form 990 filings. HCRIS is the primary source for all measures; Form 990 serves as a secondary source when HCRIS data are unavailable for a given hospital-year. This section describes the construction of each measure, the source hierarchy, and the post-processing steps applied to the combined series.
 
 \subsection{Data Sources}
 
@@ -85,9 +85,21 @@ $$
 \text{capex per bed} = \frac{\Delta\text{gross fixed assets}}{10^4 \times \bar{B}_{\text{pre}} \times \text{CPI deflator}}.
 $$
 
+\paragraph{\textit{Net patient revenue per bed.}} Net patient revenue is taken from the HCRIS income statement when available. When HCRIS data are unavailable, we substitute total revenue from the Form 990. We normalize by each hospital's pre-period mean bed count and deflate to constant 2010 dollars using the CPI-U, expressed in thousands of dollars per bed:
+$$
+\text{net patient revenue per bed} = \frac{\text{net patient revenue}}{10^3 \times \bar{B}_{\text{pre}} \times \text{CPI deflator}}.
+$$
+
+\paragraph{\textit{Total operating expenses per bed.}} Total operating expenses are taken from the HCRIS income statement when available, with total expenses from the Form 990 as a fallback. As with revenue, we normalize by the pre-period mean bed count and deflate to constant 2010 dollars, expressed in thousands of dollars per bed:
+$$
+\text{operating expenses per bed} = \frac{\text{total operating expenses}}{10^3 \times \bar{B}_{\text{pre}} \times \text{CPI deflator}}.
+$$
+
+\noindent Because operating margin is defined as $(R - C)/R$, these two component measures allow us to assess whether changes in margins reflect movements in revenue, costs, or both. The revenue and expense measures are constructed after computing operating margin from raw values, so the winsorization and per-bed normalization applied to these components do not affect the margin calculation.
+
 \subsection{Post-Processing}
 
-\paragraph{\textit{Winsorization.}} We winsorize operating margin, current ratio, net fixed assets, and capital expenditures at the 5th and 95th percentiles within each year-by-ever-CAH cell. Winsorization is applied after combining HCRIS and Form 990 sources but before CPI deflation and per-bed normalization of the capital measures. This reduces the influence of extreme values driven by reporting anomalies while preserving cross-sectional and temporal variation within plausible ranges.
+\paragraph{\textit{Winsorization.}} We winsorize all six financial measures at the 5th and 95th percentiles within each year-by-ever-CAH cell. Winsorization is applied after combining HCRIS and Form 990 sources but before CPI deflation and per-bed normalization of the capital and revenue/expense measures. This reduces the influence of extreme values driven by reporting anomalies while preserving cross-sectional and temporal variation within plausible ranges.
 
 \paragraph{\textit{Interpolation.}} After winsorization, we linearly interpolate missing values within each hospital's time series using observed year as the time index. Interpolation fills isolated gaps (e.g., a single missing cost report year) while leaving leading and trailing missingness unchanged. The same interpolation procedure is applied to the capacity and staffing variables (total beds, OB beds, FTE RNs, and inpatient days per bed).
 
@@ -153,6 +165,8 @@ Outcome & Cohort & Coefficient & Std.\ Error & $p$-value \\
 
 The FTE RN outcome shows evidence of differential pre-trends in some cohorts. This is consistent with treated hospitals---small, rural facilities pursuing CAH designation---already experiencing staffing declines before the policy change. Estimates for FTE RNs should be interpreted with this caveat in mind.
 
+The revenue and expense decomposition outcomes also exhibit differential pre-trends. Total operating expenses per bed shows statistically significant trends in all three cohorts ($p < 0.002$ in each case), while net patient revenue per bed flags in the 1999 cohort ($p = 0.003$) and marginally in 2001 ($p = 0.06$). However, as shown in Section~\ref{sec:app-preperiod}, SDID point estimates for these outcomes are stable across pre-period lengths of 2--5 years, suggesting the estimates are not mechanically driven by differential trends. We therefore present the revenue/expense decomposition as suggestive evidence rather than drawing strong causal conclusions from these outcomes alone.
+
 %%% PRE-TREND FIGURES
 \clearpage
 
@@ -174,6 +188,14 @@ Figures~\ref{fig:pretrend-financial}--\ref{fig:pretrend-org} plot mean outcomes 
 \hfill
 \begin{subfigure}[b]{0.48\textwidth}
   \includegraphics[width=\textwidth]{results/diagnostics/diag-pretrend-capex.png}
+\end{subfigure}
+\\[0.5cm]
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/diagnostics/diag-pretrend-net_pat_rev.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/diagnostics/diag-pretrend-tot_operating_exp.png}
 \end{subfigure}
 \caption{Pre/post trends: Financial performance outcomes}
 \label{fig:pretrend-financial}
@@ -236,5 +258,43 @@ Outcome & Cohort & $N$ Controls & Max Weight & Top 5 Share & HHI \\
 \textit{Notes:} ``$N$ Controls'' is the number of control units in the balanced panel. ``Max Weight'' is the largest single omega weight assigned by the SDID estimator. ``Top 5 Share'' is the sum of the five largest weights. ``HHI'' is the Herfindahl--Hirschman Index of the omega weights ($\sum \omega_i^2$), where values closer to zero indicate more dispersed weighting. Hospital-level outcomes use individual hospitals as units; state-level outcomes (closures, mergers) use states.
 \end{minipage}
 \end{table}
+
+%%% ===================================================================
+%%% SECTION D: Pre-Period Sensitivity for Financial Outcomes
+%%% ===================================================================
+
+\section{Pre-Period Sensitivity for Financial Outcomes}
+\label{sec:app-preperiod}
+
+Financial outcomes rely on data from HCRIS and IRS Form 990 filings, which have sparser pre-treatment coverage than the AHA survey data used for capacity and staffing outcomes. In particular, HCRIS coverage ramps up gradually through the late 1990s, so that requiring longer pre-periods mechanically reduces the balanced panel. To assess whether our SDID estimates for financial outcomes are sensitive to the choice of pre-period length, we re-estimate each financial outcome using pre-periods of 2, 3, 4, and 5 years. The baseline specification in the main text uses 5 pre-periods.
+
+Table~\ref{tab:preperiod-financial} reports the results. Operating margin estimates are consistently near zero across all pre-period lengths ($-0.010$ to $0.004$), confirming that the null margin result is not an artifact of any particular pre-period choice. Net fixed assets per bed is similarly stable, ranging from $-0.099$ to $-0.072$. Current ratio estimates attenuate from $-0.709$ (pre-period~$=5$) to $-0.418$ (pre-period~$=2$), losing statistical significance at the shortest pre-period, but remaining negative throughout.
+
+The decomposition outcomes---net patient revenue per bed and total operating expenses per bed---are remarkably stable across pre-period lengths. Revenue estimates range from $-200$ to $-219$ thousand 2010 dollars per bed, and expense estimates range from $-177$ to $-208$. The near-identical co-movement of revenue and expenses persists at every pre-period length, reinforcing the proportional contraction interpretation. Capital expenditures per bed remain uninformative at all pre-period lengths.
+
+As the pre-period shortens, the treated sample grows from 34 hospitals (pre-period~$=5$) to 43 (pre-period~$=2$), and the control pool expands from 139 to 319. The stability of point estimates across this range of sample sizes provides additional reassurance that the results are not driven by a particular subset of hospitals that happen to have unusually long financial histories.
+
+\begin{landscape}
+\begin{table}[H]
+\centering
+\caption{Pre-Period Sensitivity: Financial Outcome SDID Estimates}
+\label{tab:preperiod-financial}
+\small
+\begin{tabular}{l cc cc cc cc}
+\toprule
+ & \multicolumn{2}{c}{Pre $= 5$} & \multicolumn{2}{c}{Pre $= 4$} & \multicolumn{2}{c}{Pre $= 3$} & \multicolumn{2}{c}{Pre $= 2$} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9}
+Outcome & ATT & 95\% CI & ATT & 95\% CI & ATT & 95\% CI & ATT & 95\% CI \\
+\midrule
+\input{results/app-preperiod-financial.tex}
+\bottomrule
+\end{tabular}
+\begin{minipage}{0.95\linewidth}
+\vspace{0.3cm}
+\footnotesize
+\textit{Notes:} Each cell reports the pooled SDID ATT and 95\% confidence interval for the indicated financial outcome and pre-period length. Revenue and expense measures are in thousands of 2010 dollars per bed. The pre-period length determines the number of years before CAH designation required to enter the balanced panel; shorter pre-periods admit more hospitals. ``Control obs.'' and ``Treated obs.'' report the number of hospitals in the SDID balanced panel at each pre-period length.
+\end{minipage}
+\end{table}
+\end{landscape}
 
 \end{document}

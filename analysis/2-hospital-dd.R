@@ -194,7 +194,9 @@ min.es <- -pre_period  # use same pre-period as SDID
 max.es <- 5
 
 cs.dat <- est.dat %>%
-      group_by(ID) %>% mutate(min_bedsize=min(BDTOT, na.rm=TRUE), max_distance=max(distance, na.rm=TRUE)) %>% ungroup() %>%  
+      group_by(ID) %>% 
+      mutate(min_bedsize=min(BDTOT, na.rm=TRUE), max_distance=max(distance, na.rm=TRUE)) %>% 
+      ungroup() %>%
       filter(min_bedsize<=bed.cut) %>%
       mutate(y=!!outcome_sym,
             ID2=as.numeric(factor(ID)), 

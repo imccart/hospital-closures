@@ -14,12 +14,6 @@ pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, jani
 
 source('analysis/functions.R')
 
-## Global parameters for estimation and stacking
-bed.cut   <- 50
-post      <- 5
-state.cut <- 0
-pre_period <- 5
-
 ## Winsorization function
 winsor_by_year <- function(x, probs = c(0.05, 0.95)) {
   qs <- quantile(x, probs = probs, na.rm = TRUE)
@@ -120,6 +114,14 @@ est.dat <- final.dat %>%
             !is.na(margin_1) ~ margin_1,
             is.na(margin_1) & !is.na(margin_2) ~ margin_2,
             is.na(margin_1) & is.na(margin_2) & !is.na(margin_3) ~ margin_3),
+         net_pat_rev_990=case_when(
+            !is.na(total_revenue_1) ~ total_revenue_1,
+            is.na(total_revenue_1) & !is.na(total_revenue_2) ~ total_revenue_2,
+            is.na(total_revenue_1) & is.na(total_revenue_2) & !is.na(total_revenue_3) ~ total_revenue_3),
+         tot_operating_exp_990=case_when(
+            !is.na(total_expenses_1) ~ total_expenses_1,
+            is.na(total_expenses_1) & !is.na(total_expenses_2) ~ total_expenses_2,
+            is.na(total_expenses_1) & is.na(total_expenses_2) & !is.na(total_expenses_3) ~ total_expenses_3),
          net_fixed_990=case_when(
             !is.na(net_fixed_1) ~ net_fixed_1,
             is.na(net_fixed_1) & !is.na(net_fixed_2) ~ net_fixed_2,
@@ -141,6 +143,8 @@ est.dat <- final.dat %>%
     margin=ifelse(!is.na(margin_hcris), margin_hcris, margin_990),
     net_fixed=ifelse(!is.na(fixed_assets), fixed_assets, net_fixed_990),
     current_ratio=ifelse(!is.na(current_ratio_hcris), current_ratio_hcris, current_ratio_990),
+    net_pat_rev=ifelse(!is.na(net_pat_rev), net_pat_rev, net_pat_rev_990),
+    tot_operating_exp=ifelse(!is.na(tot_operating_exp), tot_operating_exp, tot_operating_exp_990),
     state_event_time=case_when(
       state_treat_year>0 ~ year - state_treat_year,
       state_treat_year==0 ~ -1),
@@ -163,6 +167,8 @@ est.dat <- final.dat %>%
     net_fixed     = winsor_by_year(net_fixed),
     current_ratio = winsor_by_year(current_ratio),
     capex         = winsor_by_year(capex),
+    net_pat_rev       = winsor_by_year(net_pat_rev),
+    tot_operating_exp = winsor_by_year(tot_operating_exp),
     BDTOT         = winsor_by_year(BDTOT),
     OBBD          = winsor_by_year(OBBD),
     FTERN         = winsor_by_year(FTERN),
@@ -172,7 +178,9 @@ est.dat <- final.dat %>%
   ungroup() %>%
   mutate(
     net_fixed    = net_fixed / 1e6 / beds_base / cpi_deflator,
-    capex        = capex / 1e4 / beds_base / cpi_deflator
+    capex        = capex / 1e4 / beds_base / cpi_deflator,
+    net_pat_rev       = net_pat_rev / 1e3 / beds_base / cpi_deflator,
+    tot_operating_exp = tot_operating_exp / 1e3 / beds_base / cpi_deflator
   ) %>%
   arrange(ID, year) %>%
   group_by(ID) %>%
@@ -185,7 +193,9 @@ est.dat <- final.dat %>%
          OBBD = na.approx(OBBD, x=year, na.rm=FALSE),
          FTERN = na.approx(FTERN, x=year, na.rm=FALSE),
          IPDTOT = na.approx(IPDTOT, x=year, na.rm=FALSE),
-         ip_per_bed = na.approx(ip_per_bed, x=year, na.rm=FALSE)) %>%
+         ip_per_bed = na.approx(ip_per_bed, x=year, na.rm=FALSE),
+         net_pat_rev = na.approx(net_pat_rev, x=year, na.rm=FALSE),
+         tot_operating_exp = na.approx(tot_operating_exp, x=year, na.rm=FALSE)) %>%
   ungroup()
 
 
@@ -229,28 +239,34 @@ state.dat <- est.dat %>%
     rate_merged=mergers/hospitals_lag,
     rate_changes=changes/hospitals_lag)
 
-# source('analysis/supp-extract-manual.R')
-
 # Source analysis code files -----------------------------------------------
 write_csv(est.dat, 'data/output/estimation_data.csv')
 write_csv(state.dat, 'data/output/state_estimation_data.csv')
 
 source('analysis/1-sum-stats.R')
 
+## Global parameters for estimation and stacking
+bed.cut   <- 50
+post      <- 5
+state.cut <- 0
+financial.pre <- 5
+
 stack.hosp  <- stack_hosp(pre.period=5, post.period=post, state.period=state.cut)
 stack.state <- stack_state(pre.period=5, post.period=post, state.period=state.cut)
 
 ## impute missing margin values for very early years
-source('analysis/supp-impute-margin.R')
+#source('analysis/supp-impute-margin.R')
 
 ## Unified outcome map
 outcome_map <- list(
 
   # Hospital continuous outcomes (cohorts 1999:2001)
-  margin        = list(script="analysis/2-hospital-dd.R", label="Operating margin",             stub="margin",       cohorts=1999:2001),
-  current_ratio = list(script="analysis/2-hospital-dd.R", label="Current ratio",                stub="currentratio", cohorts=1999:2001),
-  net_fixed     = list(script="analysis/2-hospital-dd.R", label="Net fixed assets",             stub="netfixed",     cohorts=1999:2001),
-  capex         = list(script="analysis/2-hospital-dd.R", label="Capital expenditures per bed", stub="capex",        cohorts=1999:2001),
+  margin        = list(script="analysis/2-hospital-dd.R", label="Operating margin",             stub="margin",       cohorts=1999:2001, pre_period=financial.pre),
+  current_ratio = list(script="analysis/2-hospital-dd.R", label="Current ratio",                stub="currentratio", cohorts=1999:2001, pre_period=financial.pre),
+  net_fixed     = list(script="analysis/2-hospital-dd.R", label="Net fixed assets",             stub="netfixed",     cohorts=1999:2001, pre_period=financial.pre),
+  capex         = list(script="analysis/2-hospital-dd.R", label="Capital expenditures per bed", stub="capex",        cohorts=1999:2001, pre_period=financial.pre),
+  net_pat_rev       = list(script="analysis/2-hospital-dd.R", label="Net patient revenue per bed",  stub="netpatrev",  cohorts=1999:2001, pre_period=financial.pre),
+  tot_operating_exp = list(script="analysis/2-hospital-dd.R", label="Operating expenses per bed",   stub="totopexp",   cohorts=1999:2001, pre_period=financial.pre),
   BDTOT         = list(script="analysis/2-hospital-dd.R", label="Total beds",                   stub="beds",         cohorts=1999:2001),
   OBBD          = list(script="analysis/2-hospital-dd.R", label="OB beds",                      stub="beds_ob",      cohorts=1999:2001),
   FTERN         = list(script="analysis/2-hospital-dd.R", label="FTE RNs",                      stub="ftern",        cohorts=1999:2001),
@@ -315,3 +331,6 @@ writeLines(c(
 
 ## Diagnostics ------------------------------------------------------------
 source('analysis/app-dd-diagnostics.R')
+
+## Sensitivity analyses ---------------------------------------------------
+source('analysis/app-financial-preperiod.R')

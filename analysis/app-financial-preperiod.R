@@ -1,6 +1,6 @@
-# app-margin-preperiod.R
+# app-financial-preperiod.R
 # Pre-period sensitivity analysis for financial outcomes
-# Runs SDID across pre-period lengths 2-5 for margin, current_ratio, net_fixed, capex
+# Runs SDID across pre-period lengths 2-5 for all financial outcomes
 # Requires: stack.hosp, bed.cut, est.dat from _run-analysis.r
 # Output: results/app-preperiod-financial.tex (LaTeX tabular innards)
 
@@ -8,7 +8,9 @@ financial_outcomes <- list(
   margin        = list(label = "Operating margin",             stub = "margin"),
   current_ratio = list(label = "Current ratio",                stub = "currentratio"),
   net_fixed     = list(label = "Net fixed assets",             stub = "netfixed"),
-  capex         = list(label = "Capital expenditures per bed", stub = "capex")
+  capex         = list(label = "Capital expenditures per bed", stub = "capex"),
+  net_pat_rev       = list(label = "Net patient revenue per bed",  stub = "netpatrev"),
+  tot_operating_exp = list(label = "Operating expenses per bed",   stub = "totopexp")
 )
 
 pre_periods <- c(5, 4, 3, 2)

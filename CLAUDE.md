@@ -59,7 +59,7 @@ Key design elements:
 - `state_treat_year`: Year CAH program became available in state (0 = never)
 - `treat_state`: Binary for states that ever had CAH program
 - `closed`, `merged`, `closed_merged`: Hospital event outcomes
-- Financial: `margin`, `current_ratio`, `net_fixed_assets`, `capex`
+- Financial: `margin`, `current_ratio`, `net_fixed_assets`, `capex`, `net_pat_rev`, `tot_operating_exp`
 - Operational: `beds`, `beds_ob`, `ftes_rn`, `ip_days_per_bed`
 
 ## External Data Dependencies
@@ -104,7 +104,7 @@ The analysis pipeline in `_run-analysis.r` now uses a unified outcome loop with 
 
 | Script | Level | Outcomes | Notes |
 |--------|-------|----------|-------|
-| `2-hospital-dd.R` | Hospital | margin, current_ratio, net_fixed, capex, beds, OB beds, FTE RNs, IP days, system | Continuous outcomes using `stack.hosp` |
+| `2-hospital-dd.R` | Hospital | margin, current_ratio, net_fixed, capex, net_pat_rev, tot_operating_exp, beds, OB beds, FTE RNs, IP days, system | Continuous outcomes using `stack.hosp` |
 | `3-changes-state-dd.R` | State | closures, mergers | Count outcomes using `stack.state`, normalized to rates per 100 hospitals |
 | `4-changes-hospital-hazard.R` | Hospital | time-to-closure/merger | Survival/hazard models |
 | `dd-other.R` | Mixed | Various | Deleted — legacy/exploratory code (TWFE, Sun & Abraham, early implementations), superseded by stacked SDID + CS approach |
@@ -138,7 +138,7 @@ The analysis pipeline in `_run-analysis.r` now uses a unified outcome loop with 
 - **Intent-to-treat on eligibility**: Define treatment as "eligible for CAH" based on pre-determined characteristics rather than actual adoption (not currently implemented)
 
 ### Active Outcomes in Current Analysis
-- **Hospital continuous**: margin, current_ratio, net_fixed, capex, BDTOT, OBBD, FTERN, IPDTOT, system (cohorts 1999-2001)
+- **Hospital continuous**: margin, current_ratio, net_fixed, capex, net_pat_rev, tot_operating_exp, BDTOT, OBBD, FTERN, IPDTOT, system (cohorts 1999-2001)
 - **State counts**: closures, mergers (cohorts 1999-2001)
 
 ### Data Cleaning Notes
@@ -268,13 +268,14 @@ Matching a hospital to any of these entities would produce invalid financial met
 
 For these hospitals, the only pre-treatment financial data source is HCRIS, which ramps up slowly: 7 hospitals in 1998, 27 in 1999, near-complete (~77) from 2000. The 3 hospitals surviving the balanced panel at `pre_period=5` are the rare nonprofits with Form 990 matches reaching back to 1994.
 
-**Pre-period sensitivity** (`analysis/app-margin-preperiod.R`): Tests financial outcomes across pre-period lengths 2-5. Key finding: margin ATT is +0.035 at pre=5 (main spec) and +0.041 at pre=4, but collapses to ~0 at pre=3 and pre=2. Net fixed assets is stable (~-0.08) across all pre-periods. Current ratio and capex are too imprecise to be informative at any pre-period length. The margin instability reflects sensitivity to sample composition — which hospitals survive the balanced panel requirement — rather than precision differences.
+**Pre-period sensitivity** (`analysis/app-financial-preperiod.R`): Tests all 6 financial outcomes (margin, current_ratio, net_fixed, capex, net_pat_rev, tot_operating_exp) across pre-period lengths 2-5. Key findings: margin is consistently null (~0) at all pre-period lengths. Net fixed assets is stable (~-0.08) across all pre-periods. Net patient revenue per bed (~-200 to -219) and operating expenses per bed (~-177 to -208) are remarkably stable — point estimates barely move with pre-period length. Current ratio attenuates from -0.71 (pre=5) to -0.42 (pre=2), losing significance at pre=2. Capex is uninformative at any length. Treated obs: 34 (pre=5) → 43 (pre=2); controls: 139 → 319.
 
-**Decided approach**: Ridge regression imputation for margin in 1994-1996 using HCRIS PPS data (see "Margin Imputation" below). Pre-period sensitivity analysis in appendix. Other financial outcomes (current_ratio, net_fixed, capex) remain unimputed — report with caveats about small treated samples.
+**Decided approach**: Use observed margin data only; HCRIS PPS extension (1985-1999) now provides `net_pat_rev` for ~57% of 1996 records, improving pre-treatment coverage without imputation. Financial outcomes use `pre_period=financial.pre` (set in `_run-analysis.r`) to allow shorter pre-periods than AHA outcomes. Pre-period sensitivity analysis in appendix. Other financial outcomes (current_ratio, net_fixed, capex) reported with caveats about small treated samples.
 
 **Prior approaches explored and abandoned**:
+- *HCRIS PPS margin imputation* (`supp-impute-margin.R`, archived 2026-02-09): Two-stage hybrid OLS — Stage 1 translated PPS-measured `margin_charges` to HCRIS-equivalent (1998 training), Stage 2 predicted true margin from HCRIS predictors (1997 training). Abandoned due to poor out-of-sample fit: full-pipeline 1999 holdout RMSE 0.214, correlation 0.24. Stage 1 was the bottleneck — PPS cost-allocation variables weakly predict revenue-statement margins. The fundamental problem is that PPS minimum dataset variables (Medicare-specific costs, cost-allocation charges) are structurally different from HCRIS revenue-statement variables, and no statistical model could reliably bridge this gap. Script remains in repo but is commented out in `_run-analysis.r` (line 242).
 - *AHA-based imputation* (archived in `archived/0-impute-financials.R`): Elastic net using AHA predictors + hospital-specific residual correction. Abandoned — AHA operational variables are poor predictors of financial outcomes (cross-sectional R² 0.01-0.39).
-- *Manual 990 collection*: Feasible for ~32 nonprofits missing pre-1998 data, but superseded by HCRIS PPS imputation which covers all ownership types.
+- *Manual 990 collection*: Feasible for ~32 nonprofits missing pre-1998 data, but superseded by HCRIS PPS data extension.
 - *Improving fuzzy matching*: Not a matching quality issue — coverage ceiling is structural (ownership composition).
 - *`gsynth`/`fect`*: Handles unbalanced panels natively under factor model identification. Potential future appendix analysis.
 
@@ -294,43 +295,28 @@ For these hospitals, the only pre-treatment financial data source is HCRIS, whic
 - Charge-to-revenue ratio (`tot_charges / net_pat_rev`) is stable within hospitals: correlation 0.85 between 1997 and 1998, mean ~1.72
 - Medicare-specific operating costs are NOT separately available in HCRIS for 1997+ (only PPS minimum dataset has `opertots`)
 
-### Margin Imputation (`analysis/supp-impute-margin.R`)
+### Margin Imputation (archived 2026-02-09)
 
-Extends margin coverage to 1994-1996 using a two-stage OLS approach. Sourced after `stack_hosp` in `_run-analysis.r` (line 244). Creates `margin_imp` column in `stack.hosp`: observed margin where available, imputed where missing.
+Attempted to extend margin coverage to 1994-1996 using HCRIS PPS data via `analysis/supp-impute-margin.R`. Abandoned due to poor out-of-sample fit — the fundamental problem is that PPS minimum dataset variables (Medicare-specific costs, cost-allocation charges) are structurally different from HCRIS revenue-statement variables needed to compute operating margin.
 
-**Note**: `margin_imp` is currently not wired into the outcome loop — `2-hospital-dd.R` still uses `margin`. Integration is the next step.
+**Best model achieved**: Two-stage hybrid OLS (Stage 1: PPS→HCRIS measurement bridge; Stage 2: HCRIS predictors→margin). Full-pipeline 1999 holdout: RMSE 0.214, correlation 0.24. Six alternative approaches were also tested (single-stage OLS variants, decomposed calibration, additive correction, ridge, recentering) — none performed adequately. Details preserved in git history (commit `7da3ab8`).
 
-**Two-stage hybrid approach** (current production model):
-- **Stage 1 (shift model)**: Translates PPS-measured `margin_charges` to HCRIS-equivalent using 1998 v1996 data where both measurement systems are observed. Predictors: `margin_charges_pps`, `pgm_cost_ratio`, `mcare_share`. This bridges the PPS/HCRIS measurement gap.
-- **Stage 2 (margin model)**: Predicts true margin from HCRIS-measured predictors (`margin_charges`, `mcare_share`, `charge_to_rev`). Trained on 1997 HCRIS data. Same proven model from earlier iterations.
-- **Application**: For 1994-1996, construct PPS predictors → Stage 1 translates to HCRIS-equivalent → add hospital-specific `charge_to_rev` from 1997-1998 → Stage 2 predicts true margin.
+**Current approach**: Use observed margin data only. The HCRIS PPS extension provides `net_pat_rev` for ~57% of 1996 records, improving coverage without imputation. Financial outcomes use shorter pre-periods (`financial.pre` variable) with sensitivity analysis in appendix.
 
-**PPS-equivalent variables**: `pps_mcare_cost`, `pps_pgm_cost`, `pps_ip_charges`, `pps_op_charges` extracted from HCRIS v1996 cost-allocation worksheets. Available for v1996 rows (1998+), NA for PPS and v2010 rows. See HCRIS project CLAUDE.md for extraction details. Mapping ambiguity: `opertots` (PPS) could correspond to either `pps_mcare_cost` (Wkst D Line 49) or `pps_pgm_cost` (Wkst D Line 53) — both included as predictors, letting the model sort out the weighting.
+**Exploratory diagnostics retained**: `scratch/diag-hcris-coverage.R`, `scratch/diag-margin-decomposed.R`
 
-**Validation** (1999 holdout, full pipeline): RMSE 0.214, MAE 0.148, correlation 0.24, bias -0.014 (n=475). Stage 1 alone: RMSE 0.151, correlation 0.38.
+### Revenue/Expense Decomposition (2026-02-09)
 
-**Imputed margin distributions** (bed-cut sample, no recentering):
+**New outcomes**: `net_pat_rev` and `tot_operating_exp` added as per-bed, CPI-deflated outcomes (thousands of 2010 dollars per bed, divisor 1e3). Constructed in `_run-analysis.r`: winsorized → scaled by beds_base and cpi_deflator → interpolated. Both use `financial.pre` pre-period and run through `2-hospital-dd.R` (outcome-agnostic).
 
-| Year | n | Mean | SD | Gap vs observed 1997-1998 |
-|------|---|------|----|--------------------------|
-| 1994 | 1726 | -0.094 | 0.162 | -0.075 |
-| 1995 | 1762 | -0.071 | 0.159 | -0.052 |
-| 1996 | 815 | -0.062 | 0.159 | -0.043 |
+**Motivation**: Decomposing margin into its components reveals whether CAH designation stabilizes hospitals via cost expansion (cost-based reimbursement relaxing cost discipline) or some other mechanism.
 
-**Coverage**: Fills ~37% (1994), ~38% (1995), ~22% (1996) of missing margins in bed-cut sample.
+**Key results** (from `att_overall.tex`):
+- SDID: net_pat_rev ATT = -203 [-583, 177]; tot_operating_exp ATT = -208 [-623, 207]. Both imprecise, CIs include zero.
+- CS: net_pat_rev ATT = -522 [-719, -325]; tot_operating_exp ATT = -540 [-731, -348]. Both significant.
+- Revenue and expenses decline by nearly identical amounts → explains the null margin result (proportional contraction, not no effect).
+- Interpretation: CAH is associated with financial *contraction* (consistent with downsizing to meet 25-bed cap), not cost expansion. Undermines the narrative that cost-based reimbursement inflates spending.
 
-**Approaches explored and abandoned**:
-1. *Single-stage OLS on HCRIS predictors*: Good cross-sectional prediction (holdout RMSE 0.070, corr 0.87) but +0.22 to +0.28 level bias from covariate shift — PPS variable definitions differ from HCRIS definitions used in training.
-2. *Single-stage OLS on PPS-equivalent predictors*: Correct level but no cross-sectional variation (holdout corr 0.20, SD 0.016) — cost-allocation ratios don't predict operating profitability.
-3. *Decomposed calibration*: RMSE 0.168, implausibly high pre-1996 estimates.
-4. *Simple additive correction*: RMSE 0.115, but cannot apply to 1994-1995 where `tot_operating_exp` has different definition.
-5. *Ridge regression*: No benefit over OLS with 3 predictors.
-6. *Recentering*: Imposes stationarity assumption; DD/SDID should difference out level shifts.
+**Pre-trend concerns**: `tot_operating_exp` has significant differential pre-trends in ALL three cohorts (p < 0.002 in each). `net_pat_rev` flags in 1999 (p = 0.003) and marginally in 2001 (p = 0.06); 2000 is clean. However, pre-period sensitivity analysis shows SDID point estimates are stable across pre-period lengths 2-5, suggesting the estimates are not driven by fitting pre-trends.
 
-**Exploratory diagnostics**: `scratch/diag-hcris-coverage.R` (variable availability), `scratch/diag-margin-decomposed.R` (full calibration exploration)
-
-### Next Steps (as of 2026-02-08)
-
-**Wire `margin_imp` into the analysis pipeline** (currently created but unused by `2-hospital-dd.R`):
-- Options: add `margin_imp` as separate outcome in `outcome_map`, or replace `margin` in `stack.hosp`
-- CS estimator runs on `est.dat` (not `stack.hosp`) — needs its own imputation path or a pre-stacking step
+**Paper/appendix status (2026-02-09)**: paper.tex reflects current results — null margin narrative, revenue/expense decomposition in Section 4.2, 4-panel financial figure (margin, current ratio, revenue, expenses), and current numbers for all outcomes. Organizational changes section reframed around risk reduction rather than margin improvement. appendix.tex includes measure definitions for all six financial outcomes (Section A), expanded pre-trend figures and discussion for revenue/expense, and a new Section D with pre-period sensitivity table. Decomposition framed as descriptive/suggestive given pre-trend concerns.

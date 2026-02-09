@@ -9,12 +9,14 @@
 
 cohorts <- 1999:2001
 hosp_outcomes <- c("margin", "current_ratio", "net_fixed", "capex",
+                   "net_pat_rev", "tot_operating_exp",
                    "BDTOT", "OBBD", "FTERN", "ip_per_bed", "system")
 state_outcomes <- c("closures", "mergers")
 
 outcome_labels <- c(
   margin = "Operating margin", current_ratio = "Current ratio",
   net_fixed = "Net fixed assets", capex = "Capital expenditures",
+  net_pat_rev = "Net patient revenue per bed", tot_operating_exp = "Operating expenses per bed",
   BDTOT = "Total beds", OBBD = "OB beds", FTERN = "FTE RNs",
   ip_per_bed = "IP days per bed",
   system = "System membership", closures = "Closures", mergers = "Mergers"
@@ -474,7 +476,7 @@ write_csv(weight_results, "results/diagnostics/diag-weight-results.csv")
 # =============================================================================
 
 # Panel structure matching paper: A = Financial, B = Capacity, C = Organizational
-panel_a <- c("margin", "current_ratio", "net_fixed", "capex")
+panel_a <- c("margin", "current_ratio", "net_fixed", "capex", "net_pat_rev", "tot_operating_exp")
 panel_b <- c("BDTOT", "OBBD", "FTERN", "ip_per_bed")
 panel_c <- c("system", "closures", "mergers")
 
