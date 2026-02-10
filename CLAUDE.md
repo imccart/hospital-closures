@@ -14,7 +14,8 @@ This is a pure R project with no formal build system. Execute scripts in R/RStud
 
 1. **Fuzzy matching**: Run `data-code/fuzzy-match.R` first (links Form 990, HCRIS, CAH to AHA IDs)
 2. **Data build**: Run `data-code/build-data.R` (requires external data symlinks and fuzzy match outputs)
-3. **Analysis**: Run `analysis/_run-analysis.r` to load/clean data, then individual analysis scripts (2-4)
+3. **Estimation data**: Run `analysis/_build-estimation-data.r` to load/clean/merge data, construct variables, and write `est.dat` and `state.dat` CSVs
+4. **Analysis**: Run `analysis/_run-analysis.r` to read estimation data, stack, and run all estimation scripts
 
 **Required R packages** (installed via `pacman::p_load()`):
 - Data: tidyverse, purrr, lubridate, stringr, modelsummary, janitor, here, fedmatch, zipcodeR
@@ -33,9 +34,10 @@ This is a pure R project with no formal build system. Execute scripts in R/RStud
 - Computes nearest neighbor distances for each hospital-year using vectorized haversine formula
 
 ### Analysis Pipeline (`analysis/`)
-- `_run-analysis.r`: Entry point - loads data, performs cleaning/merging, creates `est.dat`
-- `functions.R`: Stacking functions for difference-in-differences with staggered treatment timing
-- Numbered scripts (0-4) run sequentially after `_run-analysis.r`
+- `_build-estimation-data.r`: Data build — loads raw data, merges, constructs variables, writes `est.dat` and `state.dat` CSVs, runs summary stats. Run separately when data inputs change.
+- `_run-analysis.r`: Estimation orchestrator — reads saved CSVs, builds stacked datasets, runs outcome loops, sources numbered scripts. Does not rebuild data.
+- `functions.R`: Stacking functions for difference-in-differences with staggered treatment timing (`stack_hosp`, `stack_hosp_elig`, `stack_state`)
+- Numbered scripts (0-5) run sequentially via `_run-analysis.r`
 - `app-dd-diagnostics.R`: Appendix diagnostics (pre-trends, sample comparison, synthetic weight concentration)
 
 ### Stacked Difference-in-Differences Design
@@ -43,14 +45,16 @@ This is a pure R project with no formal build system. Execute scripts in R/RStud
 The core econometric approach uses stacking to handle heterogeneous treatment timing:
 
 ```
-stack_hosp(pre.period, post.period, state.period)  # Hospital-level stacking
-stack_state(pre.period, post.period, state.period) # State-level stacking
+stack_hosp(pre.period, post.period, state.period)    # Hospital-level, state-timing controls
+stack_hosp_elig(pre.period, post.period, cohort.years) # Hospital-level, no state restriction
+stack_state(pre.period, post.period, state.period)    # State-level stacking
 ```
 
 Key design elements:
 - Treatment: `eff_year` (year hospital received CAH designation)
 - State-level treatment availability: `state_treat_year`
-- Control groups: "never treated" (no CAH in state) + "not yet treated" (CAH available later)
+- `stack_hosp`: Controls from never-treated states + not-yet-treated states (requires `state.period`)
+- `stack_hosp_elig`: Controls are all non-CAH or not-yet-CAH hospitals regardless of state (used by `3-hospital-dd-alt.R`)
 - Weights by cohort proportions: `weight_any`, `weight_notyet`
 - Event time: `stacked_event_time` relative to treatment
 
@@ -84,7 +88,7 @@ Source repositories:
 ## Important Notes
 
 - The manuscript syncs with Overleaf via git. Check for Overleaf merge commits before editing `paper.tex`.
-- `est.dat` is the main analysis dataset created by `_run-analysis.r` and used by all analysis scripts.
+- `est.dat` and `state.dat` are the main analysis datasets, built by `_build-estimation-data.r` and written to `data/output/`. `_run-analysis.r` reads these CSVs — it does not rebuild the data. Re-run `_build-estimation-data.r` when underlying data inputs change.
 
 ## Workflow for Experimentation
 
@@ -92,26 +96,30 @@ When experimenting with new data management tasks, analysis, or regression speci
 
 ## Current Status
 
-### Unified Analysis Pipeline (completed)
-The analysis pipeline in `_run-analysis.r` now uses a unified outcome loop with `results.table`:
+### Analysis Pipeline Structure (completed)
 
-- **`outcome_map`** defines all outcomes with their script paths, labels, file stubs, and cohort years
-- **Outcome loop** iterates through outcomes, sources the appropriate DD script, and collects ATT estimates
-- **`results.table`** collects SDID and CS estimates with 95% CIs for each outcome
-- **LaTeX output** writes to `results/att_overall.tex` with formatted table rows
+The analysis is split into two entry points:
+
+- **`_build-estimation-data.r`**: Loads raw data, merges, constructs all variables (financial, capacity, event indicators), applies winsorization/interpolation, computes IPW weights, writes `est.dat` and `state.dat` CSVs, and runs summary statistics (`1-sum-stats.R`). Run once when data inputs change.
+- **`_run-analysis.r`**: Reads saved CSVs, sets global parameters (`bed.cut`, `post`, `state.cut`, `financial.pre`), builds stacked datasets, runs two identification strategies:
+  1. **State-timing** (main): `outcome_map` loop → `2-hospital-dd.R` and `4-changes-state-dd.R` → `results/att_overall.tex`
+  2. **Eligibility-restricted** (alternative): `3-hospital-dd-alt.R` → `results/att_elig_overall.tex`
+- Then runs diagnostics (`app-dd-diagnostics.R`) and sensitivity (`app-financial-preperiod.R`)
 
 ### DD Scripts Architecture
 
 | Script | Level | Outcomes | Notes |
 |--------|-------|----------|-------|
 | `2-hospital-dd.R` | Hospital | margin, current_ratio, net_fixed, capex, net_pat_rev, tot_operating_exp, beds, OB beds, FTE RNs, IP days, system | Continuous outcomes using `stack.hosp` |
-| `3-changes-state-dd.R` | State | closures, mergers | Count outcomes using `stack.state`, normalized to rates per 100 hospitals |
-| `4-changes-hospital-hazard.R` | Hospital | time-to-closure/merger | Survival/hazard models |
+| `3-hospital-dd-alt.R` | Hospital | All hospital-level | Eligibility-restricted design, no state-level requirement, cohorts 1999-2005 |
+| `4-changes-state-dd.R` | State | closures, mergers | Count outcomes using `stack.state`, normalized to rates per 100 hospitals |
+| `5-changes-hospital-hazard.R` | Hospital | time-to-closure/merger | Survival/hazard models |
 | `dd-other.R` | Mixed | Various | Deleted — legacy/exploratory code (TWFE, Sun & Abraham, early implementations), superseded by stacked SDID + CS approach |
 
 ### Stacking Functions (`functions.R`)
 
-- **`stack_hosp()`**: Hospital-level stacking for continuous outcomes
+- **`stack_hosp()`**: Hospital-level stacking with state-timing controls (main identification)
+- **`stack_hosp_elig()`**: Hospital-level stacking without state restriction (alternative identification, cohorts 1999-2005)
 - **`stack_state()`**: State-level stacking, collapses to state-year counts
 
 ### Archived Code (`archived/`)
@@ -133,8 +141,8 @@ The analysis pipeline in `_run-analysis.r` now uses a unified outcome loop with 
 4. **Balanced panel doesn't solve it**: The `stack_hosp_balance()` function created balanced panels by filling forward after closure, but this addresses panel attrition, not the selection-into-treatment problem.
 
 **Credible alternatives**:
-- **State-level analysis** (`3-changes-state-dd.R`): Treatment is "state enacted CAH program"—a policy shock plausibly exogenous to individual hospital outcomes
-- **Hazard models** (`4-changes-hospital-hazard.R`): Explicitly model time-to-event with CAH as time-varying covariate, though still requires careful assumption defense
+- **State-level analysis** (`4-changes-state-dd.R`): Treatment is "state enacted CAH program"—a policy shock plausibly exogenous to individual hospital outcomes
+- **Hazard models** (`5-changes-hospital-hazard.R`): Explicitly model time-to-event with CAH as time-varying covariate, though still requires careful assumption defense
 - **Intent-to-treat on eligibility**: Define treatment as "eligible for CAH" based on pre-determined characteristics rather than actual adoption (not currently implemented)
 
 ### Active Outcomes in Current Analysis
@@ -273,7 +281,7 @@ For these hospitals, the only pre-treatment financial data source is HCRIS, whic
 **Decided approach**: Use observed margin data only; HCRIS PPS extension (1985-1999) now provides `net_pat_rev` for ~57% of 1996 records, improving pre-treatment coverage without imputation. Financial outcomes use `pre_period=financial.pre` (set in `_run-analysis.r`) to allow shorter pre-periods than AHA outcomes. Pre-period sensitivity analysis in appendix. Other financial outcomes (current_ratio, net_fixed, capex) reported with caveats about small treated samples.
 
 **Prior approaches explored and abandoned**:
-- *HCRIS PPS margin imputation* (`supp-impute-margin.R`, archived 2026-02-09): Two-stage hybrid OLS — Stage 1 translated PPS-measured `margin_charges` to HCRIS-equivalent (1998 training), Stage 2 predicted true margin from HCRIS predictors (1997 training). Abandoned due to poor out-of-sample fit: full-pipeline 1999 holdout RMSE 0.214, correlation 0.24. Stage 1 was the bottleneck — PPS cost-allocation variables weakly predict revenue-statement margins. The fundamental problem is that PPS minimum dataset variables (Medicare-specific costs, cost-allocation charges) are structurally different from HCRIS revenue-statement variables, and no statistical model could reliably bridge this gap. Script remains in repo but is commented out in `_run-analysis.r` (line 242).
+- *HCRIS PPS margin imputation* (`supp-impute-margin.R`, archived 2026-02-09): Two-stage hybrid OLS — Stage 1 translated PPS-measured `margin_charges` to HCRIS-equivalent (1998 training), Stage 2 predicted true margin from HCRIS predictors (1997 training). Abandoned due to poor out-of-sample fit: full-pipeline 1999 holdout RMSE 0.214, correlation 0.24. Stage 1 was the bottleneck — PPS cost-allocation variables weakly predict revenue-statement margins. The fundamental problem is that PPS minimum dataset variables (Medicare-specific costs, cost-allocation charges) are structurally different from HCRIS revenue-statement variables, and no statistical model could reliably bridge this gap. Script remains in repo but is not sourced by either entry point.
 - *AHA-based imputation* (archived in `archived/0-impute-financials.R`): Elastic net using AHA predictors + hospital-specific residual correction. Abandoned — AHA operational variables are poor predictors of financial outcomes (cross-sectional R² 0.01-0.39).
 - *Manual 990 collection*: Feasible for ~32 nonprofits missing pre-1998 data, but superseded by HCRIS PPS data extension.
 - *Improving fuzzy matching*: Not a matching quality issue — coverage ceiling is structural (ownership composition).
@@ -307,7 +315,7 @@ Attempted to extend margin coverage to 1994-1996 using HCRIS PPS data via `analy
 
 ### Revenue/Expense Decomposition (2026-02-09)
 
-**New outcomes**: `net_pat_rev` and `tot_operating_exp` added as per-bed, CPI-deflated outcomes (thousands of 2010 dollars per bed, divisor 1e3). Constructed in `_run-analysis.r`: winsorized → scaled by beds_base and cpi_deflator → interpolated. Both use `financial.pre` pre-period and run through `2-hospital-dd.R` (outcome-agnostic).
+**New outcomes**: `net_pat_rev` and `tot_operating_exp` added as per-bed, CPI-deflated outcomes (thousands of 2010 dollars per bed, divisor 1e3). Constructed in `_build-estimation-data.r`: winsorized → scaled by beds_base and cpi_deflator → interpolated. Both use `financial.pre` pre-period and run through `2-hospital-dd.R` (outcome-agnostic).
 
 **Motivation**: Decomposing margin into its components reveals whether CAH designation stabilizes hospitals via cost expansion (cost-based reimbursement relaxing cost discipline) or some other mechanism.
 

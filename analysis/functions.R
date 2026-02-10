@@ -69,6 +69,78 @@ stack_hosp <- function(pre.period, post.period, state.period) {
 }
 
 
+# Build stacked dataset at hospital level — no state restriction ----------------------
+# Controls are all non-CAH or not-yet-CAH hospitals (no state-level timing requirement)
+
+stack_hosp_elig <- function(pre.period, post.period, cohort.years = NULL) {
+
+  eff_years <- if (!is.null(cohort.years)) cohort.years else unique(na.omit(est.dat$eff_year))
+
+  stack.hosp <- tibble()
+  for (i in eff_years) {
+
+    ## treated: hospitals converting in year i
+    treat.dat <- est.dat %>%
+      filter(eff_year == i,
+             year >= (i - pre.period), year <= (i + post.period)) %>%
+      select(ID, year) %>%
+      mutate(treat_type = "treated")
+
+    ## controls (never): hospitals that never convert to CAH
+    control.dat.never <- est.dat %>%
+      filter(is.na(eff_year),
+             year >= (i - pre.period), year <= (i + post.period)) %>%
+      select(ID, year) %>%
+      mutate(treat_type = "never")
+
+    ## controls (not-yet): hospitals that convert after the event window
+    control.dat.notyet <- est.dat %>%
+      filter(eff_year > (i + post.period),
+             year >= (i - pre.period), year <= (i + post.period)) %>%
+      select(ID, year) %>%
+      mutate(treat_type = "notyet")
+
+    ## inner join back to est.dat
+    stack.dat.group <- est.dat %>%
+      inner_join(bind_rows(treat.dat, control.dat.never, control.dat.notyet),
+                 by = c("ID", "year")) %>%
+      mutate(state = as.numeric(factor(MSTATE)),
+             stacked_event_time = year - i,
+             stack_group = i)
+
+    stack.hosp <- bind_rows(stack.hosp, stack.dat.group)
+  }
+
+  ## post-processing (same as stack_hosp)
+  stack.hosp <- stack.hosp %>% ungroup() %>%
+    filter(stack_group > 0) %>%
+    mutate(treated = ifelse(treat_type == "treated", 1, 0),
+           control_any = ifelse(treat_type != "treated", 1, 0),
+           control_notyet = ifelse(treat_type == "notyet", 1, 0),
+           control_never = ifelse(treat_type == "never", 1, 0),
+           post = ifelse(stacked_event_time >= 0, 1, 0),
+           post_treat = post * treated,
+           stacked_event_time_treat = stacked_event_time * treated,
+           all_treated = sum(treated),
+           all_control = sum(control_any),
+           all_control_notyet = sum(control_notyet)) %>%
+    group_by(stack_group) %>%
+    mutate(group_treated = sum(treated),
+           group_control_any = sum(control_any),
+           group_control_notyet = sum(control_notyet)) %>%
+    ungroup() %>%
+    mutate(weight_any = case_when(
+             treat_type == "treated" ~ 1,
+             treat_type != "treated" ~ (group_treated / all_treated) / (group_control_any / all_control)),
+           weight_notyet = case_when(
+             treat_type == "treated" ~ 1,
+             treat_type == "notyet" ~ (group_treated / all_treated) / (group_control_notyet / all_control_notyet))
+    )
+
+  stack.hosp
+}
+
+
 # Build stacked dataset at state level ---------------------------------------------
 
 stack_state <- function(pre.period, post.period, state.period) {
