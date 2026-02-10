@@ -35,9 +35,9 @@ This is a pure R project with no formal build system. Execute scripts in R/RStud
 
 ### Analysis Pipeline (`analysis/`)
 - `_build-estimation-data.r`: Data build — loads raw data, merges, constructs variables, writes `est.dat` and `state.dat` CSVs, runs summary stats. Run separately when data inputs change.
-- `_run-analysis.r`: Estimation orchestrator — reads saved CSVs, builds stacked datasets, runs outcome loops, sources numbered scripts. Does not rebuild data.
+- `_run-analysis.r`: Orchestrator — reads saved CSVs, sets globals, builds stacked datasets (`stack.hosp`, `stack.state`, `stack.elig`), then sequentially sources DD scripts and diagnostics. Does not rebuild data and does not contain outcome loops.
 - `functions.R`: Stacking functions for difference-in-differences with staggered treatment timing (`stack_hosp`, `stack_hosp_elig`, `stack_state`)
-- Numbered scripts (0-5) run sequentially via `_run-analysis.r`
+- DD scripts (`2-hospital-dd.R`, `3-hospital-dd-alt.R`, `4-changes-state-dd.R`) are self-contained: each owns its outcome map, loop, results collection, and tex/figure output
 - `app-dd-diagnostics.R`: Appendix diagnostics (pre-trends, sample comparison, synthetic weight concentration)
 
 ### Stacked Difference-in-Differences Design
@@ -101,20 +101,26 @@ When experimenting with new data management tasks, analysis, or regression speci
 The analysis is split into two entry points:
 
 - **`_build-estimation-data.r`**: Loads raw data, merges, constructs all variables (financial, capacity, event indicators), applies winsorization/interpolation, computes IPW weights, writes `est.dat` and `state.dat` CSVs, and runs summary statistics (`1-sum-stats.R`). Run once when data inputs change.
-- **`_run-analysis.r`**: Reads saved CSVs, sets global parameters (`bed.cut`, `post`, `state.cut`, `financial.pre`), builds stacked datasets, runs two identification strategies:
-  1. **State-timing** (main): `outcome_map` loop → `2-hospital-dd.R` and `4-changes-state-dd.R` → `results/att_overall.tex`
-  2. **Eligibility-restricted** (alternative): `3-hospital-dd-alt.R` → `results/att_elig_overall.tex`
-- Then runs diagnostics (`app-dd-diagnostics.R`) and sensitivity (`app-financial-preperiod.R`)
+- **`_run-analysis.r`**: Reads saved CSVs, sets global parameters (`bed.cut`, `post`, `state.cut`, `financial.pre`), builds three stacked datasets (`stack.hosp`, `stack.state`, `stack.elig`), then sequentially sources:
+  1. `2-hospital-dd.R` → `hosp.results.table`, `hosp.cohort.results`, `results/att_cohort.tex`
+  2. `3-hospital-dd-alt.R` → `elig.results`, `elig.cohort.results`, `results/att_elig_overall.tex`, `results/att_elig_cohort.tex`
+  3. `4-changes-state-dd.R` → `state.results.table`
+  4. Assembles combined `results/att_overall.tex` (with `$N_{tr}$` column) from `hosp.results.table` + `state.results.table`
+  5. Forest plot (`results/forest-sdid.png`): SDID ATTs comparing state-timing vs eligibility-restricted control groups
+  6. Diagnostics (`app-dd-diagnostics.R`) and sensitivity (`app-financial-preperiod.R`)
 
 ### DD Scripts Architecture
 
-| Script | Level | Outcomes | Notes |
-|--------|-------|----------|-------|
-| `2-hospital-dd.R` | Hospital | margin, current_ratio, net_fixed, capex, net_pat_rev, tot_operating_exp, beds, OB beds, FTE RNs, IP days, system | Continuous outcomes using `stack.hosp` |
-| `3-hospital-dd-alt.R` | Hospital | All hospital-level | Eligibility-restricted design, no state-level requirement, cohorts 1999-2005 |
-| `4-changes-state-dd.R` | State | closures, mergers | Count outcomes using `stack.state`, normalized to rates per 100 hospitals |
-| `5-changes-hospital-hazard.R` | Hospital | time-to-closure/merger | Survival/hazard models |
-| `dd-other.R` | Mixed | Various | Deleted — legacy/exploratory code (TWFE, Sun & Abraham, early implementations), superseded by stacked SDID + CS approach |
+Each DD script is self-contained: owns its outcome map, loop, results collection, and tex/figure output. The orchestrator (`_run-analysis.r`) provides globals and stacked datasets; each script produces a results tibble left in the shared environment.
+
+**Globals contract** — `_run-analysis.r` provides: `bed.cut`, `post`, `state.cut`, `financial.pre`, `est.dat`, `state.dat`, `stack.hosp`, `stack.state`, `stack.elig`
+
+| Script | Level | Outcomes | Produces | Notes |
+|--------|-------|----------|----------|-------|
+| `2-hospital-dd.R` | Hospital | margin, current_ratio, net_fixed, capex, net_pat_rev, tot_operating_exp, beds, OB beds, FTE RNs, IP days, system | `hosp.results.table`, `hosp.cohort.results`, `att_cohort.tex` | Uses `stack.hosp`, cohorts 1999-2001 |
+| `3-hospital-dd-alt.R` | Hospital | All hospital-level | `elig.results`, `elig.cohort.results`, `att_elig_overall.tex`, `att_elig_cohort.tex` | Eligibility-restricted, uses `stack.elig`, cohorts 1999-2005 |
+| `4-changes-state-dd.R` | State | closures, mergers | `state.results.table` | Uses `stack.state`, rates per 100 hospitals, cohorts 1999-2001 |
+| `5-changes-hospital-hazard.R` | Hospital | time-to-closure/merger | — | Survival/hazard models |
 
 ### Stacking Functions (`functions.R`)
 
@@ -327,4 +333,21 @@ Attempted to extend margin coverage to 1994-1996 using HCRIS PPS data via `analy
 
 **Pre-trend concerns**: `tot_operating_exp` has significant differential pre-trends in ALL three cohorts (p < 0.002 in each). `net_pat_rev` flags in 1999 (p = 0.003) and marginally in 2001 (p = 0.06); 2000 is clean. However, pre-period sensitivity analysis shows SDID point estimates are stable across pre-period lengths 2-5, suggesting the estimates are not driven by fitting pre-trends.
 
-**Paper/appendix status (2026-02-09)**: paper.tex reflects current results — null margin narrative, revenue/expense decomposition in Section 4.2, 4-panel financial figure (margin, current ratio, revenue, expenses), and current numbers for all outcomes. Organizational changes section reframed around risk reduction rather than margin improvement. appendix.tex includes measure definitions for all six financial outcomes (Section A), expanded pre-trend figures and discussion for revenue/expense, and a new Section D with pre-period sensitivity table. Decomposition framed as descriptive/suggestive given pre-trend concerns.
+**Paper/appendix status (2026-02-10)**: paper.tex reflects current results — null margin narrative, revenue/expense decomposition in Section 4.2, 4-panel financial figure (margin, current ratio, revenue, expenses), and current numbers for all outcomes. Organizational changes section reframed around risk reduction rather than margin improvement. appendix.tex includes measure definitions for all six financial outcomes (Section A), expanded pre-trend figures and discussion for revenue/expense, and a new Section D with pre-period sensitivity table. Decomposition framed as descriptive/suggestive given pre-trend concerns. SDID is primary estimator; CS results moving to appendix. Results tables now include $N_{tr}$.
+
+### Forward Plan (2026-02-10)
+
+See `scratch/refreport_202602.md` for detailed progress log and plan.
+
+**Phase 1 — Paper writing** (no new estimation):
+- Section 4.X: eligibility-restricted results as robustness subsection, forest plot figure
+- Section 5 (Discussion): limitations, policy implications, future directions
+- Appendix B: `state.cut` sensitivity (coauthor contributing)
+- Expositional: typos, date, $p_c(\delta)$ notation, IPW documentation, $\rho$ justification, CS plots to appendix
+
+**Phase 2 — Additional estimation**:
+1. Heterogeneity analysis: ownership (govt vs nonprofit), initial bed size (≤25 vs 26-50), geographic isolation. Existing cohort-specific results are the foundation.
+2. Permutation/placebo inference for SDID (addresses small-sample SE concern)
+3. gsynth/fect for financial outcomes (handles unbalanced panels + differential trends)
+4. ITT specification (state-level treatment for all eligible hospitals)
+5. IV feasibility (state availability as instrument)

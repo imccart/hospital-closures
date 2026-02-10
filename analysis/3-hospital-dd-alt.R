@@ -4,10 +4,8 @@
 ## Cohorts 1999-2005; controls = never-CAH + not-yet-CAH hospitals
 ## Hospital-level outcomes only (closures/mergers require state-level design)
 
-# Build stacked data --------------------------------------------------------
+# Expects from _run-analysis.r: stack.elig, est.dat, bed.cut, post, financial.pre
 elig.cohorts <- 1999:2005
-stack.elig <- stack_hosp_elig(pre.period = 5, post.period = post,
-                               cohort.years = elig.cohorts)
 
 # Outcome map (hospital-level only) -----------------------------------------
 elig_outcome_map <- list(
@@ -27,7 +25,13 @@ elig_outcome_map <- list(
 # Results collector ----------------------------------------------------------
 elig.results <- tibble(
   outcome = character(), sdid_att = numeric(), sdid_ci_low = numeric(), sdid_ci_high = numeric(),
-  cs_att = numeric(), cs_ci_low = numeric(), cs_ci_high = numeric()
+  cs_att = numeric(), cs_ci_low = numeric(), cs_ci_high = numeric(),
+  sdid_ntr = numeric()
+)
+
+elig.cohort.results <- tibble(
+  outcome = character(), cohort = numeric(), att = numeric(),
+  se = numeric(), Ntr = numeric()
 )
 
 # Main loop ------------------------------------------------------------------
@@ -93,6 +97,10 @@ for (oname in names(elig_outcome_map)) {
     cat(sprintf("    [elig] SDID failed for all cohorts on %s, skipping\n", oname))
     next
   }
+
+  # Collect cohort-specific SDID estimates
+  elig.cohort.results <- bind_rows(elig.cohort.results,
+    atts_all %>% mutate(outcome = outcome_label))
 
   ## aggregate paths
   agg_paths <- paths_all %>%
@@ -221,7 +229,8 @@ for (oname in names(elig_outcome_map)) {
     sdid_ci_high = as.numeric(ci_high),
     cs_att       = cs_att_val,
     cs_ci_low    = cs_att_val - 1.96 * cs_se_val,
-    cs_ci_high   = cs_att_val + 1.96 * cs_se_val
+    cs_ci_high   = cs_att_val + 1.96 * cs_se_val,
+    sdid_ntr     = sum(atts_all$Ntr)
   ))
 }
 
@@ -229,14 +238,29 @@ for (oname in names(elig_outcome_map)) {
 int <- function(lo, hi) sprintf("[%.2f, %.2f]", lo, hi)
 
 tex.lines <- elig.results %>%
-  mutate(line = sprintf("%s & %.3f & %s & %.3f & %s \\\\",
-    outcome, sdid_att, int(sdid_ci_low, sdid_ci_high),
+  mutate(line = sprintf("%s & %.3f & %s & %d & %.3f & %s \\\\",
+    outcome, sdid_att, int(sdid_ci_low, sdid_ci_high), sdid_ntr,
     cs_att, int(cs_ci_low, cs_ci_high))) %>%
   pull(line)
 
 writeLines(c(
-  "Outcome & SDID ATT & SDID 95\\% CI & CS ATT & CS 95\\% CI \\\\",
+  "Outcome & SDID ATT & SDID 95\\% CI & $N_{tr}$ & CS ATT & CS 95\\% CI \\\\",
   tex.lines
 ), "results/att_elig_overall.tex")
 
-cat("\n  [elig] Done. Results written to results/att_elig_overall.tex\n")
+## Cohort-specific SDID LaTeX output
+cohort_tex_lines <- c("Outcome & SDID ATT & SDID 95\\% CI & $N_{tr}$ \\\\")
+for (c in sort(unique(elig.cohort.results$cohort))) {
+  cohort_tex_lines <- c(cohort_tex_lines,
+    sprintf("\\midrule\n\\multicolumn{4}{l}{\\textit{Cohort %d}} \\\\", c))
+  rows <- elig.cohort.results %>% filter(cohort == c)
+  for (i in 1:nrow(rows)) {
+    r <- rows[i, ]
+    cohort_tex_lines <- c(cohort_tex_lines,
+      sprintf("%s & %.3f & %s & %d \\\\",
+        r$outcome, r$att, int(r$att - 1.96*r$se, r$att + 1.96*r$se), r$Ntr))
+  }
+}
+writeLines(cohort_tex_lines, "results/att_elig_cohort.tex")
+
+cat("\n  [elig] Done. Results written to results/att_elig_overall.tex and att_elig_cohort.tex\n")

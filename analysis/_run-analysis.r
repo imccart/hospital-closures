@@ -31,85 +31,86 @@ financial.pre <- 5
 # Stacked datasets ---------------------------------------------------------
 stack.hosp  <- stack_hosp(pre.period=5, post.period=post, state.period=state.cut)
 stack.state <- stack_state(pre.period=5, post.period=post, state.period=state.cut)
+stack.elig  <- stack_hosp_elig(pre.period=5, post.period=post, cohort.years=1999:2005)
 
 
-# Main analysis: state-timing identification --------------------------------
+# Main analysis ------------------------------------------------------------
+source('analysis/2-hospital-dd.R')        # -> hosp.results.table, hosp.cohort.results
+source('analysis/3-hospital-dd-alt.R')     # -> elig.results, elig.cohort.results
+source('analysis/4-changes-state-dd.R')    # -> state.results.table
 
-## Unified outcome map
-outcome_map <- list(
 
-  # Hospital continuous outcomes (cohorts 1999:2001)
-  margin        = list(script="analysis/2-hospital-dd.R", label="Operating margin",             stub="margin",       cohorts=1999:2001, pre_period=financial.pre),
-  current_ratio = list(script="analysis/2-hospital-dd.R", label="Current ratio",                stub="currentratio", cohorts=1999:2001, pre_period=financial.pre),
-  net_fixed     = list(script="analysis/2-hospital-dd.R", label="Net fixed assets",             stub="netfixed",     cohorts=1999:2001, pre_period=financial.pre),
-  capex         = list(script="analysis/2-hospital-dd.R", label="Capital expenditures per bed", stub="capex",        cohorts=1999:2001, pre_period=financial.pre),
-  net_pat_rev       = list(script="analysis/2-hospital-dd.R", label="Net patient revenue per bed",  stub="netpatrev",  cohorts=1999:2001, pre_period=financial.pre),
-  tot_operating_exp = list(script="analysis/2-hospital-dd.R", label="Operating expenses per bed",   stub="totopexp",   cohorts=1999:2001, pre_period=financial.pre),
-  BDTOT         = list(script="analysis/2-hospital-dd.R", label="Total beds",                   stub="beds",         cohorts=1999:2001),
-  OBBD          = list(script="analysis/2-hospital-dd.R", label="OB beds",                      stub="beds_ob",      cohorts=1999:2001),
-  FTERN         = list(script="analysis/2-hospital-dd.R", label="FTE RNs",                      stub="ftern",        cohorts=1999:2001),
-  ip_per_bed    = list(script="analysis/2-hospital-dd.R", label="Inpatient days per bed",       stub="ipdays",       cohorts=1999:2001),
-  system        = list(script="analysis/2-hospital-dd.R", label="System membership",            stub="system",       cohorts=1999:2001),
+# Combined results table (hospital + state) --------------------------------
+results.table <- bind_rows(hosp.results.table, state.results.table)
 
-  # State-level count outcomes (cohorts 1999:2001)
-  closures = list(script="analysis/4-changes-state-dd.R", label="Closures", stub="closure-rate", cohorts=1999:2001),
-  mergers  = list(script="analysis/4-changes-state-dd.R", label="Mergers",  stub="merger-rate",  cohorts=1999:2001)
-)
-
-## Loop over outcomes, collect into results table
-results.table <- tibble(
-  outcome = character(), sdid_att = numeric(), sdid_ci_low = numeric(), sdid_ci_high = numeric(),
-  cs_att = numeric(), cs_ci_low = numeric(), cs_ci_high = numeric()
-)
-
-for (oname in names(outcome_map)) {
-  print(paste0("Running analysis for outcome: ", oname))
-  o <- outcome_map[[oname]]
-  outcome_var   <- oname
-  outcome_sym   <- sym(outcome_var)
-  outcome_label <- o$label
-  file_stub     <- o$stub
-  cohorts       <- o$cohorts
-  pre_period    <- if (!is.null(o$pre_period)) o$pre_period else 5
-
-  source(o$script)
-
-  # CS results — apply scale_cs for state-level outcomes
-  cs_att_val <- csa.att$overall.att
-  cs_se_val  <- csa.att$overall.se
-  if (o$script == "analysis/4-changes-state-dd.R") {
-    cs_att_val <- cs_att_val * scale_cs
-    cs_se_val  <- cs_se_val * scale_cs
-  }
-
-  results.table <- bind_rows(results.table, tibble(
-    outcome      = outcome_label,
-    sdid_att     = as.numeric(att_w),
-    sdid_ci_low  = as.numeric(ci_low),
-    sdid_ci_high = as.numeric(ci_high),
-    cs_att       = cs_att_val,
-    cs_ci_low    = cs_att_val - 1.96 * cs_se_val,
-    cs_ci_high   = cs_att_val + 1.96 * cs_se_val
-  ))
-}
-
-## LaTeX output (tabular innards only)
 int <- function(lo, hi) sprintf("[%.2f, %.2f]", lo, hi)
 
 tex.lines <- results.table %>%
-  mutate(line = sprintf("%s & %.3f & %s & %.3f & %s \\\\",
-    outcome, sdid_att, int(sdid_ci_low, sdid_ci_high),
+  mutate(line = sprintf("%s & %.3f & %s & %d & %.3f & %s \\\\",
+    outcome, sdid_att, int(sdid_ci_low, sdid_ci_high), sdid_ntr,
     cs_att, int(cs_ci_low, cs_ci_high))) %>%
   pull(line)
 
 writeLines(c(
-  "Outcome & SDID ATT & SDID 95\\% CI & CS ATT & CS 95\\% CI \\\\",
+  "Outcome & SDID ATT & SDID 95\\% CI & $N_{tr}$ & CS ATT & CS 95\\% CI \\\\",
   tex.lines
 ), "results/att_overall.tex")
 
 
-# Alternative identification (eligibility-restricted, no state requirement) -
-source('analysis/3-hospital-dd-alt.R')
+# Forest plot: SDID results across control group constructions ---------------
+
+forest_labels <- c(
+  "Operating margin" = "Operating\nmargin",
+  "Current ratio" = "Current ratio",
+  "Net fixed assets" = "Net fixed assets",
+  "Capital expenditures per bed" = "Capital expenditures\nper bed",
+  "Net patient revenue per bed" = "Net patient revenue\nper bed",
+  "Operating expenses per bed" = "Operating expenses\nper bed",
+  "Total beds" = "Total beds",
+  "OB beds" = "OB beds",
+  "FTE RNs" = "FTE RNs",
+  "Inpatient days per bed" = "Inpatient days\nper bed",
+  "System membership" = "System\nmembership",
+  "Closures" = "Closures",
+  "Mergers" = "Mergers"
+)
+
+forest_dat <- bind_rows(
+  results.table %>%
+    transmute(outcome, controls = "State-timing",
+              att = sdid_att, ci_low = sdid_ci_low, ci_high = sdid_ci_high),
+  elig.results %>%
+    transmute(outcome, controls = "Eligibility-restricted",
+              att = sdid_att, ci_low = sdid_ci_low, ci_high = sdid_ci_high)
+) %>%
+  mutate(outcome_label = forest_labels[outcome],
+         outcome_label = factor(outcome_label,
+                                levels = forest_labels[unique(results.table$outcome)]),
+         controls = factor(controls, levels = c("Eligibility-restricted", "State-timing")))
+
+n_out <- length(unique(forest_dat$outcome_label))
+p_forest <- ggplot(forest_dat, aes(x = att, y = controls, shape = controls)) +
+  geom_vline(xintercept = 0, linewidth = 0.4, linetype = "dashed", color = "gray40") +
+  geom_pointrange(aes(xmin = ci_low, xmax = ci_high),
+                  size = 0.4, linewidth = 0.4) +
+  scale_shape_manual(values = c("State-timing" = 16, "Eligibility-restricted" = 1)) +
+  facet_wrap(~ outcome_label, ncol = 1, scales = "free_x", strip.position = "left",
+             dir = "v") +
+  labs(x = "ATT (95% CI)", y = NULL, shape = "Controls") +
+  theme_bw(base_size = 11) +
+  theme(
+    strip.background = element_blank(),
+    strip.placement = "outside",
+    strip.text.y.left = element_text(angle = 0, hjust = 1, size = 9,
+                                     lineheight = 0.9),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    legend.position = "bottom"
+  )
+ggsave("results/forest-sdid.png", p_forest,
+       width = 7, height = 0.9 * n_out + 1.2, dpi = 300)
 
 
 # Diagnostics and sensitivity ----------------------------------------------
