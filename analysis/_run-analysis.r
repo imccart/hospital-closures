@@ -45,16 +45,32 @@ results.table <- bind_rows(hosp.results.table, state.results.table)
 
 int <- function(lo, hi) sprintf("[%.2f, %.2f]", lo, hi)
 
-tex.lines <- results.table %>%
-  mutate(line = sprintf("%s & %.3f & %s & %d & %.3f & %s \\\\",
-    outcome, sdid_att, int(sdid_ci_low, sdid_ci_high), sdid_ntr,
-    cs_att, int(cs_ci_low, cs_ci_high))) %>%
+## Main table (SDID only) for paper — complete tabular block
+## (LaTeX 2025 breaks \noalign/\omit inside \input within tabular)
+tex.lines.sdid <- results.table %>%
+  mutate(line = sprintf("%s & %.3f & %s & %d \\\\",
+    outcome, sdid_att, int(sdid_ci_low, sdid_ci_high), sdid_ntr)) %>%
   pull(line)
 
 writeLines(c(
-  "Outcome & SDID ATT & SDID 95\\% CI & $N_{tr}$ & CS ATT & CS 95\\% CI \\\\",
-  tex.lines
+  "\\begin{tabular}[t]{lclr}",
+  "Outcome & SDID ATT & SDID 95\\% CI & $N_{tr}$ \\\\",
+  tex.lines.sdid,
+  "\\end{tabular}"
 ), "results/att_overall.tex")
+
+## CS table for appendix — complete tabular block
+tex.lines.cs <- results.table %>%
+  mutate(line = sprintf("%s & %.3f & %s \\\\",
+    outcome, cs_att, int(cs_ci_low, cs_ci_high))) %>%
+  pull(line)
+
+writeLines(c(
+  "\\begin{tabular}{lcl}",
+  "Outcome & CS ATT & CS 95\\% CI \\\\",
+  tex.lines.cs,
+  "\\end{tabular}"
+), "results/att_cs_overall.tex")
 
 
 # Forest plot: SDID results across control group constructions ---------------

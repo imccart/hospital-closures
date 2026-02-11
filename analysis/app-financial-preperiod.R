@@ -109,7 +109,8 @@ for (oname in names(financial_outcomes)) {
   }
 }
 
-## Format and write LaTeX tabular innards
+## Format and write complete LaTeX tabular block
+## (LaTeX 2025 breaks \noalign/\omit inside \input within tabular)
 # Columns: Outcome | Pre=5 ATT [CI] | Pre=4 | Pre=3 | Pre=2
 
 format_cell <- function(att, ci_low, ci_high) {
@@ -117,7 +118,15 @@ format_cell <- function(att, ci_low, ci_high) {
   sprintf("%.3f & [%.2f, %.2f]", att, ci_low, ci_high)
 }
 
-tex_lines <- character()
+tex_lines <- c(
+  "\\begin{tabular}{l cc cc cc cc}",
+  "\\toprule",
+  " & \\multicolumn{2}{c}{Pre $= 5$} & \\multicolumn{2}{c}{Pre $= 4$} & \\multicolumn{2}{c}{Pre $= 3$} & \\multicolumn{2}{c}{Pre $= 2$} \\\\",
+  "\\cmidrule(lr){2-3} \\cmidrule(lr){4-5} \\cmidrule(lr){6-7} \\cmidrule(lr){8-9}",
+  "Outcome & ATT & 95\\% CI & ATT & 95\\% CI & ATT & 95\\% CI & ATT & 95\\% CI \\\\",
+  "\\midrule"
+)
+
 for (oname in names(financial_outcomes)) {
   o <- financial_outcomes[[oname]]
   row_data <- results %>% filter(outcome == oname)
@@ -151,6 +160,8 @@ treat_cells <- sapply(pre_periods, function(pp) {
 })
 tex_lines <- c(tex_lines,
   paste0("Treated obs. & ", paste(treat_cells, collapse = " & "), " \\\\"))
+
+tex_lines <- c(tex_lines, "\\bottomrule", "\\end{tabular}")
 
 writeLines(tex_lines, "results/app-preperiod-financial.tex")
 cat("\nLaTeX table written to results/app-preperiod-financial.tex\n")

@@ -484,10 +484,15 @@ fmt_pct <- function(x) sprintf("%.1f\\%%", x)
 
 # --- Table 1: Sample Comparison ---
 
-tex_sample <- c()
-tex_sample <- c(tex_sample,
+tex_sample <- c(
+  "\\begin{tabular}{l c cc cc c}",
+  "\\toprule",
+  " & & \\multicolumn{2}{c}{SDID} & \\multicolumn{2}{c}{CS} & \\\\",
+  "\\cmidrule(lr){3-4} \\cmidrule(lr){5-6}",
+  "Outcome & Cohort & Treated & Control & Treated & Control & \\% Lost \\\\",
   "\\midrule",
-  "\\multicolumn{7}{l}{\\textit{Panel A: Financial Performance}} \\\\")
+  "\\multicolumn{7}{l}{\\textit{Panel A: Financial Performance}} \\\\"
+)
 
 for (panel_outcomes in list(panel_a, panel_b, panel_c)) {
   if (identical(panel_outcomes, panel_b)) {
@@ -515,7 +520,7 @@ for (panel_outcomes in list(panel_a, panel_b, panel_c)) {
     }
   }
 }
-tex_sample <- c(tex_sample, "\\bottomrule")
+tex_sample <- c(tex_sample, "\\bottomrule", "\\end{tabular}")
 
 writeLines(tex_sample, "results/diagnostics/diag-sample-comparison.tex")
 
@@ -529,10 +534,13 @@ stars <- function(p) {
   return("")
 }
 
-tex_pretrend <- c()
-tex_pretrend <- c(tex_pretrend,
+tex_pretrend <- c(
+  "\\begin{tabular}{l c r r r}",
+  "\\toprule",
+  "Outcome & Cohort & Coefficient & Std.\\ Error & $p$-value \\\\",
   "\\midrule",
-  "\\multicolumn{5}{l}{\\textit{Panel A: Financial Performance}} \\\\")
+  "\\multicolumn{5}{l}{\\textit{Panel A: Financial Performance}} \\\\"
+)
 
 for (panel_outcomes in list(panel_a, panel_b, panel_c)) {
   if (identical(panel_outcomes, panel_b)) {
@@ -563,16 +571,19 @@ for (panel_outcomes in list(panel_a, panel_b, panel_c)) {
     }
   }
 }
-tex_pretrend <- c(tex_pretrend, "\\bottomrule")
+tex_pretrend <- c(tex_pretrend, "\\bottomrule", "\\end{tabular}")
 
 writeLines(tex_pretrend, "results/diagnostics/diag-pretrend.tex")
 
 # --- Table 3: Weight Concentration ---
 
-tex_weights <- c()
-tex_weights <- c(tex_weights,
+tex_weights <- c(
+  "\\begin{tabular}{l c r r r r}",
+  "\\toprule",
+  "Outcome & Cohort & $N$ Controls & Max Weight & Top 5 Share & HHI \\\\",
   "\\midrule",
-  "\\multicolumn{6}{l}{\\textit{Panel A: Financial Performance}} \\\\")
+  "\\multicolumn{6}{l}{\\textit{Panel A: Financial Performance}} \\\\"
+)
 
 for (panel_outcomes in list(panel_a, panel_b, panel_c)) {
   if (identical(panel_outcomes, panel_b)) {
@@ -603,6 +614,6 @@ for (panel_outcomes in list(panel_a, panel_b, panel_c)) {
     }
   }
 }
-tex_weights <- c(tex_weights, "\\bottomrule")
+tex_weights <- c(tex_weights, "\\bottomrule", "\\end{tabular}")
 
 writeLines(tex_weights, "results/diagnostics/diag-weights.tex")

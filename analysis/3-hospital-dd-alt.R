@@ -243,9 +243,12 @@ tex.lines <- elig.results %>%
     cs_att, int(cs_ci_low, cs_ci_high))) %>%
   pull(line)
 
+## Complete tabular block (LaTeX 2025 breaks \noalign/\omit inside \input within tabular)
 writeLines(c(
+  "\\begin{tabular}{lclrcl}",
   "Outcome & SDID ATT & SDID 95\\% CI & $N_{tr}$ & CS ATT & CS 95\\% CI \\\\",
-  tex.lines
+  tex.lines,
+  "\\end{tabular}"
 ), "results/att_elig_overall.tex")
 
 ## Cohort-specific SDID LaTeX output

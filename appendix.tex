@@ -38,7 +38,7 @@
 
 \vspace{1cm}
 
-This appendix provides supplementary material for the main text. Section~\ref{sec:app-financial} details the construction of our hospital-level financial measures. Section~\ref{sec:app-robustness} presents robustness checks varying the lag structure for state-level CAH adoption in the control group definition. Section~\ref{sec:app-diagnostics} reports diagnostics for the synthetic difference-in-differences (SDID) estimator, including sample attrition from balanced-panel requirements, pre-trend tests, and synthetic control weight concentration. Section~\ref{sec:app-preperiod} examines the sensitivity of financial outcome estimates to the choice of pre-period length.
+This appendix provides supplementary material for the main text. Section~\ref{sec:app-financial} details the construction of our hospital-level financial measures. Section~\ref{sec:app-robustness} presents robustness checks varying the lag structure for state-level CAH adoption in the control group definition. Section~\ref{sec:app-diagnostics} reports diagnostics for the synthetic difference-in-differences (SDID) estimator, including sample attrition from balanced-panel requirements, pre-trend tests, and synthetic control weight concentration. Section~\ref{sec:app-preperiod} examines the sensitivity of financial outcome estimates to the choice of pre-period length. Section~\ref{sec:app-cs} reports Callaway--Sant'Anna event-study estimates and results from the eligibility-restricted control group design.
 
 
 %%% ===================================================================
@@ -130,13 +130,7 @@ Our primary estimates use the synthetic difference-in-differences (SDID) estimat
 \caption{Sample Comparison: SDID Balanced Panel vs.\ Callaway--Sant'Anna}
 \label{tab:diag-sample}
 \small
-\begin{tabular}{l c cc cc c}
-\toprule
- & & \multicolumn{2}{c}{SDID} & \multicolumn{2}{c}{CS} & \\
-\cmidrule(lr){3-4} \cmidrule(lr){5-6}
-Outcome & Cohort & Treated & Control & Treated & Control & \% Lost \\
 \input{results/diagnostics/diag-sample-comparison.tex}
-\end{tabular}
 \begin{minipage}{0.95\linewidth}
 \vspace{0.3cm}
 \footnotesize
@@ -151,11 +145,7 @@ Outcome & Cohort & Treated & Control & Treated & Control & \% Lost \\
 \caption{Pre-Trend Tests: Interaction of Event Time and Treatment in Pre-Periods}
 \label{tab:diag-pretrend}
 \small
-\begin{tabular}{l c r r r}
-\toprule
-Outcome & Cohort & Coefficient & Std.\ Error & $p$-value \\
 \input{results/diagnostics/diag-pretrend.tex}
-\end{tabular}
 \begin{minipage}{0.85\linewidth}
 \vspace{0.3cm}
 \footnotesize
@@ -247,11 +237,7 @@ Figures~\ref{fig:pretrend-financial}--\ref{fig:pretrend-org} plot mean outcomes 
 \caption{SDID Synthetic Control Weight Concentration}
 \label{tab:diag-weights}
 \small
-\begin{tabular}{l c r r r r}
-\toprule
-Outcome & Cohort & $N$ Controls & Max Weight & Top 5 Share & HHI \\
 \input{results/diagnostics/diag-weights.tex}
-\end{tabular}
 \begin{minipage}{0.85\linewidth}
 \vspace{0.3cm}
 \footnotesize
@@ -280,15 +266,7 @@ As the pre-period shortens, the treated sample grows from 34 hospitals (pre-peri
 \caption{Pre-Period Sensitivity: Financial Outcome SDID Estimates}
 \label{tab:preperiod-financial}
 \small
-\begin{tabular}{l cc cc cc cc}
-\toprule
- & \multicolumn{2}{c}{Pre $= 5$} & \multicolumn{2}{c}{Pre $= 4$} & \multicolumn{2}{c}{Pre $= 3$} & \multicolumn{2}{c}{Pre $= 2$} \\
-\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9}
-Outcome & ATT & 95\% CI & ATT & 95\% CI & ATT & 95\% CI & ATT & 95\% CI \\
-\midrule
 \input{results/app-preperiod-financial.tex}
-\bottomrule
-\end{tabular}
 \begin{minipage}{0.95\linewidth}
 \vspace{0.3cm}
 \footnotesize
@@ -296,5 +274,181 @@ Outcome & ATT & 95\% CI & ATT & 95\% CI & ATT & 95\% CI & ATT & 95\% CI \\
 \end{minipage}
 \end{table}
 \end{landscape}
+
+%%% ===================================================================
+%%% SECTION E: Callaway–Sant'Anna and Eligibility-Restricted Results
+%%% ===================================================================
+
+\section{Callaway--Sant'Anna Event-Study Estimates and Alternative Control Group Results}
+\label{sec:app-cs}
+
+This section presents two sets of supplementary results. First, we report Callaway--Sant'Anna (CS) event-study estimates for all outcomes, complementing the SDID estimates in the main text. The CS estimator accommodates unbalanced panels and traces dynamic treatment effects over event time, making it a useful complement to SDID in settings where balanced-panel requirements induce substantial sample attrition. Second, we report overall ATT estimates from the eligibility-restricted control group design described in Section~4.6 of the main text.
+
+\subsection{CS Overall Results: State-Timing Design}
+
+Table~\ref{tab:cs-overall} reports CS ATT estimates for all outcomes under the state-timing control group construction used in the main text. These estimates use the ``not-yet-treated'' control group specification and are aggregated across cohorts using the CS group-time ATT framework.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\caption{Callaway--Sant'Anna ATT Estimates: State-Timing Design}
+\label{tab:cs-overall}
+\input{results/att_cs_overall.tex}
+\begin{minipage}{0.85\linewidth}
+\vspace{0.3cm}
+\footnotesize
+\textit{Notes:} ATT estimates from the Callaway--Sant'Anna estimator with ``not-yet-treated'' control group specification. Revenue and expense measures are in thousands of 2010 dollars per bed. Closures and mergers are state-level counts per 100 hospitals.
+\end{minipage}
+\end{table}
+
+\subsection{CS Event-Study Figures: State-Timing Design}
+
+Figures~\ref{fig:cs-financial}--\ref{fig:cs-org} present CS event-study estimates for each outcome, plotting dynamic treatment effects over event time relative to CAH designation.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/margin-cs.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/currentratio-cs.png}
+\end{subfigure}
+\\[0.5cm]
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/netpatrev-cs.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/totopexp-cs.png}
+\end{subfigure}
+\\[0.5cm]
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/netfixed-cs.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/capex-cs.png}
+\end{subfigure}
+\caption{CS event-study estimates: Financial performance and capital outcomes}
+\label{fig:cs-financial}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/beds-cs.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/beds_ob-cs.png}
+\end{subfigure}
+\\[0.5cm]
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/ftern-cs.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/ipdays-cs.png}
+\end{subfigure}
+\caption{CS event-study estimates: Capacity and staffing outcomes}
+\label{fig:cs-capacity}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/closure-rate-cs.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/merger-rate-cs.png}
+\end{subfigure}
+\\[0.5cm]
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/system-cs.png}
+\end{subfigure}
+\caption{CS event-study estimates: Organizational change outcomes}
+\label{fig:cs-org}
+\end{figure}
+
+
+\subsection{Eligibility-Restricted Control Group Results}
+
+Table~\ref{tab:elig-overall} reports overall ATT estimates from the eligibility-restricted design, which uses all non-CAH or not-yet-CAH hospitals with $\leq 50$ beds as controls regardless of state-level CAH adoption timing. This design expands the cohort range to 1999--2005 and substantially increases treated sample sizes relative to the state-timing design. Closures and mergers are omitted because these outcomes are estimated at the state level and require the state-timing design.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\caption{ATT Estimates: Eligibility-Restricted Control Group}
+\label{tab:elig-overall}
+\input{results/att_elig_overall.tex}
+\begin{minipage}{0.85\linewidth}
+\vspace{0.3cm}
+\footnotesize
+\textit{Notes:} ATT estimates from SDID and Callaway--Sant'Anna estimators using the eligibility-restricted control group (all non-CAH hospitals with $\leq 50$ beds). Cohorts span 1999--2005. $N_{tr}$ reports the total number of treated units across cohorts in the SDID balanced panel. Revenue and expense measures are in thousands of 2010 dollars per bed.
+\end{minipage}
+\end{table}
+
+\clearpage
+
+\subsection{CS Event-Study Figures: Eligibility-Restricted Design}
+
+Figures~\ref{fig:elig-cs-financial}--\ref{fig:elig-cs-capacity} present CS event-study estimates from the eligibility-restricted design.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/elig-margin-cs.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/elig-currentratio-cs.png}
+\end{subfigure}
+\\[0.5cm]
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/elig-netpatrev-cs.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/elig-totopexp-cs.png}
+\end{subfigure}
+\\[0.5cm]
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/elig-netfixed-cs.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/elig-capex-cs.png}
+\end{subfigure}
+\caption{CS event-study estimates (eligibility-restricted): Financial performance and capital outcomes}
+\label{fig:elig-cs-financial}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/elig-beds-cs.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/elig-beds_ob-cs.png}
+\end{subfigure}
+\\[0.5cm]
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/elig-ftern-cs.png}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/elig-ipdays-cs.png}
+\end{subfigure}
+\\[0.5cm]
+\begin{subfigure}[b]{0.48\textwidth}
+  \includegraphics[width=\textwidth]{results/elig-system-cs.png}
+\end{subfigure}
+\caption{CS event-study estimates (eligibility-restricted): Capacity, staffing, and system membership}
+\label{fig:elig-cs-capacity}
+\end{figure}
+
 
 \end{document}

@@ -199,10 +199,11 @@ est.dat <- final.dat %>%
   ungroup()
 
 
-## add ipw weights to estimation data
-source('analysis/0-ipw-weights.R')
+## ever_rural indicator (hospital-level)
 est.dat <- est.dat %>%
-  left_join(id.weights %>% select(ID, ipw, ever_rural), by="ID")
+  group_by(ID) %>%
+  mutate(ever_rural = as.integer(any(CBSATYPE == "Rural", na.rm = TRUE))) %>%
+  ungroup()
 
 ## check missing values by year
 missing.dat <- est.dat %>%

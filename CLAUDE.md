@@ -159,6 +159,15 @@ Each DD script is self-contained: owns its outcome map, loop, results collection
 
 **IPDTOT (inpatient days per bed)**: Winsorized at 365 days per bed maximum. Raw IPDTOT values above 365 indicate data errors (impossible utilization) or bed count misreporting, particularly for small hospitals. Four hospitals had extreme values (430-843 days/bed) that were causing unstable SDID estimates with large cohort heterogeneity.
 
+### LaTeX 2025 Compatibility
+
+LaTeX2e 2025-11-01 changed `\input` so that `\noalign`-based commands (`\midrule`, `\bottomrule`, `\hline`) and `\omit`-based commands (`\multicolumn`) fail when the `\input` file is read inside a `tabular`. Fix: R scripts now output **complete** `\begin{tabular}...\end{tabular}` blocks including headers; LaTeX files use `\input` outside the tabular, wrapping only in `table` float + caption. Applied to all 8 `\input`'d tables across both documents:
+- `1-sum-stats.R` → `desc_compare.tex` (paper.tex)
+- `_run-analysis.r` → `att_overall.tex` (paper.tex), `att_cs_overall.tex` (appendix.tex)
+- `3-hospital-dd-alt.R` → `att_elig_overall.tex` (appendix.tex)
+- `app-dd-diagnostics.R` → 3 diagnostics tables (appendix.tex)
+- `app-financial-preperiod.R` → pre-period sensitivity (appendix.tex)
+
 ### Diagnostics Script (`app-dd-diagnostics.R`)
 
 Covers both hospital-level (9 outcomes via `stack.hosp`) and state-level (closures, mergers via `stack.state`) diagnostics. Outputs CSVs, pre-trend PNGs, and three `.tex` tabular-innards files to `results/diagnostics/`. These `.tex` files are `\input`'d by `appendix.tex`.
@@ -333,17 +342,30 @@ Attempted to extend margin coverage to 1994-1996 using HCRIS PPS data via `analy
 
 **Pre-trend concerns**: `tot_operating_exp` has significant differential pre-trends in ALL three cohorts (p < 0.002 in each). `net_pat_rev` flags in 1999 (p = 0.003) and marginally in 2001 (p = 0.06); 2000 is clean. However, pre-period sensitivity analysis shows SDID point estimates are stable across pre-period lengths 2-5, suggesting the estimates are not driven by fitting pre-trends.
 
-**Paper/appendix status (2026-02-10)**: paper.tex reflects current results — null margin narrative, revenue/expense decomposition in Section 4.2, 4-panel financial figure (margin, current ratio, revenue, expenses), and current numbers for all outcomes. Organizational changes section reframed around risk reduction rather than margin improvement. appendix.tex includes measure definitions for all six financial outcomes (Section A), expanded pre-trend figures and discussion for revenue/expense, and a new Section D with pre-period sensitivity table. Decomposition framed as descriptive/suggestive given pre-trend concerns. SDID is primary estimator; CS results moving to appendix. Results tables now include $N_{tr}$.
+**Paper/appendix status (2026-02-10)**: Both documents compile cleanly (paper: 28pp, appendix: 19pp). All 8 `\input`'d tables use complete tabular blocks for LaTeX 2025 compatibility. paper.tex reflects current results — null margin narrative, revenue/expense decomposition in Section 4.2, 4-panel financial figure, Section 4.6 (elig robustness + forest plot), Section 5 (Discussion). Main results table is SDID-only (4 cols) with $N_{tr}$; CS results in appendix Section E. appendix.tex includes measure definitions (A), pre-trend figures/discussion (C), pre-period sensitivity (D), CS overall + event-study figures + eligibility-restricted results (E). R pipeline fully regenerates all .tex output files.
 
 ### Forward Plan (2026-02-10)
 
 See `scratch/refreport_202602.md` for detailed progress log and plan.
 
-**Phase 1 — Paper writing** (no new estimation):
-- Section 4.X: eligibility-restricted results as robustness subsection, forest plot figure
-- Section 5 (Discussion): limitations, policy implications, future directions
-- Appendix B: `state.cut` sensitivity (coauthor contributing)
-- Expositional: typos, date, $p_c(\delta)$ notation, IPW documentation, $\rho$ justification, CS plots to appendix
+**Phase 1 — Paper writing** (completed 2026-02-10):
+- Section 4.6: eligibility-restricted robustness subsection with forest plot figure
+- Section 5 (Discussion): summary, limitations, policy implications, future directions
+- Typos fixed, date updated, $p_c(\delta)$ explanation added, $\rho$ justification added, CS moved to appendix (Section E)
+- Appendix B: `state.cut` sensitivity (coauthor contributing, still placeholder)
+
+**TODO — Before next submission**:
+1. ~~Re-run `_build-estimation-data.r` and `_run-analysis.r` in R~~ (done 2026-02-10)
+2. ~~Compile `paper.tex`~~ — 28 pages, 0 errors, 1 pre-existing overfull hbox (2pt, marginal effect equation) (done 2026-02-10)
+3. ~~Compile `appendix.tex`~~ — 19 pages, 0 errors, all 8 `\input`'d tables compile cleanly (done 2026-02-10)
+4. ~~IPW documentation~~ — dropped; IPW is built into the CS estimator, not used manually
+5. Bibliography: `paper.bbl` missing locally (Overleaf handles bibtex; `xu2017` citation undefined without it)
+
+**Cleanup completed (2026-02-10)**:
+- `0-ipw-weights.R` deleted; `ever_rural` moved inline to `_build-estimation-data.r` (line ~202)
+- `1-sum-stats.R` cleaned: removed unused figures/views/objects, kept hosp-types + panelview-treat + summary table + complete tabular block
+- Deleted 5 unused PNGs from results/ (desc-closures, desc-mergers, desc-all-changes, desc-changes-by-type, desc-panelview-closures)
+- Panelview OK "missing" issue was caused by Synology Drive syncing a partial CSV write (OK 1987 row truncated to 10 of 19 columns). Fixed by pausing Synology during R rebuild. Not a package or code bug.
 
 **Phase 2 — Additional estimation**:
 1. Heterogeneity analysis: ownership (govt vs nonprofit), initial bed size (≤25 vs 26-50), geographic isolation. Existing cohort-specific results are the foundation.

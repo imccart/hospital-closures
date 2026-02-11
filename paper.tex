@@ -77,13 +77,13 @@ Survival versus Scale: The Effects of Critical Access Hospital Designation
 
 \author{
 \large Katie Leinenbach\footnote{\scriptsize Demand Side Analytics. Email: katie.leinenbach@gmail.com} \hspace{0.2cm} \large Ian M. McCarthy\footnote{\scriptsize Department of Economics, Emory University, and NBER. Email: ian.mccarthy@emory.edu}}
-\date{January 2026}
+\date{February 2026}
 \maketitle
 
 \onehalfspace
 
 \begin{abstract}
-\noindent Hospitals are critical inputs into patient health and, increasingly, local economies. And yet policy-makers continue to struggle with the increasing rate of hospital closures, particularly in rural ares. Created by the Balanced Budget Act in 1997, Critical Access Hospital (CAH) designation was designed to offer financial assistance to hospitals in financial distress, focusing on hospitals in rural areas. We explore whether CAH designation improves a hospital's financial position, its effects on hospital scope, and ultimately its effects on hospital closures and mergers.
+\noindent Hospitals are critical inputs into patient health and, increasingly, local economies. And yet policy-makers continue to struggle with the increasing rate of hospital closures, particularly in rural areas. Created by the Balanced Budget Act in 1997, Critical Access Hospital (CAH) designation was designed to offer financial assistance to hospitals in financial distress, focusing on hospitals in rural areas. We explore whether CAH designation improves a hospital's financial position, its effects on hospital scope, and ultimately its effects on hospital closures and mergers.
 
 %\textbf{Keywords:} 
 \end{abstract}
@@ -131,7 +131,7 @@ Once designated, CAHs must maintain service and size restrictions, including tre
 = q_g \times p_g\,(1+\alpha\,\theta) + q_c \times p_c(\delta) - C(q_g+q_c,\theta),
 \label{eq:cah_profit}
 \end{equation}
-where $\alpha>0$ reflects the CAH reimbursement bump. The first implication of Eq.~\eqref{eq:cah_profit} is a direct effect on hospital margins. With higher reimbursement for Medicare patients, net margins rise under CAH status provided the incremental payment exceeds any cost increase required to comply with designation rules. This channel is central to our first set of empirical tests.
+where $\alpha>0$ reflects the CAH reimbursement bump. The first implication of Eq.~\eqref{eq:cah_profit} is a direct effect on hospital margins. With higher reimbursement for Medicare patients, net margins rise under CAH status provided the incremental payment exceeds any cost increase required to comply with designation rules. This channel is central to our first set of empirical tests. The notation $p_c(\delta)$ allows for the possibility that commercial prices respond to state-level CAH availability---for example, if reduced capacity among converting hospitals affects bargaining leverage with private insurers---but we do not test this channel directly.
 
 Because margins determine a hospital’s financial viability, they also shape organizational choices. Higher operating surplus raises the continuation value of independence, lowering the likelihood of outright closure. The same increase in standalone value may also deter future acquisitions or mergers. In this sense, closures and mergers are alternative organizational responses to financial stress, both influenced by the profitability shift induced by CAH designation. These mechanisms guide our initial empirical analysis in Section \ref{sec:design}.
 
@@ -150,7 +150,7 @@ To track CAH status, we supplement the AHA surveys with data from the Flex Monit
 Nonprofit hospitals are required to file Form 990 tax returns, which contain information on revenues, expenses, assets, and liabilities. These data allow us to construct operating margins and liquidity ratios. We link Form 990 filings to the AHA survey using Employer Identification Numbers (EINs) as well as fuzzy matching of names and locations.  
 
 \paragraph{\textit{Healthcare Cost Report Information System (HCRIS).}}  
-Medicare cost reports provide annual financial statements for virtually all facilities that participate in Medicare. We use these to construct operating margins and related measures analogous to those from the Form 990s. Since the cost reports are at the level of an individual hospital structure (rather than a system), we relay on financial measures constructed from HCRIS when possible.
+Medicare cost reports provide annual financial statements for virtually all facilities that participate in Medicare. We use these to construct operating margins and related measures analogous to those from the Form 990s. Since the cost reports are at the level of an individual hospital structure (rather than a system), we rely on financial measures constructed from HCRIS when possible.
 
 \subsection{Key Variable Construction}
 
@@ -204,7 +204,7 @@ subject to $\omega_j\ge 0$, $\sum_{j\in C}\omega_j=1$, and $\lambda_t\ge 0$, $\s
 \end{equation*}
 We report both the path $\bar Y_{Gt}-\sum_{j\in C}\omega_j Y_{jt}$ over $t$ and the pooled ATT $\widehat\tau_c$. Cohort estimates are then aggregated in event time by weighting each cohort’s path by its treated-unit count. We summarize effects across cohorts using treated-unit–count weights for the pooled ATT and compute pooled standard errors using the same weighting scheme, treating cohort-specific estimates as approximately independent.
 
-We prefer an SDID approach for two reasons. First, our analysis relies on a small number of states and hospitals receiving CAH designation, along with a limited pool of comparable control hospitals, for which SDID methods are less sensitive. Second, the criteria for CAH designation are not strictly mechanical in practice, which will tend to introduce unobserved heterogeneity and potential endogeneity into the treatment selection process. Hospitals that receive CAH designation may therefore systematically differ in a time-varying way from a simply-defined control group (e.g., small, rural hospitals in the same state). In assigning optimal weights to minimize the pre-treatment outcome differences, SDID methods intuitively creates a control group for which the parallel trends assumption is more likely to be satisfied.\footnote{We complement our SDID estimates with a Callaway–Sant’Anna (CS) event-study estimator that also traces dynamic responses over time \citep{callaway2021}.} 
+We prefer an SDID approach for two reasons. First, our analysis relies on a small number of states and hospitals receiving CAH designation, along with a limited pool of comparable control hospitals, for which SDID methods are less sensitive. Second, the criteria for CAH designation are not strictly mechanical in practice, which will tend to introduce unobserved heterogeneity and potential endogeneity into the treatment selection process. Hospitals that receive CAH designation may therefore systematically differ in a time-varying way from a simply-defined control group (e.g., small, rural hospitals in the same state). In assigning optimal weights to minimize the pre-treatment outcome differences, SDID methods intuitively creates a control group for which the parallel trends assumption is more likely to be satisfied.\footnote{We complement our SDID estimates with the Callaway--Sant'Anna (CS) event-study estimator \citep{callaway2021}, which accommodates unbalanced panels and traces dynamic treatment effects. CS results are reported in the supplemental appendix.} 
 
 In the remainder of this section, we discuss results by outcome category, beginning with financial performance and proceeding through investment, capacity, and organizational outcomes. A concise summary of the pooled estimates is presented in Table \ref{tab:sdid-overall}.
 
@@ -239,6 +239,15 @@ We next examine whether CAH designation altered hospitals' propensity to exit, c
 The post-period estimates point to meaningful reductions in closures following CAH designation. The pooled ATT implies a decline of 0.483 closures per 100 hospitals (95\% CI $[-0.83, -0.13]$). Although the margin results in Section~\ref{sec:financial} show no improvement in average profitability, cost-based reimbursement may nonetheless reduce the variance of Medicare revenue, lowering the probability of acute financial distress that precipitates closure. By contrast, we find no evidence of a systematic effect on merger activity: the pooled ATT for mergers is 0.111 per 100 hospitals, with a confidence interval that includes zero (95\% CI $[-0.19, 0.41]$). At the hospital level, we find a modest increase in system membership (ATT $= 0.074$, 95\% CI $[0.01, 0.14]$), suggesting some movement toward affiliation even as closures decline. Taken together, the organizational-change results indicate that CAH designation primarily operates on the extensive margin of survival rather than affecting consolidation.
 
 
+\subsection{Robustness: Alternative Control Group}
+\label{sec:robustness_elig}
+
+Our main identification strategy relies on the staggered timing of state-level CAH program adoption to construct control groups of not-yet-treated hospitals. While this design limits contamination from within-state selection, it restricts both the number of treated cohorts (1999--2001) and the control pool. To assess the sensitivity of our results to this particular control group construction, we implement an alternative eligibility-restricted design that relaxes the state-timing requirement entirely.
+
+In the eligibility-restricted design, the treated group consists of hospitals that convert to CAH status in a given year, and the control group includes all non-CAH hospitals with 50 or fewer beds---both those that never convert and those that have not yet converted---regardless of whether their state has adopted the CAH program. This design widens both the cohort range (1999--2005, yielding seven cohorts rather than three) and the treated sample (89--237 hospitals per cohort, compared to 7--19 in the state-timing design), while using approximately 989 non-CAH small hospitals as controls. The tradeoff is that the control group may include hospitals that chose not to convert despite eligibility, reintroducing potential selection concerns that the state-timing design was intended to mitigate. Nevertheless, the design provides a useful check on whether our main estimates are driven by the specific control group construction or by the state-timing restriction itself.
+
+Figure~\ref{fig:forest-sdid} summarizes the comparison, plotting SDID ATT estimates and 95\% confidence intervals from the state-timing and eligibility-restricted designs side by side for each outcome. The capacity effects---total beds, OB beds, and FTE RNs---are robust across both designs and often larger in magnitude in the eligibility-restricted specification, consistent with later-adopting cohorts (2002--2005) experiencing similar or stronger downsizing. Financial results are qualitatively similar: operating margin is null under both designs, and revenue and expense point estimates are near zero in the eligibility-restricted specification (compared to negative but imprecise in the state-timing design). System membership and the current ratio are consistent in sign, with the current ratio divergence between SDID and CS estimates substantially attenuated in the eligibility-restricted design ($-0.121$ versus $-0.709$ in the state-timing design). Full results from the eligibility-restricted design are reported in the supplemental appendix.
+
 \subsection{Net Capacity Effects}
 \label{sec:net_capacity}
 
@@ -255,7 +264,7 @@ N\rho\,\Delta B,
 \end{equation}
 where the first term captures beds preserved via avoided closures and the second term captures beds lost (or gained) through within-hospital changes among CAH converters.
 
-We implement \eqref{eq:net_beds} using our pooled SDID estimates: $\Delta C=-0.483$ closures per 100 hospitals and $\Delta B=-4.081$ beds per converting hospital. For a back-of-the-envelope conversion intensity we set $\rho=0.30$. To proxy $\bar B_{\text{close}}$, we use the mean pre-CAH bed size from Table~\ref{tab:summary-by-cah}, $\bar B_{\text{close}}\approx 54$. Dividing \eqref{eq:net_beds} by $N$ yields the net effect per hospital:
+We implement \eqref{eq:net_beds} using our pooled SDID estimates: $\Delta C=-0.483$ closures per 100 hospitals and $\Delta B=-4.081$ beds per converting hospital. For a back-of-the-envelope conversion intensity we set $\rho=0.30$, consistent with observed adoption rates among hospitals with $\leq 50$ beds in states that made CAH designation available by 2005. To proxy $\bar B_{\text{close}}$, we use the mean pre-CAH bed size from Table~\ref{tab:summary-by-cah}, $\bar B_{\text{close}}\approx 54$. Dividing \eqref{eq:net_beds} by $N$ yields the net effect per hospital:
 \begin{equation*}
 \frac{\Delta \text{Beds}^{net}}{N}
 =
@@ -321,8 +330,30 @@ We view these calculations as suggestive rather than definitive. They underscore
 
 
 
-\section{Discussion} 
+\section{Discussion}
 \label{sec:conclusions}
+
+This paper examines the effects of Critical Access Hospital designation on hospital finances, capacity, staffing, and organizational outcomes. Our central finding is that CAH designation achieves its primary goal of reducing hospital closures, but it does so at the cost of operational scale: converting hospitals shed beds, obstetric capacity, and nursing staff, consistent with the program's eligibility constraints. Operating margins are unaffected, not because nothing changes, but because revenue and expenses contract in near-lockstep as hospitals downsize. The result is a ``survival versus scale'' tradeoff in which designation preserves hospital presence primarily by encouraging continued operation at a smaller scale rather than by maintaining pre-designation capacity.
+
+\paragraph{\textit{Identification and robustness.}}
+Our primary identification strategy exploits the staggered rollout of state-level CAH availability, comparing hospitals that convert in early-adopting states to otherwise similar hospitals in states where the program was not yet available. This design limits reliance on within-state comparisons between converters and contemporaneous non-converters, whose decision not to convert may reflect unobserved hospital-level selection. However, it cannot fully eliminate the possibility that hospitals selecting into CAH status differ from controls along unobservable dimensions. The alternative control group analysis in Section~\ref{sec:robustness_elig} provides reassurance on this front: relaxing the state-timing restriction and widening the control pool to all non-CAH hospitals with 50 or fewer beds yields qualitatively similar results across outcomes, with capacity effects that are often larger in magnitude. This consistency across two distinct control group constructions---one emphasizing exogeneity of the state-level policy shock, the other emphasizing breadth and comparability of the control pool---strengthens the case that our estimates reflect genuine treatment effects rather than artifacts of a particular sample selection.
+
+\paragraph{\textit{Pre-trends and the revenue/expense decomposition.}}
+While capacity and organizational outcomes generally satisfy standard pre-trend diagnostics, the revenue and expense decomposition exhibits differential pre-trends in some cohorts. We present this decomposition as suggestive rather than definitive evidence. The stability of SDID point estimates across pre-period lengths of 2--5 years, documented in the supplemental appendix, provides some reassurance that the estimates are not mechanically driven by fitting differential trends, but we cannot rule out the possibility that stable pre-existing differences between treated and control hospitals contribute to the estimated effects. The null margin result itself does not rely on the decomposition and is robust across estimators, control group constructions, and pre-period lengths.
+
+\paragraph{\textit{Small treated samples.}}
+Financial outcomes rely on balanced panels of 34--43 treated hospitals, depending on the pre-period length. These sample sizes arise because HCRIS financial data coverage ramps up gradually through the late 1990s, and the SDID estimator requires each unit to be observed in every period of the event window. While jackknife standard errors provide valid inference asymptotically, their finite-sample properties are less well-characterized with very few treated units. We report cohort-specific estimates throughout to allow readers to assess the stability and fragility of the aggregate results. The pre-period sensitivity analysis further demonstrates that the key findings---null margins, proportional contraction in revenue and expenses, and stable capacity effects---are not driven by a particular subset of hospitals that happen to have unusually long financial histories.
+
+\paragraph{\textit{SDID and CS divergence.}}
+The current ratio is the one outcome for which our two estimators produce qualitatively different results. The SDID estimate implies a decline in liquidity following CAH designation, while the Callaway--Sant'Anna estimate implies an increase. This divergence is substantially attenuated in the eligibility-restricted design, where the SDID current ratio estimate is $-0.121$ (versus $-0.709$ in the state-timing design) and the CS estimate is $0.500$ (versus $1.816$). The attenuation is consistent with balanced-panel composition effects: when the SDID balanced panel retains only a small and potentially unrepresentative subset of treated units, the resulting estimates may diverge from those obtained under the full unbalanced sample. We therefore do not draw strong conclusions about the direction of liquidity effects from either estimator.
+
+\paragraph{\textit{Policy implications.}}
+CAH designation preserves hospital \textit{presence} but not pre-designation \textit{capacity}. This distinction has direct implications for evaluating the program's effectiveness. As our back-of-the-envelope calculations in Section~\ref{sec:net_capacity} demonstrate, the break-even conversion rate---the share of hospitals that would need to convert for avoided closures to offset within-hospital downsizing---is approximately 6\% for beds and 4\% for inpatient days. These thresholds are well below observed conversion rates in states that adopted the program, implying that the net effect of CAH designation on aggregate inpatient capacity is negative at the scale at which the program has operated.
+
+These findings are relevant to ongoing debates about designation-based hospital support. The Rural Emergency Hospital (REH) designation, introduced in 2023, represents a further point along the survival-scale tradeoff: REH status eliminates inpatient services entirely in exchange for enhanced outpatient reimbursement. Our results for CAH---where the capacity constraints are less severe---suggest that even modest eligibility restrictions can generate meaningful reductions in service scope. Whether the access value of maintaining a hospital presence (e.g., emergency care, outpatient services, local employment) outweighs the diminished inpatient capacity is ultimately a welfare question that our analysis cannot resolve without patient-level data on utilization, health outcomes, and travel burden.
+
+\paragraph{\textit{Future directions.}}
+Several extensions would sharpen the analysis. First, heterogeneity analysis along dimensions of hospital ownership (government versus nonprofit), initial bed size ($\leq 25$ versus 26--50), and geographic isolation could clarify which types of hospitals experience the largest capacity reductions and whether the survival benefit is concentrated among the most financially distressed facilities. Second, alternative estimators designed for unbalanced panels, such as the generalized synthetic control method \citep{xu2017} or the fixed-effects counterfactual estimator, would allow the full sample to contribute to financial outcome estimates without the attrition imposed by balanced-panel requirements. Third, downstream analyses linking CAH designation to patient-level outcomes---including emergency department utilization, inpatient mortality, and travel distances---would directly inform the welfare implications of the survival-scale tradeoff documented here.
 
 \pagebreak
 \bibliography{references.bib}
@@ -366,9 +397,7 @@ We view these calculations as suggestive rather than definitive. They underscore
 \begin{minipage}[h]{6in}
 \caption[caption]{\textbf{Summary Statistics by CAH Designation}\footnote{Summary statistics for CAH and non-CAH hospitals, with CAHs further divided into years prior to designation, after designation, and all years. Numbers reflect means or counts, and brackets denote the 10th and 90th percentile ranges. Data are limited to general, acute care, community hospitals over the years 1995 through 2010. Distance reflects miles to the nearest neighboring hospital, as calculated as discussed in Section \ref{sec:data}; bed size is from the AHA variable ``BDTOT''; rural status is based on an indicator for whether the hospital is located in a rural CBSA as per the AHA survey; inpatient days is from the AHA variable ``IPDTOT'' and measured per bed; closures and mergers are identified from the AHA summary of changes files; operating margin is total revenue less total expenses, divided by total revenue; current ratio is current assets divided by current liabilities; and system membership indicates whether the hospital belongs to a multi-hospital system. }}
 \centerline{%
-    \begin{tabular}[t]{lcccc}
-        \input{results/desc_compare.tex}
-    \end{tabular}
+    \input{results/desc_compare.tex}
 }
 \label{tab:summary-by-cah}
 \end{minipage}
@@ -445,15 +474,25 @@ We view these calculations as suggestive rather than definitive. They underscore
 \clearpage
 \newpage
 
+\begin{figure}[htb]
+\centering
+\begin{minipage}[h]{6in}
+\caption[caption]{SDID Estimates across Control Group Constructions\footnote{Forest plot comparing SDID ATT estimates from the state-timing control group (filled circles) and the eligibility-restricted control group (open circles). Each row corresponds to a single outcome, with point estimates and 95\% confidence intervals. The eligibility-restricted design uses all non-CAH or not-yet-CAH hospitals with $\leq 50$ beds as controls regardless of state-level adoption timing, with cohorts spanning 1999--2005. Closures and mergers are estimated at the state level and are available only for the state-timing design.}}
+\centerline{\includegraphics[width=5.5in,height=8in,keepaspectratio]{results/forest-sdid.png}}
+\label{fig:forest-sdid}
+\end{minipage}
+\end{figure}
+
+\clearpage
+\newpage
+
 \begin{table}
 \centering
 \footnotesize
 \begin{minipage}[h]{6in}
-\caption[caption]{\textbf{Summary of ATTs}\footnote{Summary of Average Treatment Effects on the Treated (ATTs) from our synthetic difference-in-differences estimation. The table presents the weighted average overall ATT, as detailed in the main text, along with 95\% confidence intervals.}}
+\caption[caption]{\textbf{Summary of SDID ATTs}\footnote{Summary of Average Treatment Effects on the Treated (ATTs) from our synthetic difference-in-differences estimation. The table presents the weighted average overall ATT, as detailed in the main text, along with 95\% confidence intervals. $N_{tr}$ reports the total number of treated units across cohorts in the SDID balanced panel. Callaway--Sant'Anna event-study estimates are reported in the supplemental appendix.}}
 \centerline{%
-    \begin{tabular}[t]{lclcl}
-        \input{results/att_overall.tex}
-    \end{tabular}
+    \input{results/att_overall.tex}
 }
 \label{tab:sdid-overall}
 \end{minipage}
