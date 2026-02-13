@@ -349,7 +349,7 @@ Attempted to extend margin coverage to 1994-1996 using HCRIS PPS data via `analy
 
 **Pre-trend concerns**: `tot_operating_exp` has significant differential pre-trends in ALL three cohorts (p < 0.002 in each). `net_pat_rev` flags in 1999 (p = 0.003) and marginally in 2001 (p = 0.06); 2000 is clean. However, pre-period sensitivity analysis shows SDID point estimates are stable across pre-period lengths 2-5, suggesting the estimates are not driven by fitting pre-trends.
 
-**Paper/appendix status (2026-02-13)**: paper.tex compiles cleanly (29pp, 1 pre-existing overfull hbox). Section 4.7 (Heterogeneity) added with combined forest plot figure. Discussion rewritten — removed `\paragraph{\textit{...}}` subheadings, flowing prose, updated future directions. Net Capacity Effects is now Section 4.8. appendix.tex unchanged (19pp). All `\input`'d tables use complete tabular blocks for LaTeX 2025 compatibility. R pipeline fully regenerates all .tex output files.
+**Paper/appendix status (2026-02-13)**: paper.tex compiles cleanly (29pp, 1 pre-existing overfull hbox). Section 4.7 (Heterogeneity) added with combined forest plot figure. Discussion rewritten as flowing prose. Section 2 model revised: explicit capacity constraint $\bar{Q}(\theta)$ with $\bar{Q}(1) < \bar{Q}(0)$, formal margin definition, exit threshold with variance-reduction channel. Financial framing throughout paper updated for consistency — margin effect presented as ambiguous (not expected to improve). appendix.tex unchanged (19pp). All `\input`'d tables use complete tabular blocks for LaTeX 2025 compatibility.
 
 ### Forward Plan (2026-02-10)
 
@@ -400,7 +400,7 @@ See `scratch/refreport_202602.md` for detailed progress log and plan.
 
 **Date**: 2026-02-13
 
-- Added `6-heterogeneity.R` (4 dimensions × 11 outcomes × 7 cohorts, SDID only, `stack.elig`); sourced from `_run-analysis.r`
-- Wrote Section 4.7 (Heterogeneity) in paper.tex with combined forest plot figure; rewrote Discussion to remove `\paragraph` subheadings
-- Git preferences updated: short single-line commits, no Co-Authored-By tags (global CLAUDE.md + project CLAUDE.md + MEMORY.md)
+- Revised Section 2 model: added explicit capacity constraint $\bar{Q}(\theta)$, formal margin $m = 1 - C/R$, exit threshold $\underline{\pi}$ with variance-reduction channel
+- Updated financial framing throughout paper for consistency: intro, model, results all treat margin effect as ambiguous (not expected to improve)
+- Fixed 6 grammar/mechanics issues (abstract wording, set notation, missing period, unclosed paren, subject-verb agreement)
 - **Next**: Phase 2 Priority 2 (ITT, gsynth/fect, IV); heterogeneity tables may need appendix integration
