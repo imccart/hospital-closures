@@ -129,6 +129,10 @@ ggsave("results/forest-sdid.png", p_forest,
        width = 7, height = 0.9 * n_out + 1.2, dpi = 300)
 
 
+# Heterogeneity ------------------------------------------------------------
+source('analysis/6-heterogeneity.R')         # -> het.results
+
+
 # Diagnostics and sensitivity ----------------------------------------------
 source('analysis/app-dd-diagnostics.R')
 source('analysis/app-financial-preperiod.R')

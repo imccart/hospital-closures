@@ -38,6 +38,7 @@ This is a pure R project with no formal build system. Execute scripts in R/RStud
 - `_run-analysis.r`: Orchestrator — reads saved CSVs, sets globals, builds stacked datasets (`stack.hosp`, `stack.state`, `stack.elig`), then sequentially sources DD scripts and diagnostics. Does not rebuild data and does not contain outcome loops.
 - `functions.R`: Stacking functions for difference-in-differences with staggered treatment timing (`stack_hosp`, `stack_hosp_elig`, `stack_state`)
 - DD scripts (`2-hospital-dd.R`, `3-hospital-dd-alt.R`, `4-changes-state-dd.R`) are self-contained: each owns its outcome map, loop, results collection, and tex/figure output
+- `6-heterogeneity.R`: Subgroup-specific SDID ATTs across 4 dimensions (ownership, isolation, pre-treatment margin, system); uses `stack.elig` only with `het.fin.pre=3` for financial outcomes; requires `patchwork` for combined forest plot
 - `app-dd-diagnostics.R`: Appendix diagnostics (pre-trends, sample comparison, synthetic weight concentration)
 
 ### Stacked Difference-in-Differences Design
@@ -85,6 +86,11 @@ Source repositories:
 - `paper.tex`: Main LaTeX manuscript (synced with Overleaf)
 - `appendix.tex`: Standalone supplemental appendix (financial measure construction, robustness, SDID diagnostics)
 
+## Git Preferences
+
+- Short, single-line commit messages (no body)
+- No `Co-Authored-By` tags
+
 ## Important Notes
 
 - The manuscript syncs with Overleaf via git. Check for Overleaf merge commits before editing `paper.tex`.
@@ -121,6 +127,7 @@ Each DD script is self-contained: owns its outcome map, loop, results collection
 | `3-hospital-dd-alt.R` | Hospital | All hospital-level | `elig.results`, `elig.cohort.results`, `att_elig_overall.tex`, `att_elig_cohort.tex` | Eligibility-restricted, uses `stack.elig`, cohorts 1999-2005 |
 | `4-changes-state-dd.R` | State | closures, mergers | `state.results.table` | Uses `stack.state`, rates per 100 hospitals, cohorts 1999-2001 |
 | `5-changes-hospital-hazard.R` | Hospital | time-to-closure/merger | — | Survival/hazard models |
+| `6-heterogeneity.R` | Hospital | all hospital-level | `het.results` | Uses `stack.elig`, 4 dimensions, SDID only, `het.fin.pre=3` |
 
 ### Stacking Functions (`functions.R`)
 
@@ -342,7 +349,7 @@ Attempted to extend margin coverage to 1994-1996 using HCRIS PPS data via `analy
 
 **Pre-trend concerns**: `tot_operating_exp` has significant differential pre-trends in ALL three cohorts (p < 0.002 in each). `net_pat_rev` flags in 1999 (p = 0.003) and marginally in 2001 (p = 0.06); 2000 is clean. However, pre-period sensitivity analysis shows SDID point estimates are stable across pre-period lengths 2-5, suggesting the estimates are not driven by fitting pre-trends.
 
-**Paper/appendix status (2026-02-10)**: Both documents compile cleanly (paper: 28pp, appendix: 19pp). All 8 `\input`'d tables use complete tabular blocks for LaTeX 2025 compatibility. paper.tex reflects current results — null margin narrative, revenue/expense decomposition in Section 4.2, 4-panel financial figure, Section 4.6 (elig robustness + forest plot), Section 5 (Discussion). Main results table is SDID-only (4 cols) with $N_{tr}$; CS results in appendix Section E. appendix.tex includes measure definitions (A), pre-trend figures/discussion (C), pre-period sensitivity (D), CS overall + event-study figures + eligibility-restricted results (E). R pipeline fully regenerates all .tex output files.
+**Paper/appendix status (2026-02-13)**: paper.tex compiles cleanly (29pp, 1 pre-existing overfull hbox). Section 4.7 (Heterogeneity) added with combined forest plot figure. Discussion rewritten — removed `\paragraph{\textit{...}}` subheadings, flowing prose, updated future directions. Net Capacity Effects is now Section 4.8. appendix.tex unchanged (19pp). All `\input`'d tables use complete tabular blocks for LaTeX 2025 compatibility. R pipeline fully regenerates all .tex output files.
 
 ### Forward Plan (2026-02-10)
 
@@ -367,9 +374,33 @@ See `scratch/refreport_202602.md` for detailed progress log and plan.
 - Deleted 5 unused PNGs from results/ (desc-closures, desc-mergers, desc-all-changes, desc-changes-by-type, desc-panelview-closures)
 - Panelview OK "missing" issue was caused by Synology Drive syncing a partial CSV write (OK 1987 row truncated to 10 of 19 columns). Fixed by pausing Synology during R rebuild. Not a package or code bug.
 
-**Phase 2 — Additional estimation**:
-1. Heterogeneity analysis: ownership (govt vs nonprofit), initial bed size (≤25 vs 26-50), geographic isolation. Existing cohort-specific results are the foundation.
-2. Permutation/placebo inference for SDID (addresses small-sample SE concern)
-3. gsynth/fect for financial outcomes (handles unbalanced panels + differential trends)
-4. ITT specification (state-level treatment for all eligible hospitals)
-5. IV feasibility (state availability as instrument)
+**Phase 2 — Additional estimation** (prioritized):
+
+*Priority 1 — Heterogeneity (referee 2b)* — **COMPLETED 2026-02-13**:
+- `6-heterogeneity.R`: 4 dimensions (ownership, isolation, pre-treatment margin, system membership)
+- Uses `stack.elig` only, `het.fin.pre=3` for financial outcomes, SDID only
+- Baseline chars from `est.dat`: modal ownership, mean distance, margin 1996-1998, system year before treatment
+- Medians for continuous splits computed among treated hospitals with beds ≤ `bed.cut`
+- Output: `het_results.csv`, 4 individual forest plots, 1 combined forest plot (`patchwork`), 4 LaTeX tables
+- Key findings: capacity reductions pervasive; nonprofits downsize more than government; below-median margin hospitals have larger FTE/utilization reductions; proximate hospitals join systems, isolated don't
+
+*Priority 2 — ITT and alternative estimators (referee 2a, 1b, 1c)*:
+- ITT specification: state-level program availability as treatment for all eligible hospitals. Eliminates selection, estimates diluted effect. Benchmark against TOT.
+- gsynth/fect: factor-model estimator for financial outcomes. Handles unbalanced panels natively, models differential trends. Addresses pre-trend concerns (1b) and small balanced-panel samples (1c).
+- IV feasibility: state availability as instrument for hospital-level conversion. Explore before committing — weak-instrument concerns with few cohorts.
+
+*Priority 3 — Permutation inference (referee 2e)*:
+- Permutation/placebo inference for SDID: assign treatment to random control subsets, compute distribution of placebo ATTs. Addresses jackknife limitation with small $N_{tr}$.
+
+*Not prioritized but tracked*:
+- Concurrent policy controls (referee 2d): BBA/BBRA/BIPA discussion — may be prose-only in Sec 5 or a control variable
+- Patient outcomes/welfare (referee 2c): downstream access, mortality, travel burden — future work, discussed in Sec 5
+
+## Last Session
+
+**Date**: 2026-02-13
+
+- Added `6-heterogeneity.R` (4 dimensions × 11 outcomes × 7 cohorts, SDID only, `stack.elig`); sourced from `_run-analysis.r`
+- Wrote Section 4.7 (Heterogeneity) in paper.tex with combined forest plot figure; rewrote Discussion to remove `\paragraph` subheadings
+- Git preferences updated: short single-line commits, no Co-Authored-By tags (global CLAUDE.md + project CLAUDE.md + MEMORY.md)
+- **Next**: Phase 2 Priority 2 (ITT, gsynth/fect, IV); heterogeneity tables may need appendix integration
