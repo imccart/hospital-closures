@@ -143,10 +143,17 @@ tex_lines <- gsynth.results %>%
   ungroup() %>%
   pull(line)
 
+# Insert group separators: financial (1-6), capacity (7-10), organizational (11)
+tex_lines <- append(tex_lines, "\\addlinespace", after = 6)
+tex_lines <- append(tex_lines, "\\addlinespace", after = 11)  # shifted by 1
+
 writeLines(c(
   "\\begin{tabular}{lccr}",
+  "\\toprule",
   "Outcome & IFE ATT & 95\\% CI & $N_{tr}$ \\\\",
+  "\\midrule",
   tex_lines,
+  "\\bottomrule",
   "\\end{tabular}"
 ), "results/att_gsynth.tex")
 

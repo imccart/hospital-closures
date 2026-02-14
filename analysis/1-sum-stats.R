@@ -208,17 +208,21 @@ desc_tab <- tibble(
 # Complete LaTeX tabular block (LaTeX 2025 breaks \noalign/\omit inside \input within tabular)
 tex_lines <- c(
   "\\begin{tabular}[t]{lcccc}",
+  "\\toprule",
   "\\multicolumn{1}{c}{ } & \\multicolumn{3}{c}{CAHs} & \\multicolumn{1}{c}{ } \\\\",
   "\\cmidrule(l{3pt}r{3pt}){2-4}",
-  " & Pre & Post & Ever CAH & Never CAH\\\\"
+  " & Pre & Post & Ever CAH & Never CAH\\\\",
+  "\\midrule"
 )
 
 for (i in seq_len(nrow(desc_tab))) {
+  # Add spacing before Hospitals row to separate counts from variables
+  if (desc_tab$Variable[i] == "Hospitals") tex_lines <- c(tex_lines, "\\addlinespace")
   row_vals <- c(desc_tab$Variable[i], desc_tab$Pre[i], desc_tab$Post[i],
                 desc_tab$`Ever CAH`[i], desc_tab$`Never CAH`[i])
   tex_lines <- c(tex_lines, paste(row_vals, collapse = " & ") %>% paste0(" \\\\"))
 }
 
-tex_lines <- c(tex_lines, "\\end{tabular}")
+tex_lines <- c(tex_lines, "\\bottomrule", "\\end{tabular}")
 
 writeLines(tex_lines, "results/desc_compare.tex")

@@ -65,10 +65,17 @@ tex.lines.sdid <- results.table %>%
   ungroup() %>%
   pull(line)
 
+# Insert group separators: financial (1-6), capacity (7-11), organizational (12-13)
+tex.lines.sdid <- append(tex.lines.sdid, "\\addlinespace", after = 6)
+tex.lines.sdid <- append(tex.lines.sdid, "\\addlinespace", after = 12)  # shifted by 1
+
 writeLines(c(
   "\\begin{tabular}[t]{lccr}",
+  "\\toprule",
   "Outcome & SDID ATT & SDID 95\\% CI & $N_{tr}$ \\\\",
+  "\\midrule",
   tex.lines.sdid,
+  "\\bottomrule",
   "\\end{tabular}"
 ), "results/att_overall.tex")
 
@@ -80,10 +87,17 @@ tex.lines.cs <- results.table %>%
   ungroup() %>%
   pull(line)
 
+# Insert group separators: financial (1-6), capacity (7-11), organizational (12-13)
+tex.lines.cs <- append(tex.lines.cs, "\\addlinespace", after = 6)
+tex.lines.cs <- append(tex.lines.cs, "\\addlinespace", after = 12)  # shifted by 1
+
 writeLines(c(
   "\\begin{tabular}{lcc}",
+  "\\toprule",
   "Outcome & CS ATT & CS 95\\% CI \\\\",
+  "\\midrule",
   tex.lines.cs,
+  "\\bottomrule",
   "\\end{tabular}"
 ), "results/att_cs_overall.tex")
 

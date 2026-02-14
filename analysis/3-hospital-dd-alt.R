@@ -256,10 +256,17 @@ tex.lines <- elig.results %>%
   pull(line)
 
 ## Complete tabular block (LaTeX 2025 breaks \noalign/\omit inside \input within tabular)
+# Insert group separators: financial (1-6), capacity (7-10), organizational (11)
+tex.lines <- append(tex.lines, "\\addlinespace", after = 6)
+tex.lines <- append(tex.lines, "\\addlinespace", after = 11)  # shifted by 1
+
 writeLines(c(
   "\\begin{tabular}{lccrcc}",
+  "\\toprule",
   "Outcome & SDID ATT & SDID 95\\% CI & $N_{tr}$ & CS ATT & CS 95\\% CI \\\\",
+  "\\midrule",
   tex.lines,
+  "\\bottomrule",
   "\\end{tabular}"
 ), "results/att_elig_overall.tex")
 

@@ -460,7 +460,7 @@ Figures~\ref{fig:elig-cs-financial}--\ref{fig:elig-cs-capacity} present CS event
 
 Our primary SDID estimates require balanced panels, which can substantially reduce sample sizes---particularly for financial outcomes with sparse pre-treatment data coverage. As a robustness check, we estimate treatment effects using the interactive fixed effects (IFE) counterfactual estimator implemented in the \texttt{fect} package (Liu, Wang, and Xu, 2024). The IFE estimator models untreated potential outcomes as a function of unit and time fixed effects plus a low-rank factor structure, then imputes counterfactual outcomes for treated observations. Crucially, this approach accommodates unbalanced panels natively, allowing us to retain the full sample of hospitals with available data.
 
-We apply the IFE estimator to all financial and operational outcomes using the eligibility-restricted control group construction (cohorts 1999--2005). Financial outcomes use a five-year pre-period matching the SDID specification; operational outcomes (beds, OB beds, FTE RNs, inpatient days per bed, and system membership) also use a five-year pre-period. For each cohort, we select the number of factors (0--5) by leave-one-out cross-validation and compute bootstrap standard errors (200 replications). Cohort-level ATTs are aggregated using the same treated-count weighting as our SDID estimates.
+We apply the IFE estimator to all financial and operational outcomes using the eligibility-restricted control group construction (cohorts 1999--2005). Financial outcomes use a five-year pre-period matching the SDID specification; operational outcomes (beds, OB beds, FTE RNs, inpatient days per bed, and system membership) also use a five-year pre-period. For each cohort, we select the number of factors (0--5) by leave-one-out cross-validation and compute bootstrap standard errors (150 replications). Cohort-level ATTs are aggregated using the same treated-count weighting as our SDID estimates.
 
 \begin{table}[H]
 \centering
@@ -471,7 +471,7 @@ We apply the IFE estimator to all financial and operational outcomes using the e
 \begin{minipage}{0.85\linewidth}
 \vspace{0.3cm}
 \footnotesize
-\textit{Notes:} ATT estimates from the interactive fixed effects (IFE) counterfactual estimator. The number of factors is selected by cross-validation for each cohort. Revenue and expense measures are in thousands of 2010 dollars per bed. $N_{tr}$ reports the total number of treated units across cohorts. Bootstrap standard errors based on 200 replications.
+\textit{Notes:} ATT estimates from the interactive fixed effects (IFE) counterfactual estimator. The number of factors is selected by cross-validation for each cohort. Revenue and expense measures are in thousands of 2010 dollars per bed. $N_{tr}$ reports the total number of treated units across cohorts. Bootstrap standard errors based on 150 replications.
 \end{minipage}
 \end{table}
 

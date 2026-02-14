@@ -402,7 +402,7 @@ See `scratch/refreport_202602.md` for detailed progress log and plan.
 - Prototype validated: beds p=0.030 (significant)
 
 *Not prioritized but tracked*:
-- Concurrent policy controls (referee 2d): BBA/BBRA/BIPA discussion — may be prose-only in Sec 5 or a control variable
+- Concurrent policy controls (referee 2d): BBA/BBRA/BIPA — addressed in Discussion prose (BBRA 1999, BIPA 2000)
 - Patient outcomes/welfare (referee 2c): downstream access, mortality, travel burden — future work, discussed in Sec 5
 
 ## Overleaf Guard
@@ -413,7 +413,8 @@ See `scratch/refreport_202602.md` for detailed progress log and plan.
 
 **Date**: 2026-02-14
 
-- Added `.github/workflows/guard-overleaf.yml` to protect code/results from accidental Overleaf modifications
-- Updated `/kickoff` skill: guard workflow template, `background/` in `.gitignore`
-- Moved `supplemental/maps` → `archived/maps`; removed empty `supplemental/`
+- Booktabs formatting for all result tables (R scripts + .tex files); `\addlinespace` between outcome groups
+- Discussion section rewritten: econ style (robustness woven into interpretation) instead of medical-paper "limitations" catalog
+- Paper now references IFE (Appendix F) and permutation (Appendix G) as completed robustness; concurrent policies (BBRA/BIPA) acknowledged
+- Appendix bootstrap reps corrected (200 → 150 to match actual R code)
 - **Next**: Update Overleaf main document path to `paper/paper.tex`; Appendix B (coauthor)
