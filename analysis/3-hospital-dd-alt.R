@@ -235,17 +235,29 @@ for (oname in names(elig_outcome_map)) {
 }
 
 # LaTeX summary table --------------------------------------------------------
-int <- function(lo, hi) sprintf("[%.2f, %.2f]", lo, hi)
+fmt <- function(x) {
+  ax <- abs(x)
+  ifelse(ax < 5, sprintf("%.3f", x),
+  ifelse(ax < 100, sprintf("%.2f", x),
+         sprintf("%.1f", x)))
+}
+int <- function(lo, hi) {
+  ax <- max(abs(lo), abs(hi))
+  d <- ifelse(ax < 5, 2, ifelse(ax < 100, 1, 0))
+  sprintf("[%s, %s]", formatC(lo, format="f", digits=d), formatC(hi, format="f", digits=d))
+}
 
 tex.lines <- elig.results %>%
-  mutate(line = sprintf("%s & %.3f & %s & %d & %.3f & %s \\\\",
-    outcome, sdid_att, int(sdid_ci_low, sdid_ci_high), sdid_ntr,
-    cs_att, int(cs_ci_low, cs_ci_high))) %>%
+  rowwise() %>%
+  mutate(line = sprintf("%s & %s & %s & %d & %s & %s \\\\",
+    outcome, fmt(sdid_att), int(sdid_ci_low, sdid_ci_high), sdid_ntr,
+    fmt(cs_att), int(cs_ci_low, cs_ci_high))) %>%
+  ungroup() %>%
   pull(line)
 
 ## Complete tabular block (LaTeX 2025 breaks \noalign/\omit inside \input within tabular)
 writeLines(c(
-  "\\begin{tabular}{lclrcl}",
+  "\\begin{tabular}{lccrcc}",
   "Outcome & SDID ATT & SDID 95\\% CI & $N_{tr}$ & CS ATT & CS 95\\% CI \\\\",
   tex.lines,
   "\\end{tabular}"
@@ -260,8 +272,8 @@ for (c in sort(unique(elig.cohort.results$cohort))) {
   for (i in 1:nrow(rows)) {
     r <- rows[i, ]
     cohort_tex_lines <- c(cohort_tex_lines,
-      sprintf("%s & %.3f & %s & %d \\\\",
-        r$outcome, r$att, int(r$att - 1.96*r$se, r$att + 1.96*r$se), r$Ntr))
+      sprintf("%s & %s & %s & %d \\\\",
+        r$outcome, fmt(r$att), int(r$att - 1.96*r$se, r$att + 1.96*r$se), r$Ntr))
   }
 }
 writeLines(cohort_tex_lines, "results/att_elig_cohort.tex")

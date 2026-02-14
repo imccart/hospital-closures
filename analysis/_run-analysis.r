@@ -11,7 +11,8 @@
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here, kableExtra,
                fedmatch, scales, zipcodeR, did, fixest, panelView, did2s, dotwhisker, mlogit, readxl,
-               haven, sf, igraph, plotly, synthdid, BMisc, nnet, glmnet, zoo, purrr, grid, rlang, survival)
+               haven, sf, igraph, plotly, synthdid, BMisc, nnet, glmnet, zoo, purrr, grid, rlang, survival,
+               fect)
 
 source('analysis/functions.R')
 
@@ -43,17 +44,29 @@ source('analysis/4-changes-state-dd.R')    # -> state.results.table
 # Combined results table (hospital + state) --------------------------------
 results.table <- bind_rows(hosp.results.table, state.results.table)
 
-int <- function(lo, hi) sprintf("[%.2f, %.2f]", lo, hi)
+fmt <- function(x) {
+  ax <- abs(x)
+  ifelse(ax < 5, sprintf("%.3f", x),
+  ifelse(ax < 100, sprintf("%.2f", x),
+         sprintf("%.1f", x)))
+}
+int <- function(lo, hi) {
+  alo <- abs(lo); ahi <- abs(hi); ax <- max(alo, ahi)
+  d <- ifelse(ax < 5, 2, ifelse(ax < 100, 1, 0))
+  sprintf("[%s, %s]", formatC(lo, format="f", digits=d), formatC(hi, format="f", digits=d))
+}
 
 ## Main table (SDID only) for paper — complete tabular block
 ## (LaTeX 2025 breaks \noalign/\omit inside \input within tabular)
 tex.lines.sdid <- results.table %>%
-  mutate(line = sprintf("%s & %.3f & %s & %d \\\\",
-    outcome, sdid_att, int(sdid_ci_low, sdid_ci_high), sdid_ntr)) %>%
+  rowwise() %>%
+  mutate(line = sprintf("%s & %s & %s & %d \\\\",
+    outcome, fmt(sdid_att), int(sdid_ci_low, sdid_ci_high), sdid_ntr)) %>%
+  ungroup() %>%
   pull(line)
 
 writeLines(c(
-  "\\begin{tabular}[t]{lclr}",
+  "\\begin{tabular}[t]{lccr}",
   "Outcome & SDID ATT & SDID 95\\% CI & $N_{tr}$ \\\\",
   tex.lines.sdid,
   "\\end{tabular}"
@@ -61,12 +74,14 @@ writeLines(c(
 
 ## CS table for appendix — complete tabular block
 tex.lines.cs <- results.table %>%
-  mutate(line = sprintf("%s & %.3f & %s \\\\",
-    outcome, cs_att, int(cs_ci_low, cs_ci_high))) %>%
+  rowwise() %>%
+  mutate(line = sprintf("%s & %s & %s \\\\",
+    outcome, fmt(cs_att), int(cs_ci_low, cs_ci_high))) %>%
+  ungroup() %>%
   pull(line)
 
 writeLines(c(
-  "\\begin{tabular}{lcl}",
+  "\\begin{tabular}{lcc}",
   "Outcome & CS ATT & CS 95\\% CI \\\\",
   tex.lines.cs,
   "\\end{tabular}"
@@ -133,6 +148,12 @@ ggsave("results/forest-sdid.png", p_forest,
 source('analysis/6-heterogeneity.R')         # -> het.results
 
 
+# Factor-model estimation (fect) ------------------------------------------
+sink("scratch/gsynth-logs.txt", split = TRUE)
+source('analysis/7-gsynth.R')                # -> gsynth.results
+sink()
+
 # Diagnostics and sensitivity ----------------------------------------------
 source('analysis/app-dd-diagnostics.R')
 source('analysis/app-financial-preperiod.R')
+source('analysis/app-permutation.R')         # -> perm.results, permutation-sdid.png

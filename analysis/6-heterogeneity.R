@@ -262,7 +262,17 @@ for (dim_name in unique(het.results$dimension)) {
 
 
 # LaTeX tables (one per dimension) -----------------------------------------
-int <- function(lo, hi) sprintf("[%.2f, %.2f]", lo, hi)
+fmt <- function(x) {
+  ax <- abs(x)
+  ifelse(ax < 5, sprintf("%.3f", x),
+  ifelse(ax < 100, sprintf("%.2f", x),
+         sprintf("%.1f", x)))
+}
+int <- function(lo, hi) {
+  ax <- max(abs(lo), abs(hi))
+  d <- ifelse(ax < 5, 2, ifelse(ax < 100, 1, 0))
+  sprintf("[%s, %s]", formatC(lo, format="f", digits=d), formatC(hi, format="f", digits=d))
+}
 
 for (dim_name in unique(het.results$dimension)) {
   dim_dat <- het.results %>% filter(dimension == dim_name)
@@ -278,21 +288,23 @@ for (dim_name in unique(het.results$dimension)) {
 
   g1 <- grps[1]; g2 <- grps[2]
   tex_lines <- wide %>%
-    mutate(line = sprintf("%s & %.3f & %s & %d & %.3f & %s & %d \\\\",
+    rowwise() %>%
+    mutate(line = sprintf("%s & %s & %s & %d & %s & %s & %d \\\\",
       outcome,
-      .data[[paste0(g1, "_att")]],
+      fmt(.data[[paste0(g1, "_att")]]),
       int(.data[[paste0(g1, "_ci_low")]], .data[[paste0(g1, "_ci_high")]]),
       .data[[paste0(g1, "_ntr")]],
-      .data[[paste0(g2, "_att")]],
+      fmt(.data[[paste0(g2, "_att")]]),
       int(.data[[paste0(g2, "_ci_low")]], .data[[paste0(g2, "_ci_high")]]),
       .data[[paste0(g2, "_ntr")]]
     )) %>%
+    ungroup() %>%
     pull(line)
 
   dim_stub <- tolower(gsub("[^a-z]", "", tolower(dim_name)))
 
   writeLines(c(
-    sprintf("\\begin{tabular}{lclrclr}"),
+    sprintf("\\begin{tabular}{lccrccr}"),
     sprintf(" & \\multicolumn{3}{c}{%s} & \\multicolumn{3}{c}{%s} \\\\", g1, g2),
     sprintf("Outcome & ATT & 95\\%% CI & $N_{tr}$ & ATT & 95\\%% CI & $N_{tr}$ \\\\"),
     tex_lines,

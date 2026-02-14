@@ -1,0 +1,21 @@
+name: Guard Overleaf sync
+
+on: push
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for protected file changes
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 -- \
+            analysis/ data-code/ results/ archived/)
+          if [ -n "$CHANGED" ]; then
+            echo "::error::Protected files were modified:"
+            echo "$CHANGED"
+            exit 1
+          fi

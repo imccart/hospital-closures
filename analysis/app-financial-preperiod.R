@@ -114,8 +114,14 @@ for (oname in names(financial_outcomes)) {
 # Columns: Outcome | Pre=5 ATT [CI] | Pre=4 | Pre=3 | Pre=2
 
 format_cell <- function(att, ci_low, ci_high) {
-  if (is.na(att)) return("---")
-  sprintf("%.3f & [%.2f, %.2f]", att, ci_low, ci_high)
+  if (is.na(att)) return("--- & ---")
+  ax <- abs(att); acx <- max(abs(ci_low), abs(ci_high))
+  d_att <- ifelse(ax < 5, 3, ifelse(ax < 100, 2, 1))
+  d_ci  <- ifelse(acx < 5, 2, ifelse(acx < 100, 1, 0))
+  sprintf("%s & [%s, %s]",
+    formatC(att, format="f", digits=d_att),
+    formatC(ci_low, format="f", digits=d_ci),
+    formatC(ci_high, format="f", digits=d_ci))
 }
 
 tex_lines <- c(

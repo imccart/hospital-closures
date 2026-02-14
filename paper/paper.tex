@@ -30,7 +30,7 @@
 \makeatother
 
 \usepackage[round]{natbib}
-\bibliographystyle{plainnat}
+\bibliographystyle{aer}
 
 %Avoid random spacing
 \raggedbottom
@@ -109,7 +109,7 @@ Using hospital-level CAH designation data from the Flex Monitoring Team, annual 
 
 While CAH designation improves hospital survival, the implications for aggregate inpatient capacity are less clear. Reduced closures preserve capacity that would otherwise be lost, but hospitals that convert to CAH status also reduce beds and staffing to comply with eligibility requirements. To gauge the net effect, we combine our estimated impacts on closures and within-hospital capacity in a simple back-of-the-envelope calculation. Using our point estimates and a conversion rate consistent with observed CAH adoption during the initial rollout, the implied reduction in beds among converting hospitals outweighs the capacity preserved through avoided closures. These calculations are necessarily approximate and sensitive to assumptions about conversion intensity and closure risk, but they highlight an important mechanism: designation-based subsidies may preserve hospital presence primarily by encouraging continued operation at a smaller scale rather than by maintaining pre-designation capacity.
 
-This paper contributes to three related literatures. First, a large body of work studies hospital closures and their consequences for access and patient outcomes \citep{buchmueller2006, holmes2006, lindrooth2003, hsia2011, chandra2023, chatterji2024}. A complementary strand examines the determinants of hospital exit, emphasizing the role of financial distress, payer mix, and local market conditions \citep{sloan2003, harrison2007}. Second, a growing literature evaluates how policy-driven changes in hospital resources affect financial performance and survival. In the context of broad financing reforms, Medicaid expansions are associated with improved hospital margins and reductions in closure risk \citep{blavin2016, lindrooth2018, blavin2021}. Third, we relate to work studying Medicare’s targeted payment adjustments for low-volume or rural providers, which are often justified on access grounds but may change hospitals’ long-run incentives and scale of operation (e.g., through eligibility constraints and compliance requirements).
+This paper contributes to three related literatures. First, a large body of work studies hospital closures and their consequences for access and patient outcomes \citep{buchmueller2006, holmes2006, lindrooth2003, hsia2011, chandra2023-nber31789, chatterji2024}. A complementary strand examines the determinants of hospital exit, emphasizing the role of financial distress, payer mix, and local market conditions \citep{sloan2003, harrison2007}. Second, a growing literature evaluates how policy-driven changes in hospital resources affect financial performance and survival. In the context of broad financing reforms, Medicaid expansions are associated with improved hospital margins and reductions in closure risk \citep{blavin2016, lindrooth2018, blavin2021}. Third, we relate to work studying Medicare’s targeted payment adjustments for low-volume or rural providers, which are often justified on access grounds but may change hospitals’ long-run incentives and scale of operation (e.g., through eligibility constraints and compliance requirements).
 
 Our focus on CAH designation is distinct because it is a designation-based subsidy that simultaneously raises reimbursement and restricts scale, making its net implications for access theoretically ambiguous. Existing work has largely emphasized survival as the principal outcome, with less attention to how policies that prevent closure may simultaneously reshape hospitals’ operational scale and service capacity. Our analysis therefore complements \cite{carroll2025}, who studies CAH designation through simulated revenue changes and closure hazards, by estimating the reduced-form effects of designation itself on a broader set of outcomes—including capital investment, capacity, and staffing—while exploiting the staggered 1999–2002 rollout of state CAH availability. Our main SDID estimates focus on the 1999–2001 cohorts, which capture the core early adoption years of the CAH program. This broader perspective allows us to characterize not only whether hospitals remain open, but how the quantity and scope of care they provide changes when they do.
 
@@ -357,7 +357,7 @@ CAH designation preserves hospital \textit{presence} but not pre-designation \te
 Several extensions would sharpen the analysis. Alternative estimators designed for unbalanced panels, such as the generalized synthetic control method \citep{xu2017}, would allow the full sample to contribute to financial outcome estimates without the attrition imposed by balanced-panel requirements. Downstream analyses linking CAH designation to patient-level outcomes---including emergency department utilization, inpatient mortality, and travel distances---would directly inform the welfare implications of the survival-scale tradeoff documented here.
 
 \pagebreak
-\bibliography{references.bib}
+\bibliography{BibTeX_Library}
 
 
 %%% TABLES AND FIGURES
@@ -372,7 +372,7 @@ Several extensions would sharpen the analysis. Alternative estimators designed f
 \centering
 \begin{minipage}[h]{6in}
 \caption{Staggered rollout of CAH designation by state.}
-\centerline{\includegraphics[scale=0.5]{results/desc-panelview-treat.png}}
+\centerline{\includegraphics[scale=0.5]{../results/desc-panelview-treat.png}}
 \label{fig:desc-panelview-treat}
 \end{minipage}
 \end{figure}
@@ -384,7 +384,7 @@ Several extensions would sharpen the analysis. Alternative estimators designed f
 \centering
 \begin{minipage}[h]{6in}
 \caption{Counts of CAH and non-CAH hospitals, 1980–2019.}
-\centerline{\includegraphics[scale=0.5]{results/desc-hosp-types.png}}
+\centerline{\includegraphics[scale=0.5]{../results/desc-hosp-types.png}}
 \label{fig:desc-hosp-types}
 \end{minipage}
 \end{figure}
@@ -398,7 +398,7 @@ Several extensions would sharpen the analysis. Alternative estimators designed f
 \begin{minipage}[h]{6in}
 \caption[caption]{\textbf{Summary Statistics by CAH Designation}\footnote{Summary statistics for CAH and non-CAH hospitals, with CAHs further divided into years prior to designation, after designation, and all years. Numbers reflect means or counts, and brackets denote the 10th and 90th percentile ranges. Data are limited to general, acute care, community hospitals over the years 1995 through 2010. Distance reflects miles to the nearest neighboring hospital, as calculated as discussed in Section \ref{sec:data}; bed size is from the AHA variable ``BDTOT''; rural status is based on an indicator for whether the hospital is located in a rural CBSA as per the AHA survey; inpatient days is from the AHA variable ``IPDTOT'' and measured per bed; closures and mergers are identified from the AHA summary of changes files; operating margin is total revenue less total expenses, divided by total revenue; current ratio is current assets divided by current liabilities; and system membership indicates whether the hospital belongs to a multi-hospital system. }}
 \centerline{%
-    \input{results/desc_compare.tex}
+    \input{../results/desc_compare.tex}
 }
 \label{tab:summary-by-cah}
 \end{minipage}
@@ -412,9 +412,9 @@ Several extensions would sharpen the analysis. Alternative estimators designed f
 \begin{minipage}[h]{6in}
 \caption[caption]{SDID Estimates of CAH Status on Hospital Financial Performance\footnote{Results from synthetic difference-in-differences (DD) on the estimated effect of CAH status on hospital financial outcomes. Panel (a) presents results for hospital operating margin, panel (b) for current ratio, panel (c) for net patient revenue per bed, and panel (d) for total operating expenses per bed. Revenue and expense measures are deflated by the CPI-U and expressed in thousands of 2010 dollars per bed, with mean hospital beds calculated from 1995 up to (not including) the cohort year. The figures present the mean outcome among treated and synthetic control hospitals over time, with the synthetic DD treatment effect estimates noted in the upper right of each figure. We provide estimates of the average treatment effect on the treated (ATT) for each cohort (1999, 2000, and 2001) as well as a weighted average overall ATT, as detailed in the main text.}}
 \begin{tabular}{cc}
-\includegraphics[height=4in,width=2.7in,keepaspectratio]{results/margin-sdid.png} & \includegraphics[height=4in,width=2.7in,keepaspectratio]{results/currentratio-sdid.png} \\
+\includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/margin-sdid.png} & \includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/currentratio-sdid.png} \\
 \small (a) Operating Margin & \small (b) Current Ratio \\
-\includegraphics[height=4in,width=2.7in,keepaspectratio]{results/netpatrev-sdid.png} & \includegraphics[height=4in,width=2.7in,keepaspectratio]{results/totopexp-sdid.png} \\
+\includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/netpatrev-sdid.png} & \includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/totopexp-sdid.png} \\
 \small (c) Net Patient Revenue per Bed & \small (d) Operating Expenses per Bed
 \end{tabular}
 \label{fig:sdid-financial}
@@ -430,7 +430,7 @@ Several extensions would sharpen the analysis. Alternative estimators designed f
 \begin{minipage}[h]{6in}
 \caption[caption]{SDID Estimates of CAH Status on Hospital Capital Stock and Investment\footnote{Results from synthetic difference-in-differences (DD) on the estimated effect of CAH status on hospital capital stock and investment measures. Panel (a) presents results for net fixed assets and panel (b) presents results for capital expenditures. Both measures are deflated by the CPI-U and expressed per bed, with mean hospital beds calculated from 1995 up to (not including) the cohort year. The figures present the mean outcome among treated and synthetic control hospitals over time, with the synthetic DD treatment effect estimates noted in the upper right of each figure. We provide estimates of the average treatment effect on the treated (ATT) for each cohort (1999, 2000, and 2001) as well as a weighted average overall ATT, as detailed in the main text.}}
 \begin{tabular}{cc}
-\includegraphics[height=4in,width=2.7in,keepaspectratio]{results/netfixed-sdid.png} & \includegraphics[height=4in,width=2.7in,keepaspectratio]{results/capex-sdid.png} \\
+\includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/netfixed-sdid.png} & \includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/capex-sdid.png} \\
 \small (a) Net Fixed Assets & \small (b) Capital Expenditures (CapEx)
 \end{tabular}
 \label{fig:sdid-capital}
@@ -445,9 +445,9 @@ Several extensions would sharpen the analysis. Alternative estimators designed f
 \begin{minipage}[h]{6in}
 \caption[caption]{SDID Estimates of CAH Status on Hospital Capacity and Staffing\footnote{Results from synthetic difference-in-differences (DD) on the estimated effect of CAH status on hospital capacity and staffing measures. Panel (a) presents results for total hospital beds, panel (b) presents results for obstetric beds, panel (c) presents results for full time equivalent (FTE) registered nurses (RNs), and panel (d) presents results for total inpatient days per hospital bed. The figures present the mean outcome among treated and synthetic control hospitals over time, with the synthetic DD treatment effect estimates noted in the upper right of each figure. We provide estimates of the average treatment effect on the treated (ATT) for each cohort (1999, 2000, and 2001) as well as a weighted average overall ATT, as detailed in the main text.}}
 \begin{tabular}{cc}
-\includegraphics[height=4in,width=2.7in,keepaspectratio]{results/beds-sdid.png} & \includegraphics[height=4in,width=2.7in,keepaspectratio]{results/beds_ob-sdid.png} \\
+\includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/beds-sdid.png} & \includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/beds_ob-sdid.png} \\
 \small (a) Total Beds & \small (b) Obstetric Beds \\
-\includegraphics[height=4in,width=2.7in,keepaspectratio]{results/ftern-sdid.png} &  \includegraphics[height=4in,width=2.7in,keepaspectratio]{results/ipdays-sdid.png} \\
+\includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/ftern-sdid.png} &  \includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/ipdays-sdid.png} \\
 \small (c) Full Time Equivalent RNs & \small (d) Inpatient Days per Bed
 \end{tabular}
 \label{fig:sdid-capacity}
@@ -463,9 +463,9 @@ Several extensions would sharpen the analysis. Alternative estimators designed f
 \begin{minipage}[h]{6in}
 \caption[caption]{SDID Estimates of CAH Status on Organizational Changes\footnote{Results from synthetic difference-in-differences (DD) on the estimated effect of CAH status on organizational outcomes. Panels (a) and (b) present state-level closures and mergers (counts rescaled by the mean pre-period hospital count to express outcomes per 100 hospitals). Panel (c) presents hospital-level system membership. The figures present the mean outcomes among treated units and synthetic controls, with the synthetic DD treatment effect estimates noted in the upper right of each figure. We provide estimates of the average treatment effect on the treated (ATT) for each cohort (1999, 2000, and 2001) as well as a weighted average overall ATT, as detailed in the main text.}}
 \begin{tabular}{cc}
-\includegraphics[height=4in,width=2.7in,keepaspectratio]{results/closure-rate-sdid.png} & \includegraphics[height=4in,width=2.7in,keepaspectratio]{results/merger-rate-sdid.png} \\
+\includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/closure-rate-sdid.png} & \includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/merger-rate-sdid.png} \\
 \small (a) Closures (per 100 hospitals) & \small (b) Mergers (per 100 hospitals) \\
-\includegraphics[height=4in,width=2.7in,keepaspectratio]{results/system-sdid.png} & \\
+\includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/system-sdid.png} & \\
 \small (c) System Membership &
 \end{tabular}
 \label{fig:sdid-org-change}
@@ -479,7 +479,7 @@ Several extensions would sharpen the analysis. Alternative estimators designed f
 \centering
 \begin{minipage}[h]{6in}
 \caption[caption]{SDID Estimates across Control Group Constructions\footnote{Forest plot comparing SDID ATT estimates from the state-timing control group (filled circles) and the eligibility-restricted control group (open circles). Each row corresponds to a single outcome, with point estimates and 95\% confidence intervals. The eligibility-restricted design uses all non-CAH or not-yet-CAH hospitals with $\leq 50$ beds as controls regardless of state-level adoption timing, with cohorts spanning 1999--2005. Closures and mergers are estimated at the state level and are available only for the state-timing design.}}
-\centerline{\includegraphics[width=5.5in,height=8in,keepaspectratio]{results/forest-sdid.png}}
+\centerline{\includegraphics[width=5.5in,height=8in,keepaspectratio]{../results/forest-sdid.png}}
 \label{fig:forest-sdid}
 \end{minipage}
 \end{figure}
@@ -491,7 +491,7 @@ Several extensions would sharpen the analysis. Alternative estimators designed f
 \centering
 \begin{minipage}[h]{6in}
 \caption[caption]{Heterogeneity in SDID Treatment Effects\footnote{Forest plots of subgroup-specific SDID ATT estimates from the eligibility-restricted design (cohorts 1999--2005). Each panel displays a different heterogeneity dimension; within each panel, rows correspond to outcomes and points distinguish the two subgroups. Horizontal bars denote 95\% confidence intervals. Ownership splits government versus nonprofit hospitals (excluding for-profits). Geographic isolation splits hospitals above versus below the treated-hospital median distance to the nearest hospital. Pre-treatment margin splits hospitals above versus below the treated-hospital median operating margin over 1996--1998. System membership splits hospitals that were versus were not members of a multi-hospital system prior to CAH designation.}}
-\centerline{\includegraphics[width=\textwidth]{results/het-forest-combined.png}}
+\centerline{\includegraphics[width=\textwidth]{../results/het-forest-combined.png}}
 \label{fig:het-forest}
 \end{minipage}
 \end{figure}
@@ -505,7 +505,7 @@ Several extensions would sharpen the analysis. Alternative estimators designed f
 \begin{minipage}[h]{6in}
 \caption[caption]{\textbf{Summary of SDID ATTs}\footnote{Summary of Average Treatment Effects on the Treated (ATTs) from our synthetic difference-in-differences estimation. The table presents the weighted average overall ATT, as detailed in the main text, along with 95\% confidence intervals. $N_{tr}$ reports the total number of treated units across cohorts in the SDID balanced panel. Callaway--Sant'Anna event-study estimates are reported in the supplemental appendix.}}
 \centerline{%
-    \input{results/att_overall.tex}
+    \input{../results/att_overall.tex}
 }
 \label{tab:sdid-overall}
 \end{minipage}

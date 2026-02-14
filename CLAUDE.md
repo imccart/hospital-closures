@@ -83,8 +83,10 @@ Source repositories:
 - `results/diagnostics/`: Pre-trend plots, CSVs, and LaTeX tabular innards (from `app-dd-diagnostics.R`)
 - `data/output/`: Main analysis datasets (`aha_final.csv`, `aha_neighbors.csv`, crosswalk files)
 - `data/output/fuzzy/`: QA diagnostics from fuzzy matching scripts
-- `paper.tex`: Main LaTeX manuscript (synced with Overleaf)
-- `appendix.tex`: Standalone supplemental appendix (financial measure construction, robustness, SDID diagnostics)
+- `paper/paper.tex`: Main LaTeX manuscript (synced with Overleaf; main document path is `paper/paper.tex`)
+- `paper/appendix.tex`: Standalone supplemental appendix (financial measure construction, robustness, SDID diagnostics)
+- `paper/BibTeX_Library.bib`: Bibliography (copied from canonical `templates/bibliography/`; resync after Zotero updates)
+- `paper/aer.bst`: AER bibliography style
 
 ## Git Preferences
 
@@ -93,7 +95,7 @@ Source repositories:
 
 ## Important Notes
 
-- The manuscript syncs with Overleaf via git. Check for Overleaf merge commits before editing `paper.tex`.
+- The manuscript syncs with Overleaf via git. Main document path is `paper/paper.tex`. Check for Overleaf merge commits before editing.
 - `est.dat` and `state.dat` are the main analysis datasets, built by `_build-estimation-data.r` and written to `data/output/`. `_run-analysis.r` reads these CSVs — it does not rebuild the data. Re-run `_build-estimation-data.r` when underlying data inputs change.
 
 ## Workflow for Experimentation
@@ -113,7 +115,9 @@ The analysis is split into two entry points:
   3. `4-changes-state-dd.R` → `state.results.table`
   4. Assembles combined `results/att_overall.tex` (with `$N_{tr}$` column) from `hosp.results.table` + `state.results.table`
   5. Forest plot (`results/forest-sdid.png`): SDID ATTs comparing state-timing vs eligibility-restricted control groups
-  6. Diagnostics (`app-dd-diagnostics.R`) and sensitivity (`app-financial-preperiod.R`)
+  6. `6-heterogeneity.R` → `het.results`, 4 het tables, combined forest plot
+  7. `7-gsynth.R` → `gsynth.results`, `results/att_gsynth.tex`
+  8. Diagnostics (`app-dd-diagnostics.R`), sensitivity (`app-financial-preperiod.R`), and permutation inference (`app-permutation.R`)
 
 ### DD Scripts Architecture
 
@@ -128,6 +132,8 @@ Each DD script is self-contained: owns its outcome map, loop, results collection
 | `4-changes-state-dd.R` | State | closures, mergers | `state.results.table` | Uses `stack.state`, rates per 100 hospitals, cohorts 1999-2001 |
 | `5-changes-hospital-hazard.R` | Hospital | time-to-closure/merger | — | Survival/hazard models |
 | `6-heterogeneity.R` | Hospital | all hospital-level | `het.results` | Uses `stack.elig`, 4 dimensions, SDID only, `het.fin.pre=3` |
+| `7-gsynth.R` | Hospital | all hospital-level | `gsynth.results`, `att_gsynth.tex` | Uses `stack.elig`, fect IFE, CV r=0-5, `parallel=FALSE`, bootstrap SE |
+| `app-permutation.R` | Hospital | all hospital-level | `perm.results`, `permutation-sdid.png` | Uses `stack.hosp`, 500 permutations, cohorts 1999-2001 |
 
 ### Stacking Functions (`functions.R`)
 
@@ -349,7 +355,7 @@ Attempted to extend margin coverage to 1994-1996 using HCRIS PPS data via `analy
 
 **Pre-trend concerns**: `tot_operating_exp` has significant differential pre-trends in ALL three cohorts (p < 0.002 in each). `net_pat_rev` flags in 1999 (p = 0.003) and marginally in 2001 (p = 0.06); 2000 is clean. However, pre-period sensitivity analysis shows SDID point estimates are stable across pre-period lengths 2-5, suggesting the estimates are not driven by fitting pre-trends.
 
-**Paper/appendix status (2026-02-13)**: paper.tex compiles cleanly (29pp, 1 pre-existing overfull hbox). Section 4.7 (Heterogeneity) added with combined forest plot figure. Discussion rewritten as flowing prose. Section 2 model revised: explicit capacity constraint $\bar{Q}(\theta)$ with $\bar{Q}(1) < \bar{Q}(0)$, formal margin definition, exit threshold with variance-reduction channel. Financial framing throughout paper updated for consistency — margin effect presented as ambiguous (not expected to improve). appendix.tex unchanged (19pp). All `\input`'d tables use complete tabular blocks for LaTeX 2025 compatibility.
+**Paper/appendix status (2026-02-14)**: Both documents moved to `paper/` directory; all `\input`/`\includegraphics` paths updated to `../results/`. Bibliography switched from `references.bib`/`plainnat` to `BibTeX_Library.bib`/`aer`. `chandra2023` cite key updated to `chandra2023-nber31789`. paper.tex compiles cleanly (29pp, 1 pre-existing overfull hbox) with all citations resolved locally. appendix.tex compiles cleanly (21pp). All `\input`'d tables use complete tabular blocks for LaTeX 2025 compatibility.
 
 ### Forward Plan (2026-02-10)
 
@@ -366,7 +372,7 @@ See `scratch/refreport_202602.md` for detailed progress log and plan.
 2. ~~Compile `paper.tex`~~ — 28 pages, 0 errors, 1 pre-existing overfull hbox (2pt, marginal effect equation) (done 2026-02-10)
 3. ~~Compile `appendix.tex`~~ — 19 pages, 0 errors, all 8 `\input`'d tables compile cleanly (done 2026-02-10)
 4. ~~IPW documentation~~ — dropped; IPW is built into the CS estimator, not used manually
-5. Bibliography: `paper.bbl` missing locally (Overleaf handles bibtex; `xu2017` citation undefined without it)
+5. ~~Bibliography~~ — resolved: `BibTeX_Library.bib` + `aer.bst` in `paper/`, all citations compile locally
 
 **Cleanup completed (2026-02-10)**:
 - `0-ipw-weights.R` deleted; `ever_rural` moved inline to `_build-estimation-data.r` (line ~202)
@@ -384,23 +390,30 @@ See `scratch/refreport_202602.md` for detailed progress log and plan.
 - Output: `het_results.csv`, 4 individual forest plots, 1 combined forest plot (`patchwork`), 4 LaTeX tables
 - Key findings: capacity reductions pervasive; nonprofits downsize more than government; below-median margin hospitals have larger FTE/utilization reductions; proximate hospitals join systems, isolated don't
 
-*Priority 2 — ITT and alternative estimators (referee 2a, 1b, 1c)*:
-- ITT specification: state-level program availability as treatment for all eligible hospitals. Eliminates selection, estimates diluted effect. Benchmark against TOT.
-- gsynth/fect: factor-model estimator for financial outcomes. Handles unbalanced panels natively, models differential trends. Addresses pre-trend concerns (1b) and small balanced-panel samples (1c).
-- IV feasibility: state availability as instrument for hospital-level conversion. Explore before committing — weak-instrument concerns with few cohorts.
+*Priority 2 — Alternative estimators (referee 1b, 1c)*:
+- **gsynth/fect**: COMPLETED 2026-02-13 — `7-gsynth.R` (renamed from `7-gsynth-financial.R`), appendix Section F. IFE estimator with CV factor selection (r=0-5, `cv.treat=FALSE`, `parallel=FALSE`), all 11 outcomes, cohorts 1999-2005, bootstrap SE (150 reps via `sd(att.avg.boot)`). Operational outcomes confirm capacity reductions; current ratio significant at -0.275.
+- ~~ITT specification~~: Dropped — doesn't add value given eligibility-restricted design + IFE robustness.
+- ~~IV feasibility~~: Dropped — weak-instrument concerns, redundant with other robustness checks.
 
-*Priority 3 — Permutation inference (referee 2e)*:
-- Permutation/placebo inference for SDID: assign treatment to random control subsets, compute distribution of placebo ATTs. Addresses jackknife limitation with small $N_{tr}$.
+*Priority 3 — Permutation inference (referee 2e)* — **COMPLETED 2026-02-13**:
+- `app-permutation.R`: 500 permutations per outcome on `stack.hosp` (state-timing, cohorts 1999-2001)
+- Multi-panel histogram figure (`results/permutation-sdid.png`) with p-values annotated
+- Appendix Section G; ~55 min runtime
+- Prototype validated: beds p=0.030 (significant)
 
 *Not prioritized but tracked*:
 - Concurrent policy controls (referee 2d): BBA/BBRA/BIPA discussion — may be prose-only in Sec 5 or a control variable
 - Patient outcomes/welfare (referee 2c): downstream access, mortality, travel burden — future work, discussed in Sec 5
 
+## Overleaf Guard
+
+`.github/workflows/guard-overleaf.yml` runs on every push and flags if tracked non-paper directories are modified. Protected: `analysis/`, `data-code/`, `results/`, `archived/`. Gitignored dirs (`data/`, `scratch/`, `background/`) don't need guarding. Only `paper/` should be modified via Overleaf.
+
 ## Last Session
 
-**Date**: 2026-02-13
+**Date**: 2026-02-14
 
-- Revised Section 2 model: added explicit capacity constraint $\bar{Q}(\theta)$, formal margin $m = 1 - C/R$, exit threshold $\underline{\pi}$ with variance-reduction channel
-- Updated financial framing throughout paper for consistency: intro, model, results all treat margin effect as ambiguous (not expected to improve)
-- Fixed 6 grammar/mechanics issues (abstract wording, set notation, missing period, unclosed paren, subject-verb agreement)
-- **Next**: Phase 2 Priority 2 (ITT, gsynth/fect, IV); heterogeneity tables may need appendix integration
+- Added `.github/workflows/guard-overleaf.yml` to protect code/results from accidental Overleaf modifications
+- Updated `/kickoff` skill: guard workflow template, `background/` in `.gitignore`
+- Moved `supplemental/maps` → `archived/maps`; removed empty `supplemental/`
+- **Next**: Update Overleaf main document path to `paper/paper.tex`; Appendix B (coauthor)
