@@ -12,10 +12,15 @@ jobs:
 
       - name: Check for protected file changes
         run: |
-          CHANGED=$(git diff --name-only HEAD~1 -- \
-            analysis/ data-code/ results/ archived/)
-          if [ -n "$CHANGED" ]; then
-            echo "::error::Protected files were modified:"
-            echo "$CHANGED"
-            exit 1
+          MSG=$(git log -1 --pretty=%s)
+          if echo "$MSG" | grep -qi overleaf; then
+            CHANGED=$(git diff --name-only HEAD~1 -- \
+              analysis/ data-code/ results/ archived/)
+            if [ -n "$CHANGED" ]; then
+              echo "::error::Overleaf commit modified protected files:"
+              echo "$CHANGED"
+              exit 1
+            fi
+          else
+            echo "Non-Overleaf commit, skipping guard."
           fi

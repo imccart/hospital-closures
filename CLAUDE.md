@@ -407,14 +407,11 @@ See `scratch/refreport_202602.md` for detailed progress log and plan.
 
 ## Overleaf Guard
 
-`.github/workflows/guard-overleaf.yml` runs on every push and flags if tracked non-paper directories are modified. Protected: `analysis/`, `data-code/`, `results/`, `archived/`. Gitignored dirs (`data/`, `scratch/`, `background/`) don't need guarding. Only `paper/` should be modified via Overleaf.
+`.github/workflows/guard-overleaf.yml` runs on every push. It only checks protected directories (`analysis/`, `data-code/`, `results/`, `archived/`) when the commit message contains "overleaf" (case-insensitive), matching Overleaf's default "Update on Overleaf." auto-commits. Non-Overleaf pushes skip the guard entirely.
 
 ## Last Session
 
 **Date**: 2026-02-14
 
-- Booktabs formatting for all result tables (R scripts + .tex files); `\addlinespace` between outcome groups
-- Discussion section rewritten: econ style (robustness woven into interpretation) instead of medical-paper "limitations" catalog
-- Paper now references IFE (Appendix F) and permutation (Appendix G) as completed robustness; concurrent policies (BBRA/BIPA) acknowledged
-- Appendix bootstrap reps corrected (200 → 150 to match actual R code)
+- Fixed Overleaf guard workflow: now only checks protected dirs on Overleaf-originated commits (was failing on all pushes)
 - **Next**: Update Overleaf main document path to `paper/paper.tex`; Appendix B (coauthor)
