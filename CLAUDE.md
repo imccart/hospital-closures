@@ -413,6 +413,5 @@ See `scratch/refreport_202602.md` for detailed progress log and plan.
 
 **Date**: 2026-02-14
 
-- Fixed Overleaf guard workflow: now only checks protected dirs on Overleaf-originated commits (was failing on all pushes)
-- Overleaf path update completed separately
+- Resolved Overleaf sync error: re-authorized GitHub integration with workflows permission so Overleaf can sync `.github/workflows/` files
 - **Next**: Appendix B (coauthor — state-level `state.cut` sensitivity)
