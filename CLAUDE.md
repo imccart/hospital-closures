@@ -414,4 +414,5 @@ See `scratch/refreport_202602.md` for detailed progress log and plan.
 **Date**: 2026-02-14
 
 - Fixed Overleaf guard workflow: now only checks protected dirs on Overleaf-originated commits (was failing on all pushes)
-- **Next**: Update Overleaf main document path to `paper/paper.tex`; Appendix B (coauthor)
+- Overleaf path update completed separately
+- **Next**: Appendix B (coauthor — state-level `state.cut` sensitivity)
