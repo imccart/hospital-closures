@@ -117,7 +117,7 @@ The analysis is split into two entry points:
   5. Forest plot (`results/forest-sdid.png`): SDID ATTs comparing state-timing vs eligibility-restricted control groups
   6. `6-heterogeneity.R` → `het.results`, 4 het tables, combined forest plot
   7. `7-gsynth.R` → `gsynth.results`, `results/att_gsynth.tex`
-  8. Diagnostics (`app-dd-diagnostics.R`), sensitivity (`app-financial-preperiod.R`), and permutation inference (`app-permutation.R`)
+  8. Diagnostics (`app-dd-diagnostics.R`), sensitivity (`app-financial-preperiod.R`), permutation inference (`app-permutation.R`), robustness (`app-statecut-sensitivity.R`, `app-bedcut-sensitivity.R`), and anticipation (`app-anticipation.R`)
 
 ### DD Scripts Architecture
 
@@ -134,6 +134,9 @@ Each DD script is self-contained: owns its outcome map, loop, results collection
 | `6-heterogeneity.R` | Hospital | all hospital-level | `het.results` | Uses `stack.elig`, 4 dimensions, SDID only, `het.fin.pre=3` |
 | `7-gsynth.R` | Hospital | all hospital-level | `gsynth.results`, `att_gsynth.tex` | Uses `stack.elig`, fect IFE, CV r=0-5, `parallel=FALSE`, bootstrap SE |
 | `app-permutation.R` | Hospital | all hospital-level | `perm.results`, `permutation-sdid.png` | Uses `stack.hosp`, 500 permutations, cohorts 1999-2001 |
+| `app-statecut-sensitivity.R` | Both | all | `statecut-sensitivity.png` | Varies `state.cut` 1-2; rebuilds stacked datasets; N0≥5 for hospital-level |
+| `app-bedcut-sensitivity.R` | Hospital | all hospital-level | `bedcut-sensitivity.png` | Varies `bed.cut` 25,75; uses existing `stack.hosp`; N0≥5 |
+| `app-anticipation.R` | Hospital | all hospital-level | `att_anticipation.tex` | Shifts treatment to t=-1; uses `stack.elig`, cohorts 1999-2005 |
 
 ### Stacking Functions (`functions.R`)
 
@@ -355,7 +358,7 @@ Attempted to extend margin coverage to 1994-1996 using HCRIS PPS data via `analy
 
 **Pre-trend concerns**: `tot_operating_exp` has significant differential pre-trends in ALL three cohorts (p < 0.002 in each). `net_pat_rev` flags in 1999 (p = 0.003) and marginally in 2001 (p = 0.06); 2000 is clean. However, pre-period sensitivity analysis shows SDID point estimates are stable across pre-period lengths 2-5, suggesting the estimates are not driven by fitting pre-trends.
 
-**Paper/appendix status (2026-02-14)**: Both documents moved to `paper/` directory; all `\input`/`\includegraphics` paths updated to `../results/`. Bibliography switched from `references.bib`/`plainnat` to `BibTeX_Library.bib`/`aer`. `chandra2023` cite key updated to `chandra2023-nber31789`. paper.tex compiles cleanly (29pp, 1 pre-existing overfull hbox) with all citations resolved locally. appendix.tex compiles cleanly (21pp). All `\input`'d tables use complete tabular blocks for LaTeX 2025 compatibility.
+**Paper/appendix status (2026-02-15)**: Both documents in `paper/` directory; all `\input`/`\includegraphics` paths use `../results/`. Bibliography: `BibTeX_Library.bib`/`aer`. paper.tex compiles cleanly (32pp, 1 pre-existing overfull hbox). appendix.tex compiles cleanly (25pp, 0 overfull warnings). All `\input`'d tables use complete tabular blocks for LaTeX 2025 compatibility.
 
 ### Forward Plan (2026-02-10)
 
@@ -365,7 +368,7 @@ See `scratch/refreport_202602.md` for detailed progress log and plan.
 - Section 4.6: eligibility-restricted robustness subsection with forest plot figure
 - Section 5 (Discussion): summary, limitations, policy implications, future directions
 - Typos fixed, date updated, $p_c(\delta)$ explanation added, $\rho$ justification added, CS moved to appendix (Section E)
-- Appendix B: `state.cut` sensitivity (coauthor contributing, still placeholder)
+- ~~Appendix B: `state.cut` sensitivity~~ — COMPLETED 2026-02-15 (state.cut + bed.cut sensitivity forest plots)
 
 **TODO — Before next submission**:
 1. ~~Re-run `_build-estimation-data.r` and `_run-analysis.r` in R~~ (done 2026-02-10)
@@ -376,7 +379,7 @@ See `scratch/refreport_202602.md` for detailed progress log and plan.
 
 **Cleanup completed (2026-02-10)**:
 - `0-ipw-weights.R` deleted; `ever_rural` moved inline to `_build-estimation-data.r` (line ~202)
-- `1-sum-stats.R` cleaned: removed unused figures/views/objects, kept hosp-types + panelview-treat + summary table + complete tabular block
+- `1-sum-stats.R` cleaned: removed unused figures/views/objects, kept hosp-types + panelview-treat + summary table + complete tabular block + anticipation figure (two-panel beds/IP days)
 - Deleted 5 unused PNGs from results/ (desc-closures, desc-mergers, desc-all-changes, desc-changes-by-type, desc-panelview-closures)
 - Panelview OK "missing" issue was caused by Synology Drive syncing a partial CSV write (OK 1987 row truncated to 10 of 19 columns). Fixed by pausing Synology during R rebuild. Not a package or code bug.
 
@@ -411,7 +414,10 @@ See `scratch/refreport_202602.md` for detailed progress log and plan.
 
 ## Last Session
 
-**Date**: 2026-02-14
+**Date**: 2026-02-15
 
-- Resolved Overleaf sync error: re-authorized GitHub integration with workflows permission so Overleaf can sync `.github/workflows/` files
-- **Next**: Appendix B (coauthor — state-level `state.cut` sensitivity)
+- Added anticipation figure to `1-sum-stats.R` (two separate PNGs: `anticipation-beds.png`, `anticipation-ipdays.png`) and paper Section 2 as subfigure panels
+- Created `app-anticipation.R`: redefines treatment at t=-1, compares baseline vs anticipation-adjusted SDID ATTs; capacity effects roughly double (beds -4.1 → -6.2, IP days -6.7 → -20.3)
+- Added appendix Section H (Anticipatory Downsizing) with comparison table
+- Elevated anticipation discussion into paper Section 4.3 (capacity results "may be conservative") and Section 5 (pre-trends at t=-1 reflect mechanism)
+- paper.tex: 32pp, appendix.tex: 25pp, both compile cleanly

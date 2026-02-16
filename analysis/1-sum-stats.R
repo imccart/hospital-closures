@@ -226,3 +226,68 @@ for (i in seq_len(nrow(desc_tab))) {
 tex_lines <- c(tex_lines, "\\bottomrule", "\\end{tabular}")
 
 writeLines(tex_lines, "results/desc_compare.tex")
+
+
+## Anticipation figure: capacity trajectories for treated hospitals ----------
+
+antic_treated <- est.dat %>%
+  filter(!is.na(eff_year), eff_year %in% 1999:2005) %>%
+  group_by(ID) %>%
+  mutate(min_bedsize = min(BDTOT, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(min_bedsize <= 50) %>%
+  mutate(event_time = year - eff_year) %>%
+  filter(event_time >= -5, event_time <= 5)
+
+antic_beds <- antic_treated %>%
+  filter(!is.na(BDTOT)) %>%
+  group_by(event_time) %>%
+  summarise(
+    mean_val = mean(BDTOT, na.rm = TRUE),
+    p25 = quantile(BDTOT, 0.25, na.rm = TRUE),
+    p75 = quantile(BDTOT, 0.75, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
+antic_ipd <- antic_treated %>%
+  filter(!is.na(ip_per_bed)) %>%
+  group_by(event_time) %>%
+  summarise(
+    mean_val = mean(ip_per_bed, na.rm = TRUE),
+    p25 = quantile(ip_per_bed, 0.25, na.rm = TRUE),
+    p75 = quantile(ip_per_bed, 0.75, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
+p_antic_beds <- ggplot(antic_beds, aes(x = event_time)) +
+  geom_ribbon(aes(ymin = p25, ymax = p75), fill = "gray85", alpha = 0.6) +
+  geom_hline(yintercept = 25, linetype = "dotted", linewidth = 0.5,
+             color = "gray40") +
+  geom_vline(xintercept = -0.5, linewidth = 1) +
+  geom_line(aes(y = mean_val), linewidth = 0.8) +
+  geom_point(aes(y = mean_val), size = 1.8) +
+  annotate("text", x = 5, y = 27, label = "25-bed statutory limit",
+           size = 3, color = "gray40", hjust = 1) +
+  scale_x_continuous(breaks = -5:5) +
+  scale_y_continuous(limits = c(20, NA)) +
+  labs(x = "Years relative to CAH designation",
+       y = "Total beds") +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank())
+ggsave("results/anticipation-beds.png", p_antic_beds,
+       width = 6.5, height = 4.25, dpi = 300, scale = 1.5)
+
+p_antic_ipd <- ggplot(antic_ipd, aes(x = event_time)) +
+  geom_ribbon(aes(ymin = p25, ymax = p75), fill = "gray85", alpha = 0.6) +
+  geom_vline(xintercept = -0.5, linewidth = 1) +
+  geom_line(aes(y = mean_val), linewidth = 0.8) +
+  geom_point(aes(y = mean_val), size = 1.8) +
+  scale_x_continuous(breaks = -5:5) +
+  labs(x = "Years relative to CAH designation",
+       y = "Inpatient days per bed") +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank())
+ggsave("results/anticipation-ipdays.png", p_antic_ipd,
+       width = 6.5, height = 4.25, dpi = 300, scale = 1.5)

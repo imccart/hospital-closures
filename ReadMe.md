@@ -22,12 +22,6 @@ Associate Professor • Department of Economics • Emory University<br>
 Research Associate • National Bureau of Economic Research<br>
 [ianmccarthyecon.com](https://www.ianmccarthyecon.com) • [\@ianhealthecon](https://twitter.com/ianhealthecon)<br>
 
-
-**Mayra Pineda-Torres**
-Assistant Professor • Department of Economics • Georgia Tech<br>
-[mayrapinedatorres.com](https://www.mayrapinedatorres.com/)<br>
-
-
 **Katie Leinenbach**
-PhD Student • Department of Economics • Emory University<br>
+Senior Quantitative Analyst • Demand Side Analytics<br>
 [katieleinenbach.com](https://www.katieleinenbach.com/) • [\@katieleinenbach](https://twitter.com/katieleinenbach)<br>

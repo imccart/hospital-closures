@@ -163,11 +163,13 @@ source('analysis/6-heterogeneity.R')         # -> het.results
 
 
 # Factor-model estimation (fect) ------------------------------------------
-sink("scratch/gsynth-logs.txt", split = TRUE)
 source('analysis/7-gsynth.R')                # -> gsynth.results
-sink()
+
 
 # Diagnostics and sensitivity ----------------------------------------------
 source('analysis/app-dd-diagnostics.R')
 source('analysis/app-financial-preperiod.R')
 source('analysis/app-permutation.R')         # -> perm.results, permutation-sdid.png
+source('analysis/app-statecut-sensitivity.R') # -> statecut-sensitivity.png
+source('analysis/app-bedcut-sensitivity.R')   # -> bedcut-sensitivity.png
+source('analysis/app-anticipation.R')         # -> att_anticipation.tex

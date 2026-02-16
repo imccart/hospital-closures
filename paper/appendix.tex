@@ -111,7 +111,25 @@ $$
 \section{Robustness to Varying State-Level CAH Adoption Lags}
 \label{sec:app-robustness}
 
-\textit{[To be completed.]}
+Our main specification constructs the not-yet-treated control group by requiring that a state's first CAH designation occur strictly after the cohort year. Formally, for a treated cohort converting in year $i$, a not-yet-treated hospital enters the control pool only if its state's first CAH designation year satisfies $s > i + \delta$, where $\delta = 0$ in the baseline. Increasing $\delta$ strengthens the exclusion by removing states whose CAH programs begin shortly after the cohort year, reducing the risk that anticipation effects or early program spillovers contaminate the control group. The cost is a smaller control pool, which reduces precision and may alter the composition of comparison units.
+
+Figure~\ref{fig:statecut-sensitivity} presents SDID estimates for all outcomes at $\delta = 1$ and $\delta = 2$ alongside the baseline ($\delta = 0$). We do not report $\delta = 3$ because the earliest cohort (1999) can only draw controls from states adopting in 2003 or later, leaving too few comparison units for reliable estimation. The shaded band in each panel spans the baseline 95\% confidence interval, and the dashed vertical line marks the baseline point estimate. Across all outcomes, the sensitivity estimates remain qualitatively similar to the baseline: capacity reductions, system membership increases, and null margin effects persist at both lag values. Point estimates generally fall within or near the baseline confidence band, confirming that our findings are not driven by contamination from states that adopt CAH programs shortly after the cohort year.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth, height=0.8\textheight, keepaspectratio]{../results/statecut-sensitivity.png}
+\caption{Robustness of SDID estimates to varying state-level CAH adoption lags ($\delta$). Each panel displays one outcome. The shaded band spans the baseline ($\delta = 0$) 95\% confidence interval; the dashed line marks the baseline point estimate. Points show SDID ATTs at $\delta = 1$ and $\delta = 2$, with 95\% confidence intervals. Circles and squares denote $\delta = 1$ and $\delta = 2$, respectively. For hospital-level outcomes, cohort-lag combinations with fewer than 5 control hospitals in the balanced panel are excluded from estimation; missing points indicate that no cohort met this threshold at the given lag.}
+\label{fig:statecut-sensitivity}
+\end{figure}
+
+We also examine sensitivity to the bed size cutoff used to define the sample of plausibly CAH-eligible hospitals. Our baseline restricts to hospitals with 50 or fewer beds, providing a buffer above the statutory 25-bed limit to account for hospitals that downsize to qualify. Figure~\ref{fig:bedcut-sensitivity} reports SDID estimates using cutoffs of 25 and 75 beds. Tightening the cutoff to 25 beds restricts the sample to hospitals already at or below the statutory limit, while relaxing it to 75 beds includes larger hospitals that may be less comparable to CAH converters. State-level outcomes (closures and mergers) are excluded because they do not depend on the hospital-level bed size filter. Across all hospital-level outcomes, the estimates are broadly consistent with the baseline, confirming that the results are not artifacts of the particular bed size threshold.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth, height=0.85\textheight, keepaspectratio]{../results/bedcut-sensitivity.png}
+\caption{Robustness of SDID estimates to varying bed size cutoffs. Each panel displays one hospital-level outcome. The shaded band spans the baseline (50-bed cutoff) 95\% confidence interval; the dashed line marks the baseline point estimate. Points show SDID ATTs at 25-bed and 75-bed cutoffs, with 95\% confidence intervals. Cohort-cutoff combinations with fewer than 5 control hospitals in the balanced panel are excluded.}
+\label{fig:bedcut-sensitivity}
+\end{figure}
 
 
 %%% ===================================================================
@@ -125,17 +143,14 @@ Our primary estimates use the synthetic difference-in-differences (SDID) estimat
 
 %%% TABLE 1: Sample Comparison
 \begin{landscape}
+\enlargethispage{3cm}
 \begin{table}[H]
 \centering
-\caption{Sample Comparison: SDID Balanced Panel vs.\ Callaway--Sant'Anna}
+\caption[Sample Comparison: SDID Balanced Panel vs.\ Callaway--Sant'Anna]{Sample Comparison: SDID Balanced Panel vs.\ Callaway--Sant'Anna. ``Treated'' and ``Control'' report the number of units (hospitals for Panels A--B; states for Panel C) in each estimator's sample. ``\% Lost'' is the percentage of units dropped from the SDID sample when balancing the panel. Hospital-level outcomes filter to hospitals with at most 50 beds in all observed years.}
 \label{tab:diag-sample}
-\small
-\input{../results/diagnostics/diag-sample-comparison.tex}
-\begin{minipage}{0.95\linewidth}
-\vspace{0.3cm}
 \footnotesize
-\textit{Notes:} ``Treated'' and ``Control'' report the number of units (hospitals for Panels A--B; states for Panel C closures and mergers) in each estimator's sample. ``\% Lost'' is the percentage of units dropped from the SDID sample when balancing the panel. Hospital-level outcomes filter to hospitals with at most 50 beds in all observed years.
-\end{minipage}
+\renewcommand{\arraystretch}{0.85}
+\input{../results/diagnostics/diag-sample-comparison.tex}
 \end{table}
 \end{landscape}
 
@@ -282,7 +297,7 @@ As the pre-period shortens, the treated sample grows from 34 hospitals (pre-peri
 \section{Callaway--Sant'Anna Event-Study Estimates and Alternative Control Group Results}
 \label{sec:app-cs}
 
-This section presents two sets of supplementary results. First, we report Callaway--Sant'Anna (CS) event-study estimates for all outcomes, complementing the SDID estimates in the main text. The CS estimator accommodates unbalanced panels and traces dynamic treatment effects over event time, making it a useful complement to SDID in settings where balanced-panel requirements induce substantial sample attrition. Second, we report overall ATT estimates from the eligibility-restricted control group design described in Section~4.6 of the main text.
+This section presents two sets of supplementary results. First, we report Callaway and Sant'Anna (CS) event-study estimates for all outcomes, complementing the SDID estimates in the main text. The CS estimator accommodates unbalanced panels and traces dynamic treatment effects over event time, a useful complement to SDID when balanced-panel requirements induce sample attrition. Second, we report ATT estimates from the eligibility-restricted control group design in Section~4.6 of the main text.
 
 \subsection{CS Overall Results: State-Timing Design}
 
@@ -498,6 +513,26 @@ Figure~\ref{fig:permutation} displays the placebo distributions for all outcomes
 \textit{Notes:} Each panel shows the distribution of 500 placebo SDID ATTs obtained by randomly reassigning treatment labels within each cohort's balanced panel. The dashed red line marks the actual SDID estimate. The $p$-value is the two-sided share of placebo ATTs at least as large in absolute value as the observed ATT.
 \end{minipage}
 \end{figure}
+
+
+\section{Anticipatory Downsizing}
+\label{sec:app-anticipation}
+
+As documented in the main text, hospitals begin reducing beds and utilization in advance of formal CAH designation, consistent with the eligibility requirements imposing real operational constraints that hospitals must satisfy before conversion. If hospitals actively restructure in the year immediately preceding designation, then the standard event-study assumption that treatment begins at $t=0$ may attribute some of the treatment effect to the pre-period, attenuating estimated effects and potentially generating apparent pre-trend violations in capacity outcomes.
+
+To assess the sensitivity of our results to this anticipatory behavior, we re-estimate the SDID specification from the eligibility-restricted design (Section~4.6 of the main text) after redefining treatment as beginning one year before formal CAH designation (i.e., at $t=-1$ rather than $t=0$). This shifts the last pre-treatment period from $t=-1$ to $t=-2$, excluding the year of most active pre-designation adjustment from the donor-matching window. Table~\ref{tab:anticipation} reports the results.
+
+\begin{table}[H]
+\centering
+\caption{SDID Estimates: Baseline vs.\ Anticipation-Adjusted Treatment Timing}
+\label{tab:anticipation}
+\input{../results/att_anticipation.tex}
+\begin{minipage}{0.85\linewidth}
+\vspace{0.3cm}
+\footnotesize
+\textit{Notes:} Both columns report pooled SDID ATTs from the eligibility-restricted design (cohorts 1999--2005). The baseline column defines treatment at the year of formal CAH designation ($t=0$). The anticipation column redefines treatment as starting one year earlier ($t=-1$), so that pre-period matching uses only $t \leq -2$. Confidence intervals are based on jackknife standard errors.
+\end{minipage}
+\end{table}
 
 
 \end{document}
