@@ -210,16 +210,16 @@ write_csv(het.results, "results/het_results.csv")
 
 # Forest plots (one per dimension) -----------------------------------------
 het_forest_labels <- c(
-  "Operating margin"             = "Operating\nmargin",
+  "Operating margin"             = "Op. margin",
   "Current ratio"                = "Current ratio",
-  "Net fixed assets"             = "Net fixed assets",
-  "Capital expenditures per bed" = "Capital expenditures\nper bed",
-  "Net patient revenue per bed"  = "Net patient revenue\nper bed",
-  "Operating expenses per bed"   = "Operating expenses\nper bed",
+  "Net fixed assets"             = "Net fixed\nassets",
+  "Capital expenditures per bed" = "CapEx/bed",
+  "Net patient revenue per bed"  = "Revenue/bed",
+  "Operating expenses per bed"   = "Expenses/bed",
   "Total beds"                   = "Total beds",
   "OB beds"                      = "OB beds",
   "FTE RNs"                      = "FTE RNs",
-  "Inpatient days per bed"       = "Inpatient days\nper bed",
+  "Inpatient days per bed"       = "IP days/bed",
   "System membership"            = "System\nmembership"
 )
 
@@ -348,7 +348,7 @@ make_het_panel <- function(dim_name, show_strip = FALSE) {
 
 dim_names <- unique(het.results$dimension)
 panels <- map(seq_along(dim_names), ~ make_het_panel(dim_names[.x], show_strip = (.x == 1)))
-combined <- wrap_plots(panels, nrow = 1, widths = c(1.6, rep(1, length(dim_names) - 1)))
+combined <- wrap_plots(panels, nrow = 1)
 n_out <- length(unique(het.results$outcome))
 
 ggsave("results/het-forest-combined.png", combined,

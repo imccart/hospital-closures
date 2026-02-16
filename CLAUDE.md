@@ -97,6 +97,7 @@ Source repositories:
 
 - The manuscript syncs with Overleaf via git. Main document path is `paper/paper.tex`. Check for Overleaf merge commits before editing.
 - `est.dat` and `state.dat` are the main analysis datasets, built by `_build-estimation-data.r` and written to `data/output/`. `_run-analysis.r` reads these CSVs — it does not rebuild the data. Re-run `_build-estimation-data.r` when underlying data inputs change.
+- **Table/figure placement**: All tables and figures go at the end of the paper (after bibliography), not inline. Tables are grouped first, then figures in order of first text reference. Each float on its own page with `\clearpage\newpage`.
 
 ## Workflow for Experimentation
 
@@ -414,10 +415,10 @@ See `scratch/refreport_202602.md` for detailed progress log and plan.
 
 ## Last Session
 
-**Date**: 2026-02-15
+**Date**: 2026-02-16
 
-- Added anticipation figure to `1-sum-stats.R` (two separate PNGs: `anticipation-beds.png`, `anticipation-ipdays.png`) and paper Section 2 as subfigure panels
-- Created `app-anticipation.R`: redefines treatment at t=-1, compares baseline vs anticipation-adjusted SDID ATTs; capacity effects roughly double (beds -4.1 → -6.2, IP days -6.7 → -20.3)
-- Added appendix Section H (Anticipatory Downsizing) with comparison table
-- Elevated anticipation discussion into paper Section 4.3 (capacity results "may be conservative") and Section 5 (pre-trends at t=-1 reflect mechanism)
-- paper.tex: 32pp, appendix.tex: 25pp, both compile cleanly
+- Rewrote abstract with results; moved all tables/figures to end of paper (tables first, then figures by text reference order)
+- Fixed em dashes, Unicode en-dashes, straight quotes throughout; final consistency read
+- Fixed heterogeneity forest plot: shortened strip labels (e.g., "Revenue/bed"), equal panel widths via `wrap_plots(panels, nrow=1)` with no explicit widths
+- Paper compiles cleanly: 32pp, 0 errors, 1 pre-existing overfull hbox (marginal effect equation, 2pt)
+- All phases complete; paper and appendix ready for submission
