@@ -1,4 +1,5 @@
 .claude/*
+CLAUDE.md
 data/*
 background/*
 supplemental/*
@@ -7,3 +8,4 @@ scratch/*
 data-code/api-keys.R
 results/diagnostics/*
 *.pdf
+paper/submissions/
