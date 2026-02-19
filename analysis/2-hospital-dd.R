@@ -188,12 +188,14 @@ for (oname in names(hosp_outcome_map)) {
       legend.background = element_blank(),
       legend.key.width = unit(2, "cm")
     ) +
-    annotate("text", x = x_pos, y = y_top,
+    annotate("label", x = x_pos, y = y_top,
              label = att_header, hjust = 0, vjust = 1,
-             size = 3.6, fontface = "bold") +
-    annotate("text", x = x_pos, y = y_top - 0.04*yrange,
+             size = 4.0, fontface = "bold",
+             fill = "white", alpha = 0.85, label.size = 0) +
+    annotate("label", x = x_pos, y = y_top - 0.04*yrange,
              label = att_body, hjust = 0, vjust = 1,
-             size = 3.4, lineheight = 1.05)
+             size = 3.8, lineheight = 1.05,
+             fill = "white", alpha = 0.85, label.size = 0)
 
   ggsave(
     sprintf("results/%s-sdid.png", file_stub),

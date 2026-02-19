@@ -8,12 +8,7 @@
 
 
 # Preliminaries -----------------------------------------------------------
-if (!require("pacman")) install.packages("pacman")
-pacman::p_load(ggplot2, tidyverse, lubridate, stringr, modelsummary, broom, janitor, here, kableExtra,
-               fedmatch, scales, zipcodeR, did, fixest, panelView, did2s, dotwhisker, mlogit, readxl,
-               haven, sf, igraph, plotly, synthdid, BMisc, nnet, glmnet, zoo, purrr, grid, rlang, survival,
-               fect)
-
+source('analysis/0-setup.R')
 source('analysis/functions.R')
 
 
@@ -42,7 +37,26 @@ source('analysis/4-changes-state-dd.R')    # -> state.results.table
 
 
 # Combined results table (hospital + state) --------------------------------
-results.table <- bind_rows(hosp.results.table, state.results.table)
+# Reorder: financial (1-6), capacity (7-10), organizational (closures, mergers, system)
+results.table <- bind_rows(hosp.results.table, state.results.table) %>%
+  mutate(.order = case_when(
+    outcome == "Operating margin"             ~ 1,
+    outcome == "Current ratio"                ~ 2,
+    outcome == "Net fixed assets"             ~ 3,
+    outcome == "Capital expenditures per bed" ~ 4,
+    outcome == "Net patient revenue per bed"  ~ 5,
+    outcome == "Operating expenses per bed"   ~ 6,
+    outcome == "Total beds"                   ~ 7,
+    outcome == "OB beds"                      ~ 8,
+    outcome == "FTE RNs"                      ~ 9,
+    outcome == "Inpatient days per bed"       ~ 10,
+    outcome == "Closures"                     ~ 11,
+    outcome == "Mergers"                      ~ 12,
+    outcome == "System membership"            ~ 13,
+    TRUE                                      ~ 99
+  )) %>%
+  arrange(.order) %>%
+  select(-.order)
 
 fmt <- function(x) {
   ax <- abs(x)
@@ -65,9 +79,9 @@ tex.lines.sdid <- results.table %>%
   ungroup() %>%
   pull(line)
 
-# Insert group separators: financial (1-6), capacity (7-11), organizational (12-13)
+# Insert group separators: financial (1-6), capacity (7-10), organizational (11-13)
 tex.lines.sdid <- append(tex.lines.sdid, "\\addlinespace", after = 6)
-tex.lines.sdid <- append(tex.lines.sdid, "\\addlinespace", after = 12)  # shifted by 1
+tex.lines.sdid <- append(tex.lines.sdid, "\\addlinespace", after = 11)  # shifted by 1
 
 writeLines(c(
   "\\begin{tabular}[t]{lccr}",
@@ -87,9 +101,9 @@ tex.lines.cs <- results.table %>%
   ungroup() %>%
   pull(line)
 
-# Insert group separators: financial (1-6), capacity (7-11), organizational (12-13)
+# Insert group separators: financial (1-6), capacity (7-10), organizational (11-13)
 tex.lines.cs <- append(tex.lines.cs, "\\addlinespace", after = 6)
-tex.lines.cs <- append(tex.lines.cs, "\\addlinespace", after = 12)  # shifted by 1
+tex.lines.cs <- append(tex.lines.cs, "\\addlinespace", after = 11)  # shifted by 1
 
 writeLines(c(
   "\\begin{tabular}{lcc}",
@@ -115,9 +129,9 @@ forest_labels <- c(
   "OB beds" = "OB beds",
   "FTE RNs" = "FTE RNs",
   "Inpatient days per bed" = "Inpatient days\nper bed",
-  "System membership" = "System\nmembership",
   "Closures" = "Closures",
-  "Mergers" = "Mergers"
+  "Mergers" = "Mergers",
+  "System membership" = "System\nmembership"
 )
 
 forest_dat <- bind_rows(

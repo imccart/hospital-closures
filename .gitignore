@@ -1,11 +1,54 @@
+# Claude Code instructions (local only, not for public repos)
 .claude/*
+.claudeignore
 CLAUDE.md
+
+# Data (track code, not data)
 data/*
+
+# Background literature
 background/*
+
+# Supplemental/archived
 supplemental/*
 archived/*
+
+# Scratch/temporary files
 scratch/*
+
+# Sensitive files
 data-code/api-keys.R
+
+# Results diagnostics (not for GitHub)
 results/diagnostics/*
-*.pdf
+
+# Submission folders
 paper/submissions/
+
+# PDFs
+*.pdf
+
+# LaTeX intermediate files
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.run.xml
+*.synctex.gz
+*.lof
+*.lot
+*.idx
+*.ilg
+*.ind
+
+# OS files
+.DS_Store
+Thumbs.db

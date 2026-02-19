@@ -180,6 +180,9 @@ for (dim_name in names(het_dims)) {
                 dim_name, grp_name, length(unique(stack_sub$ID))))
 
     for (oname in names(het_outcome_map)) {
+      # Skip self-referential: estimating system outcome split by system dimension
+      if (dim_name == "system" && oname == "system") next
+
       o  <- het_outcome_map[[oname]]
       pp <- if (!is.null(o$pre_period)) o$pre_period else 5
 
@@ -313,7 +316,6 @@ for (dim_name in unique(het.results$dimension)) {
 }
 
 # Combined forest plot (all dimensions side-by-side) -----------------------
-pacman::p_load(patchwork)
 
 make_het_panel <- function(dim_name, show_strip = FALSE) {
   dim_dat <- het.results %>%

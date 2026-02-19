@@ -37,6 +37,12 @@ cah.desc <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     bed_mean   = mean(BDTOT, na.rm = TRUE),
     bed_p10    = quantile(BDTOT, 0.10, na.rm = TRUE),
     bed_p90    = quantile(BDTOT, 0.90, na.rm = TRUE),
+    ob_mean    = mean(OBBD, na.rm = TRUE),
+    ob_p10     = quantile(OBBD, 0.10, na.rm = TRUE),
+    ob_p90     = quantile(OBBD, 0.90, na.rm = TRUE),
+    ftern_mean = mean(FTERN, na.rm = TRUE),
+    ftern_p10  = quantile(FTERN, 0.10, na.rm = TRUE),
+    ftern_p90  = quantile(FTERN, 0.90, na.rm = TRUE),
     dist_mean  = mean(distance, na.rm = TRUE),
     dist_p10   = quantile(distance, 0.10, na.rm = TRUE),
     dist_p90   = quantile(distance, 0.90, na.rm = TRUE),
@@ -60,7 +66,7 @@ cah.desc <- est.dat %>% filter(year>=1995 & year<=2010) %>%
          system_mean = system_mean * 100) %>%
   mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%
   mutate(across(-c(closures, mergers, hospitals, obs), ~round(., 2))) %>%
-  mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%
+  mutate(across(c(bed_p10, bed_p90, ob_p10, ob_p90), ~round(.,0))) %>%
   rename_with(~paste0(., "_cah"))
 
 
@@ -70,6 +76,12 @@ cah.pre <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     bed_mean   = mean(BDTOT, na.rm = TRUE),
     bed_p10    = quantile(BDTOT, 0.10, na.rm = TRUE),
     bed_p90    = quantile(BDTOT, 0.90, na.rm = TRUE),
+    ob_mean    = mean(OBBD, na.rm = TRUE),
+    ob_p10     = quantile(OBBD, 0.10, na.rm = TRUE),
+    ob_p90     = quantile(OBBD, 0.90, na.rm = TRUE),
+    ftern_mean = mean(FTERN, na.rm = TRUE),
+    ftern_p10  = quantile(FTERN, 0.10, na.rm = TRUE),
+    ftern_p90  = quantile(FTERN, 0.90, na.rm = TRUE),
     dist_mean  = mean(distance, na.rm = TRUE),
     dist_p10   = quantile(distance, 0.10, na.rm = TRUE),
     dist_p90   = quantile(distance, 0.90, na.rm = TRUE),
@@ -93,7 +105,7 @@ cah.pre <- est.dat %>% filter(year>=1995 & year<=2010) %>%
          system_mean = system_mean * 100) %>%
   mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%
   mutate(across(-c(closures, mergers, hospitals, obs), ~round(., 2))) %>%
-  mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%
+  mutate(across(c(bed_p10, bed_p90, ob_p10, ob_p90), ~round(.,0))) %>%
   rename_with(~paste0(., "_cahpre"))
 
 
@@ -103,6 +115,12 @@ cah.post <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     bed_mean   = mean(BDTOT, na.rm = TRUE),
     bed_p10    = quantile(BDTOT, 0.10, na.rm = TRUE),
     bed_p90    = quantile(BDTOT, 0.90, na.rm = TRUE),
+    ob_mean    = mean(OBBD, na.rm = TRUE),
+    ob_p10     = quantile(OBBD, 0.10, na.rm = TRUE),
+    ob_p90     = quantile(OBBD, 0.90, na.rm = TRUE),
+    ftern_mean = mean(FTERN, na.rm = TRUE),
+    ftern_p10  = quantile(FTERN, 0.10, na.rm = TRUE),
+    ftern_p90  = quantile(FTERN, 0.90, na.rm = TRUE),
     dist_mean  = mean(distance, na.rm = TRUE),
     dist_p10   = quantile(distance, 0.10, na.rm = TRUE),
     dist_p90   = quantile(distance, 0.90, na.rm = TRUE),
@@ -126,7 +144,7 @@ cah.post <- est.dat %>% filter(year>=1995 & year<=2010) %>%
          system_mean = system_mean * 100) %>%
   mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%
   mutate(across(-c(closures, mergers, hospitals, obs), ~round(., 2))) %>%
-  mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%
+  mutate(across(c(bed_p10, bed_p90, ob_p10, ob_p90), ~round(.,0))) %>%
   rename_with(~paste0(., "_cahpost"))
 
 
@@ -136,6 +154,12 @@ non.cah.desc <- est.dat %>% filter(year>=1995 & year<=2010) %>%
     bed_mean   = mean(BDTOT, na.rm = TRUE),
     bed_p10    = quantile(BDTOT, 0.10, na.rm = TRUE),
     bed_p90    = quantile(BDTOT, 0.90, na.rm = TRUE),
+    ob_mean    = mean(OBBD, na.rm = TRUE),
+    ob_p10     = quantile(OBBD, 0.10, na.rm = TRUE),
+    ob_p90     = quantile(OBBD, 0.90, na.rm = TRUE),
+    ftern_mean = mean(FTERN, na.rm = TRUE),
+    ftern_p10  = quantile(FTERN, 0.10, na.rm = TRUE),
+    ftern_p90  = quantile(FTERN, 0.90, na.rm = TRUE),
     dist_mean  = mean(distance, na.rm = TRUE),
     dist_p10   = quantile(distance, 0.10, na.rm = TRUE),
     dist_p90   = quantile(distance, 0.90, na.rm = TRUE),
@@ -159,16 +183,21 @@ non.cah.desc <- est.dat %>% filter(year>=1995 & year<=2010) %>%
          system_mean = system_mean * 100) %>%
   mutate(across(c(ip_days, ip_days_p10, ip_days_p90), ~round(., 2))) %>%
   mutate(across(-c(closures, mergers, hospitals, obs), ~round(., 2))) %>%
-  mutate(across(c(bed_p10, bed_p90), ~round(.,0))) %>%
+  mutate(across(c(bed_p10, bed_p90, ob_p10, ob_p90), ~round(.,0))) %>%
   rename_with(~paste0(., "_noncah"))
 
 int <- function(lo, hi) sprintf("{}[%.2f, %.2f]", lo, hi)
+int0 <- function(lo, hi) sprintf("{}[%.0f, %.0f]", lo, hi)
 
 make_col <- function(x, suf) {
   c(
     x[[paste0("rural_",       suf)]],
     x[[paste0("bed_mean_",    suf)]],
-    int(x[[paste0("bed_p10_", suf)]],    x[[paste0("bed_p90_", suf)]]),
+    int0(x[[paste0("bed_p10_", suf)]],    x[[paste0("bed_p90_", suf)]]),
+    x[[paste0("ob_mean_",     suf)]],
+    int0(x[[paste0("ob_p10_", suf)]],     x[[paste0("ob_p90_", suf)]]),
+    x[[paste0("ftern_mean_",  suf)]],
+    int(x[[paste0("ftern_p10_",suf)]],    x[[paste0("ftern_p90_",suf)]]),
     x[[paste0("dist_mean_",   suf)]],
     int(x[[paste0("dist_p10_",suf)]],    x[[paste0("dist_p90_",suf)]]),
     x[[paste0("ip_days_",     suf)]],
@@ -180,8 +209,8 @@ make_col <- function(x, suf) {
     x[[paste0("system_mean_", suf)]],
     x[[paste0("closures_",    suf)]],
     x[[paste0("mergers_",     suf)]],
-    x[[paste0("hospitals_",   suf)]],
-    x[[paste0("obs_",         suf)]]
+    format(x[[paste0("hospitals_",   suf)]], big.mark=",", trim=TRUE),
+    format(x[[paste0("obs_",         suf)]], big.mark=",", trim=TRUE)
   )
 }
 
@@ -189,6 +218,8 @@ desc_tab <- tibble(
   Variable = c(
     "Rural (\\%)",
     "Bed size", "",
+    "OB beds", "",
+    "FTE RNs", "",
     "Distance to nearest hospital", "",
     "Inpatient days per bed", "",
     "Operating margin", "",
