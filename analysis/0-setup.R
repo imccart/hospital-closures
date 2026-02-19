@@ -2,36 +2,39 @@
 
 ## Author:        Ian McCarthy
 ## Date Created:  2/18/2026
-## Date Edited:   2/18/2026
-## Description:   Loads packages at fixed versions via groundhog for
-##                reproducibility. Sourced by _build-estimation-data.r
-##                and _run-analysis.r.
+## Date Edited:   2/19/2026
+## Description:   Activates renv and loads packages. Sourced by
+##                _build-estimation-data.r and _run-analysis.r.
 
-# Groundhog setup ---------------------------------------------------------
-
-options(repos = c(CRAN = "https://cran.r-project.org/"))
-if (!require("groundhog", quietly = TRUE)) {
-  install.packages("groundhog")
-  library(groundhog)
-}
-
-# R 4.5.x CRAN window: 2025-04-11 to ~2026-04
-ghog_date <- "2025-10-15"
+# renv activation ---------------------------------------------------------
+source("renv/activate.R")
 
 # Packages ----------------------------------------------------------------
-
-pkgs <- c(
-  "tidyverse", "haven", "readxl", "janitor", "here", "zoo",
-  "fedmatch", "zipcodeR",
-  "fixest", "did", "did2s", "BMisc", "fect",
-  "glmnet", "nnet", "mlogit", "survival",
-  "scales", "plotly", "panelView", "dotwhisker", "patchwork",
-  "sf", "igraph",
-  "modelsummary", "kableExtra", "broom"
-)
-suppressWarnings(groundhog.library(pkgs, ghog_date))
-if (!require("synthdid", quietly = TRUE)) {
-  if (!require("remotes", quietly = TRUE)) install.packages("remotes")
-  remotes::install_github("synth-inference/synthdid")
-}
+library(tidyverse)
+library(haven)
+library(readxl)
+library(janitor)
+library(here)
+library(zoo)
+library(fedmatch)
+library(zipcodeR)
+library(fixest)
+library(did)
+library(did2s)
+library(BMisc)
+library(fect)
+library(glmnet)
+library(nnet)
+library(mlogit)
+library(survival)
+library(scales)
+library(plotly)
+library(panelView)
+library(dotwhisker)
+library(patchwork)
+library(sf)
+library(igraph)
+library(modelsummary)
+library(kableExtra)
+library(broom)
 library(synthdid)
