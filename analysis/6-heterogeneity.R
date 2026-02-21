@@ -323,8 +323,25 @@ make_het_panel <- function(dim_name, show_strip = FALSE) {
     mutate(outcome_label = factor(het_forest_labels[outcome],
                                   levels = het_forest_labels[outcome_order]))
 
+  # Pad missing outcome levels with NA rows so all panels have the same facets
+  all_levels <- levels(dim_dat$outcome_label)
+  present    <- unique(as.character(dim_dat$outcome_label))
+  missing    <- setdiff(all_levels, present)
+  if (length(missing) > 0) {
+    grps <- unique(dim_dat$subgroup)
+    pad  <- expand.grid(subgroup = grps, outcome_label = missing,
+                        stringsAsFactors = FALSE) %>%
+      mutate(outcome_label = factor(outcome_label, levels = all_levels))
+    dim_dat <- bind_rows(dim_dat, pad)
+  }
+
+  # Mark which facets are padding (no real data)
+  dim_dat <- dim_dat %>%
+    mutate(is_padding = outcome_label %in% missing)
+
   p <- ggplot(dim_dat, aes(x = att, y = subgroup, shape = subgroup)) +
-    geom_vline(xintercept = 0, linewidth = 0.3, linetype = "dashed", color = "gray40") +
+    geom_vline(data = ~ filter(.x, !is_padding),
+               aes(xintercept = 0), linewidth = 0.3, linetype = "dashed", color = "gray40") +
     geom_pointrange(aes(xmin = ci_low, xmax = ci_high), size = 0.3, linewidth = 0.3) +
     facet_wrap(~ outcome_label, ncol = 1, scales = "free_x",
                strip.position = "left") +
@@ -350,6 +367,7 @@ make_het_panel <- function(dim_name, show_strip = FALSE) {
 
 dim_names <- unique(het.results$dimension)
 panels <- map(seq_along(dim_names), ~ make_het_panel(dim_names[.x], show_strip = (.x == 1)))
+
 combined <- wrap_plots(panels, nrow = 1)
 n_out <- length(unique(het.results$outcome))
 
