@@ -364,7 +364,7 @@ The distinction between preserving hospital presence and preserving pre-designat
 
 %% --- Tables ---
 
-\begin{table}
+\begin{table}[!h]
 \centering
 \footnotesize
 \begin{minipage}[h]{6in}
@@ -399,19 +399,15 @@ The distinction between preserving hospital presence and preserving pre-designat
 %% Anticipation (ref: Section 2)
 \begin{figure}[htb]
 \centering
-\begin{subfigure}[t]{0.48\textwidth}
-\centering
-\includegraphics[width=\textwidth]{../results/anticipation-beds.png}
-\caption{Total beds}
-\end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.48\textwidth}
-\centering
-\includegraphics[width=\textwidth]{../results/anticipation-ipdays.png}
-\caption{Inpatient days per bed}
-\end{subfigure}
-\caption{Capacity trajectories for hospitals receiving CAH designation. Panel~(a) shows mean total beds with the interquartile range (shaded) and the 25-bed statutory limit (dotted line). Panel~(b) shows mean inpatient days per bed with interquartile range. The vertical line marks the year of CAH designation. Sample includes hospitals in cohorts 1999--2005 with baseline beds $\leq 50$ ($N \approx 1{,}100$ hospital-years at each event-time period).}
+\begin{minipage}[h]{6in}
+\caption[caption]{Capacity Trajectories for CAHs\footnote{The figure depicts the average beds and inpatient days around the time before/after receiving CAH designation. Panel~(a) shows mean total beds with the interquartile range (shaded) and the 25-bed statutory limit (dotted line). Panel~(b) shows mean inpatient days per bed with interquartile range. The vertical line marks the year of CAH designation. Sample includes hospitals in cohorts 1999--2005 with baseline beds $\leq 50$ ($N \approx 1{,}100$ hospital-years at each event-time period).}}
+\begin{tabular}{cc}
+\includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/anticipation-beds.png} &
+\includegraphics[height=4in,width=2.7in,keepaspectratio]{../results/anticipation-ipdays.png} \\
+(a) Total Beds & (b) Inpatient Days per Bed
+\end{tabular}
 \label{fig:anticipation}
+\end{minipage}
 \end{figure}
 
 \clearpage
