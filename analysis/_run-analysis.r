@@ -180,6 +180,9 @@ source('analysis/6-heterogeneity.R')         # -> het.results
 source('analysis/7-gsynth.R')                # -> gsynth.results
 
 
+# Access and health implications --------------------------------------------
+source('analysis/8-access-health.R')          # -> map, histogram, PSA, county CSVs
+
 # Diagnostics and sensitivity ----------------------------------------------
 source('analysis/app-dd-diagnostics.R')
 source('analysis/app-financial-preperiod.R')
@@ -187,3 +190,4 @@ source('analysis/app-permutation.R')         # -> perm.results, permutation-sdid
 source('analysis/app-statecut-sensitivity.R') # -> statecut-sensitivity.png
 source('analysis/app-bedcut-sensitivity.R')   # -> bedcut-sensitivity.png
 source('analysis/app-anticipation.R')         # -> att_anticipation.tex
+
