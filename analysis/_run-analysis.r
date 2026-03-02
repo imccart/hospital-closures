@@ -86,7 +86,7 @@ tex.lines.sdid <- append(tex.lines.sdid, "\\addlinespace", after = 11)  # shifte
 writeLines(c(
   "\\begin{tabular}[t]{lccr}",
   "\\toprule",
-  "Outcome & SDID ATT & SDID 95\\% CI & $N_{tr}$ \\\\",
+  "Outcome & ATT & 95\\% CI & $N_{tr}$ \\\\",
   "\\midrule",
   tex.lines.sdid,
   "\\bottomrule",

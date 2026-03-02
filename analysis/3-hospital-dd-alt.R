@@ -263,7 +263,7 @@ tex.lines <- append(tex.lines, "\\addlinespace", after = 11)  # shifted by 1
 writeLines(c(
   "\\begin{tabular}{lccrcc}",
   "\\toprule",
-  "Outcome & SDID ATT & SDID 95\\% CI & $N_{tr}$ & CS ATT & CS 95\\% CI \\\\",
+  "Outcome & ATT & 95\\% CI & $N_{tr}$ & CS ATT & CS 95\\% CI \\\\",
   "\\midrule",
   tex.lines,
   "\\bottomrule",
@@ -271,7 +271,7 @@ writeLines(c(
 ), "results/att_elig_overall.tex")
 
 ## Cohort-specific SDID LaTeX output
-cohort_tex_lines <- c("Outcome & SDID ATT & SDID 95\\% CI & $N_{tr}$ \\\\")
+cohort_tex_lines <- c("Outcome & ATT & 95\\% CI & $N_{tr}$ \\\\")
 for (c in sort(unique(elig.cohort.results$cohort))) {
   cohort_tex_lines <- c(cohort_tex_lines,
     sprintf("\\midrule\n\\multicolumn{4}{l}{\\textit{Cohort %d}} \\\\", c))

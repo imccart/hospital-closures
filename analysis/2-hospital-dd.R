@@ -304,7 +304,7 @@ int <- function(lo, hi) {
   sprintf("[%s, %s]", formatC(lo, format="f", digits=d), formatC(hi, format="f", digits=d))
 }
 
-cohort_tex_lines <- c("Outcome & SDID ATT & SDID 95\\% CI & $N_{tr}$ \\\\")
+cohort_tex_lines <- c("Outcome & ATT & 95\\% CI & $N_{tr}$ \\\\")
 for (c in sort(unique(hosp.cohort.results$cohort))) {
   cohort_tex_lines <- c(cohort_tex_lines,
     sprintf("\\midrule\n\\multicolumn{4}{l}{\\textit{Cohort %d}} \\\\", c))
