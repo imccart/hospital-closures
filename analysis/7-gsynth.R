@@ -1,7 +1,7 @@
 # Meta --------------------------------------------------------------------
 ## Factor-model estimation (fect) for financial and operational outcomes
-## Addresses referee concerns: pre-trends (1b) and small balanced-panel samples (1c)
-## fect handles unbalanced panels natively via imputation
+## fect handles unbalanced panels natively via imputation, accommodating
+## pre-trend heterogeneity and small balanced-panel samples
 ## Uses eligibility-restricted design (stack.elig), cohorts 1999-2005
 
 # Expects from _run-analysis.r: stack.elig, est.dat, bed.cut, post, financial.pre

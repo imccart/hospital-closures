@@ -1,6 +1,6 @@
 # Meta --------------------------------------------------------------------
 ## Permutation inference for SDID estimates
-## Addresses referee concern about jackknife SE reliability with small N_tr
+## Provides non-parametric inference for SDID with small N_tr
 ## Uses stack.hosp (state-timing design), cohorts 1999-2001
 ## Produces: multi-panel histogram figure + p-value CSV
 

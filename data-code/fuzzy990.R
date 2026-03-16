@@ -17,7 +17,7 @@
 #   - Threshold: 0.80 minimum score
 #
 # EIN handling:
-#   - Manual matches take priority (from Hannah's data)
+#   - Prior manual matches take priority over fuzzy matches
 #   - Fuzzy matches fill in gaps for unmatched AHA IDs
 #   - Multiple EINs per ID are ranked and stored (ein_1, ein_2, ein_3)
 #
@@ -36,7 +36,7 @@
 aha.unique_ids <- aha.variants %>% distinct(ID)
 
 # =============================================================================
-# Get Prior Manual Matches (from Hannah)
+# Get Prior Manual Matches
 # =============================================================================
 
 manual_matches <- form990.data %>%
