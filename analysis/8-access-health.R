@@ -95,6 +95,11 @@ delta_IPD <- hosp.results.table %>%
   filter(outcome == "Inpatient days per bed") %>%
   pull(sdid_att)
 
+delta_IPD_se <- hosp.results.table %>%
+  filter(outcome == "Inpatient days per bed") %>%
+  mutate(se = (sdid_ci_high - sdid_ci_low) / (2 * 1.96)) %>%
+  pull(se)
+
 # Observed rho
 eligible_2005 <- est.dat %>%
   filter(year == 2005, closed == 0, merged == 0,
@@ -105,9 +110,15 @@ rho_obs <- eligible_2005$n_cah / eligible_2005$n_eligible
 
 # Mean beds among pre-CAH hospitals (no bed cut — these are eventual CAHs)
 B_close <- est.dat %>%
-  filter(!is.na(eff_year), year < eff_year) %>%
+  filter(!is.na(eff_year), year < eff_year, year >= 1995, year <= 2010) %>%
   summarize(mean_beds = mean(BDTOT, na.rm = TRUE)) %>%
   pull(mean_beds)
+
+# Mean pre-CAH inpatient days (for IPD net capacity calculation)
+IPD_close <- est.dat %>%
+  filter(!is.na(eff_year), year < eff_year, year >= 1995, year <= 2010) %>%
+  summarize(mean_ipd = mean(IPDTOT, na.rm = TRUE)) %>%
+  pull(mean_ipd)
 
 # Total hospitals in CAH states
 n_hosp_cah_states <- est.dat %>%
@@ -125,9 +136,13 @@ avg_adm_cah <- hosp_2005 %>%
 # Closure mortality calibration (Gujral & Basu 2019: 0.78pp)
 lives_saved_closure <- closures_prevented * avg_adm_cah * 0.0078
 
+rho_star_beds <- (abs(delta_C) / 100 * B_close) / abs(delta_B)
+rho_star_ipd  <- (abs(delta_C) / 100 * IPD_close) / (abs(delta_IPD) * B_close)
+
 cat(sprintf("    delta_B = %.3f, delta_C = %.3f, delta_IPD = %.3f\n",
             delta_B, delta_C, delta_IPD))
-cat(sprintf("    rho_obs = %.3f, B_close = %.1f\n", rho_obs, B_close))
+cat(sprintf("    rho_obs = %.3f, B_close = %.1f, IPD_close = %.1f\n", rho_obs, B_close, IPD_close))
+cat(sprintf("    rho_star_beds = %.4f, rho_star_ipd = %.4f\n", rho_star_beds, rho_star_ipd))
 cat(sprintf("    Closures prevented: %.1f\n", closures_prevented))
 cat(sprintf("    Avg CAH admissions: %.0f\n", avg_adm_cah))
 cat(sprintf("    Lives saved (closure channel): %.1f\n", lives_saved_closure))
@@ -138,27 +153,43 @@ set.seed(42)
 n_draws <- 10000
 
 mc_draws <- tibble(
-  delta_B_draw = rnorm(n_draws, delta_B, delta_B_se),
-  delta_C_draw = rnorm(n_draws, delta_C, delta_C_se),
-  rho_draw     = runif(n_draws, 0.15, 0.45),
-  B_close_draw = rnorm(n_draws, B_close, 10)
+  delta_B_draw   = rnorm(n_draws, delta_B, delta_B_se),
+  delta_C_draw   = rnorm(n_draws, delta_C, delta_C_se),
+  delta_IPD_draw = rnorm(n_draws, delta_IPD, delta_IPD_se),
+  rho_draw       = runif(n_draws, 0.15, 0.45),
+  B_close_draw   = rnorm(n_draws, B_close, 10),
+  IPD_close_draw = rnorm(n_draws, IPD_close, 500)
 ) %>%
   mutate(
     net_beds = (-delta_C_draw / 100) * B_close_draw + rho_draw * delta_B_draw,
     rho_star = ifelse(delta_B_draw != 0,
                       ((-delta_C_draw / 100) * B_close_draw) / (-delta_B_draw),
-                      NA)
+                      NA),
+    net_ipd  = (-delta_C_draw / 100) * IPD_close_draw +
+               rho_draw * (delta_IPD_draw * B_close_draw),
+    rho_star_ipd = ifelse(delta_IPD_draw * B_close_draw != 0,
+                          ((-delta_C_draw / 100) * IPD_close_draw) /
+                          (-(delta_IPD_draw * B_close_draw)),
+                          NA)
   )
 
 mc_summary <- tibble(
-  metric = c("Net beds/hospital", "Break-even rho*"),
+  metric = c("Net beds/hospital", "Break-even rho* (beds)",
+             "Net inpatient days/hospital", "Break-even rho* (IPD)"),
   median = c(median(mc_draws$net_beds, na.rm = TRUE),
-             median(mc_draws$rho_star, na.rm = TRUE)),
+             median(mc_draws$rho_star, na.rm = TRUE),
+             median(mc_draws$net_ipd, na.rm = TRUE),
+             median(mc_draws$rho_star_ipd, na.rm = TRUE)),
   ci_05  = c(quantile(mc_draws$net_beds, 0.05, na.rm = TRUE),
-             quantile(mc_draws$rho_star, 0.05, na.rm = TRUE)),
+             quantile(mc_draws$rho_star, 0.05, na.rm = TRUE),
+             quantile(mc_draws$net_ipd, 0.05, na.rm = TRUE),
+             quantile(mc_draws$rho_star_ipd, 0.05, na.rm = TRUE)),
   ci_95  = c(quantile(mc_draws$net_beds, 0.95, na.rm = TRUE),
-             quantile(mc_draws$rho_star, 0.95, na.rm = TRUE)),
-  prob_positive = c(mean(mc_draws$net_beds > 0, na.rm = TRUE), NA)
+             quantile(mc_draws$rho_star, 0.95, na.rm = TRUE),
+             quantile(mc_draws$net_ipd, 0.95, na.rm = TRUE),
+             quantile(mc_draws$rho_star_ipd, 0.95, na.rm = TRUE)),
+  prob_positive = c(mean(mc_draws$net_beds > 0, na.rm = TRUE), NA,
+                    mean(mc_draws$net_ipd > 0, na.rm = TRUE), NA)
 )
 
 cat("    Monte Carlo summary:\n")
@@ -234,8 +265,9 @@ map_dat <- counties_sf %>%
 
 p_map <- ggplot(map_dat) +
   geom_sf(aes(fill = fill_val), color = "gray80", linewidth = 0.05) +
-  scale_fill_viridis_c(
-    option = "plasma",
+  scale_fill_gradient(
+    low = "gray85",
+    high = "gray15",
     na.value = "gray95",
     name = "Extra travel\n(miles)",
     breaks = c(0, 15, 30, 45, 60),
@@ -255,7 +287,7 @@ cat("    Saved results/map-cah-exposure.png\n")
 
 ## 5b. Monte Carlo figure: net beds per hospital
 p_mc_beds <- ggplot(mc_draws, aes(x = net_beds)) +
-  geom_histogram(bins = 60, fill = "steelblue", color = "white", alpha = 0.8) +
+  geom_histogram(bins = 60, fill = "gray50", color = "white", alpha = 0.8) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "gray40") +
   geom_vline(xintercept = median(mc_draws$net_beds), linetype = "solid", color = "black") +
   annotate("text", x = median(mc_draws$net_beds),
@@ -270,8 +302,28 @@ p_mc_beds <- ggplot(mc_draws, aes(x = net_beds)) +
   theme_bw(base_size = 11) +
   theme(panel.grid.minor = element_blank())
 
-ggsave("results/psa-net-beds.png", p_mc_beds, width = 5.5, height = 4.5, dpi = 300)
+ggsave("results/psa-net-beds.png", p_mc_beds, width = 4, height = 3.5, dpi = 300)
 cat("    Saved results/psa-net-beds.png\n")
+
+## 5b2. Monte Carlo figure: net inpatient days per hospital
+p_mc_ipd <- ggplot(mc_draws, aes(x = net_ipd)) +
+  geom_histogram(bins = 60, fill = "gray50", color = "white", alpha = 0.8) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray40") +
+  geom_vline(xintercept = median(mc_draws$net_ipd), linetype = "solid", color = "black") +
+  annotate("text", x = median(mc_draws$net_ipd),
+           y = Inf, vjust = 1.5, hjust = -0.1,
+           label = sprintf("Median = %.0f", median(mc_draws$net_ipd)),
+           size = 3.2) +
+  annotate("text", x = max(mc_draws$net_ipd) * 0.7,
+           y = Inf, vjust = 3,
+           label = sprintf("P(net > 0) = %.1f%%", 100 * mean(mc_draws$net_ipd > 0)),
+           size = 3.2) +
+  labs(x = "Net inpatient days per hospital", y = "Count") +
+  theme_bw(base_size = 11) +
+  theme(panel.grid.minor = element_blank())
+
+ggsave("results/psa-net-ipd.png", p_mc_ipd, width = 4, height = 3.5, dpi = 300)
+cat("    Saved results/psa-net-ipd.png\n")
 
 ## 5c. Diagnostic CSVs
 write_csv(mc_summary, "results/diagnostics/psa_summary.csv")

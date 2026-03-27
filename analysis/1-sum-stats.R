@@ -71,7 +71,7 @@ cah.desc <- est.dat %>% filter(year>=1995 & year<=2010) %>%
 
 
 cah.pre <- est.dat %>% filter(year>=1995 & year<=2010) %>%
-  filter(ever_cah==1, eff_year >= year) %>%
+  filter(ever_cah==1, eff_year > year) %>%
   summarize(
     bed_mean   = mean(BDTOT, na.rm = TRUE),
     bed_p10    = quantile(BDTOT, 0.10, na.rm = TRUE),
@@ -110,7 +110,7 @@ cah.pre <- est.dat %>% filter(year>=1995 & year<=2010) %>%
 
 
 cah.post <- est.dat %>% filter(year>=1995 & year<=2010) %>%
-  filter(ever_cah==1, eff_year < year) %>%
+  filter(ever_cah==1, eff_year <= year) %>%
   summarize(
     bed_mean   = mean(BDTOT, na.rm = TRUE),
     bed_p10    = quantile(BDTOT, 0.10, na.rm = TRUE),

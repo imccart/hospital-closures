@@ -190,4 +190,5 @@ source('analysis/app-permutation.R')         # -> perm.results, permutation-sdid
 source('analysis/app-statecut-sensitivity.R') # -> statecut-sensitivity.png
 source('analysis/app-bedcut-sensitivity.R')   # -> bedcut-sensitivity.png
 source('analysis/app-anticipation.R')         # -> att_anticipation.tex
+source('analysis/app-control-timing.R')       # -> control-timing-*.png
 
