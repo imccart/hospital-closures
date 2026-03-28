@@ -340,7 +340,7 @@ p_partA <- ggplot() +
              linetype = "dashed", linewidth = 0.5, color = "gray40") +
   geom_vline(xintercept = 0, linewidth = 0.3, color = "black") +
   geom_pointrange(data = partA_plot,
-                  aes(x = att, y = "No immediate\nadopters",
+                  aes(x = att, y = "",
                       xmin = ci_low, xmax = ci_high),
                   size = 0.5, linewidth = 0.5) +
   facet_wrap(~ outcome_label, ncol = 1, scales = "free_x",
@@ -537,7 +537,7 @@ p_partC <- ggplot() +
              linetype = "dashed", linewidth = 0.5, color = "gray40") +
   geom_vline(xintercept = 0, linewidth = 0.3, color = "black") +
   geom_pointrange(data = partC_plot,
-                  aes(x = att, y = "No never-treated\nstates",
+                  aes(x = att, y = "",
                       xmin = ci_low, xmax = ci_high),
                   size = 0.5, linewidth = 0.5) +
   facet_wrap(~ outcome_label, ncol = 1, scales = "free_x",

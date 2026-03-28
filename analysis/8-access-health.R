@@ -109,16 +109,15 @@ eligible_2005 <- est.dat %>%
 rho_obs <- eligible_2005$n_cah / eligible_2005$n_eligible
 
 # Mean beds among pre-CAH hospitals (no bed cut — these are eventual CAHs)
-B_close <- est.dat %>%
-  filter(!is.na(eff_year), year < eff_year, year >= 1995, year <= 2010) %>%
-  summarize(mean_beds = mean(BDTOT, na.rm = TRUE)) %>%
-  pull(mean_beds)
+pre_cah <- est.dat %>%
+  filter(!is.na(eff_year), year < eff_year, year >= 1995, year <= 2010)
+
+B_close    <- mean(pre_cah$BDTOT, na.rm = TRUE)
+B_close_se <- sd(pre_cah$BDTOT, na.rm = TRUE) / sqrt(sum(!is.na(pre_cah$BDTOT)))
 
 # Mean pre-CAH inpatient days (for IPD net capacity calculation)
-IPD_close <- est.dat %>%
-  filter(!is.na(eff_year), year < eff_year, year >= 1995, year <= 2010) %>%
-  summarize(mean_ipd = mean(IPDTOT, na.rm = TRUE)) %>%
-  pull(mean_ipd)
+IPD_close    <- mean(pre_cah$IPDTOT, na.rm = TRUE)
+IPD_close_se <- sd(pre_cah$IPDTOT, na.rm = TRUE) / sqrt(sum(!is.na(pre_cah$IPDTOT)))
 
 # Total hospitals in CAH states
 n_hosp_cah_states <- est.dat %>%
@@ -141,7 +140,8 @@ rho_star_ipd  <- (abs(delta_C) / 100 * IPD_close) / (abs(delta_IPD) * B_close)
 
 cat(sprintf("    delta_B = %.3f, delta_C = %.3f, delta_IPD = %.3f\n",
             delta_B, delta_C, delta_IPD))
-cat(sprintf("    rho_obs = %.3f, B_close = %.1f, IPD_close = %.1f\n", rho_obs, B_close, IPD_close))
+cat(sprintf("    rho_obs = %.3f, B_close = %.1f (SE=%.2f), IPD_close = %.1f (SE=%.1f)\n",
+            rho_obs, B_close, B_close_se, IPD_close, IPD_close_se))
 cat(sprintf("    rho_star_beds = %.4f, rho_star_ipd = %.4f\n", rho_star_beds, rho_star_ipd))
 cat(sprintf("    Closures prevented: %.1f\n", closures_prevented))
 cat(sprintf("    Avg CAH admissions: %.0f\n", avg_adm_cah))
@@ -157,8 +157,8 @@ mc_draws <- tibble(
   delta_C_draw   = rnorm(n_draws, delta_C, delta_C_se),
   delta_IPD_draw = rnorm(n_draws, delta_IPD, delta_IPD_se),
   rho_draw       = runif(n_draws, 0.15, 0.45),
-  B_close_draw   = rnorm(n_draws, B_close, 10),
-  IPD_close_draw = rnorm(n_draws, IPD_close, 500)
+  B_close_draw   = rnorm(n_draws, B_close, B_close_se),
+  IPD_close_draw = rnorm(n_draws, IPD_close, IPD_close_se)
 ) %>%
   mutate(
     net_beds = (-delta_C_draw / 100) * B_close_draw + rho_draw * delta_B_draw,
@@ -302,7 +302,7 @@ p_mc_beds <- ggplot(mc_draws, aes(x = net_beds)) +
   theme_bw(base_size = 11) +
   theme(panel.grid.minor = element_blank())
 
-ggsave("results/psa-net-beds.png", p_mc_beds, width = 4, height = 3.5, dpi = 300)
+ggsave("results/psa-net-beds.png", p_mc_beds, width = 5.5, height = 4.5, dpi = 300)
 cat("    Saved results/psa-net-beds.png\n")
 
 ## 5b2. Monte Carlo figure: net inpatient days per hospital

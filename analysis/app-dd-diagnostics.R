@@ -254,7 +254,6 @@ for (outcome_var in hosp_outcomes) {
     scale_color_manual(values = c("Control" = "gray50", "Treated" = "black")) +
     scale_linetype_manual(values = c("Control" = "dashed", "Treated" = "solid")) +
     labs(
-      title = paste0("Pre/Post Trends: ", outcome_labels[outcome_var]),
       x = "Event Time",
       y = "Mean Outcome",
       color = NULL,
@@ -333,7 +332,6 @@ for (outcome_var in state_outcomes) {
     scale_color_manual(values = c("Control" = "gray50", "Treated" = "black")) +
     scale_linetype_manual(values = c("Control" = "dashed", "Treated" = "solid")) +
     labs(
-      title = paste0("Pre/Post Trends: ", outcome_labels[outcome_var]),
       x = "Event Time",
       y = "Mean Count",
       color = NULL,
