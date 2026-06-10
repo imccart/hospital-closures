@@ -25,6 +25,9 @@ results/diagnostics/*
 # Submission folders
 paper/submissions/
 
+# Archived project emails
+_emails/
+
 # PDFs
 *.pdf
 

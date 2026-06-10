@@ -60,7 +60,10 @@ for (oname in names(gsynth_outcome_map)) {
     ## Need at least 3 treated and 3 control units
     n_tr <- n_distinct(fect.dat$ID_num[fect.dat$post_treat == 1])
     n_co <- n_distinct(fect.dat$ID_num[fect.dat$post_treat == 0])
-    if (n_tr < 3 || n_co < 3) return(NULL)
+    if (n_tr < 3 || n_co < 3) {
+      cat(sprintf("    [gsynth] cohort %d DROPPED: n_tr=%d, n_co=%d (need >=3)\n", c, n_tr, n_co))
+      return(NULL)
+    }
 
     out <- fect(
       data      = as.data.frame(fect.dat),
@@ -71,7 +74,6 @@ for (oname in names(gsynth_outcome_map)) {
       force     = "two-way",
       CV        = TRUE,
       r         = c(0, 5),
-      cv.treat  = FALSE,
       se        = TRUE,
       vartype   = "bootstrap",
       nboots    = 150,
@@ -85,7 +87,12 @@ for (oname in names(gsynth_outcome_map)) {
     tibble(cohort = c, att = att_val, se = se_val, Ntr = n_tr)
   }
 
-  out_all <- map(gsynth.cohorts, possibly(run_fect_cohort, otherwise = NULL))
+  out_all <- map(gsynth.cohorts, function(c) {
+    tryCatch(run_fect_cohort(c),
+             error = function(e) {
+               cat(sprintf("    [gsynth] cohort %d DROPPED: fect error: %s\n", c, conditionMessage(e)))
+               NULL })
+  })
   out_all <- compact(out_all)
   atts_all <- bind_rows(out_all)
 
@@ -93,6 +100,10 @@ for (oname in names(gsynth_outcome_map)) {
     cat(sprintf("    [gsynth] fect failed for all cohorts on %s, skipping\n", oname))
     next
   }
+  ## Transparency: report which cohorts entered the pooled estimate
+  cat(sprintf("    [gsynth] %s: pooled over cohorts %s (of %s requested)\n",
+              outcome_label, paste(atts_all$cohort, collapse = ", "),
+              paste(gsynth.cohorts, collapse = ", ")))
 
   ## Collect cohort-specific results
   gsynth.cohort.results <- bind_rows(gsynth.cohort.results,

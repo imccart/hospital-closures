@@ -181,7 +181,24 @@ Our primary SDID estimates require balanced panels, which can substantially redu
 
 We apply the IFE estimator to all financial and operational outcomes using the eligibility-restricted control group construction (cohorts 1999--2005). Financial outcomes use a five-year pre-period matching the SDID specification; operational outcomes (beds, OB beds, FTE RNs, inpatient days per bed, and system membership) also use a five-year pre-period. For each cohort, we select the number of factors (0--5) by leave-one-out cross-validation and compute bootstrap standard errors (150 replications). Cohort-level ATTs are aggregated using the same treated-count weighting as our SDID estimates.
 
-The IFE estimates are broadly consistent with the main SDID findings (Table~\ref{tab:gsynth}). Capacity outcomes point in the same direction, with beds, OB beds, and FTE RNs all declining, and the magnitudes are comparable. Financial outcomes also align, with operating margin near zero and revenue and expenses both declining, though the IFE revenue and expense estimates are smaller in magnitude and less precise. The IFE estimator retains substantially larger samples (430--875 treated units versus 28--319 for SDID), providing reassurance that the main results are not driven by the balanced-panel restriction.
+The IFE estimates are broadly consistent with the main SDID findings (Table~\ref{tab:gsynth}). Capacity outcomes point in the same direction, with beds, OB beds, and FTE RNs all declining, and the magnitudes are comparable. Financial outcomes also align, with operating margin near zero and revenue and expenses both declining, though the IFE revenue and expense estimates are smaller in magnitude and less precise. The IFE estimator retains substantially larger samples (739--985 treated units versus 28--319 for SDID), providing reassurance that the main results are not driven by the balanced-panel restriction.
+
+\subsection{Distributional Effects on the Operating Margin}
+\label{sec:app-quantile}
+
+The SDID and IFE estimates summarize the average effect of designation on operating margins. An average null could in principle mask effects concentrated in part of the distribution, and in particular among the most distressed hospitals in the lower tail, where closure risk is greatest. To examine this, we estimate the effect of designation at each quantile of the operating margin distribution using a recentered influence function (unconditional quantile) difference-in-differences estimator on the eligibility-restricted sample. We use the raw, un-winsorized margin so that the tails of the distribution are not compressed.
+
+Figure~\ref{fig:margin-quantile} plots the estimated effect across quantiles. The effect is small and statistically insignificant at every quantile, and the estimate at the tenth percentile, where closure-relevant distress would appear, is essentially zero ($-0.001$). The absence of a margin effect therefore holds across the entire distribution rather than only at the mean, and is not concentrated among the most distressed hospitals.
+
+\begin{figure}[!h]
+\centering
+\begin{minipage}[h]{6in}
+\caption[Distributional Effect on the Operating Margin]{\textbf{Distributional Effect of CAH Designation on the Operating Margin}\footnote{Recentered influence function (unconditional quantile) difference-in-differences estimates of the effect of CAH designation on the operating margin, plotted at each quantile of the margin distribution on the eligibility-restricted sample. Estimates use the raw, un-winsorized margin. The shaded region is the 95\% confidence interval, with standard errors clustered by hospital.}}
+\centering
+\includegraphics[width=5in]{../results/margin-quantile-did.png}
+\label{fig:margin-quantile}
+\end{minipage}
+\end{figure}
 
 
 %%% ===================================================================
